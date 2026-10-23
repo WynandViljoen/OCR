@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Snap OCR</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c1f24; --muted:#6b7280; --accent:#2563eb; --line:#e5e7eb; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#111317; --card:#1b1e24; --ink:#e8eaed; --muted:#9aa1ac; --accent:#5b8def; --line:#2a2e36; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width:680px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.4rem; margin:8px 0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  button, label.btn { appearance:none; border:0; background:var(--accent); color:#fff; padding:12px 16px; border-radius:10px;
+    font:inherit; font-weight:600; cursor:pointer; flex:1 1 auto; text-align:center; }
+  button.secondary, label.btn.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=file] { display:none; }
+  select { font:inherit; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .opts { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:12px; color:var(--muted); font-size:.9rem; }
+  img#preview { max-width:100%; border-radius:8px; margin-top:12px; display:none; }
+  progress { width:100%; height:10px; margin-top:12px; display:none; }
+  #status { color:var(--muted); font-size:.9rem; margin-top:8px; min-height:1.3em; }
+  textarea { width:100%; min-height:220px; font:inherit; padding:12px; border-radius:8px; border:1px solid var(--line);
+    background:var(--card); color:var(--ink); resize:vertical; }
+  .hist-item { border-top:1px solid var(--line); padding:10px 0; cursor:pointer; }
+  .hist-item:first-child { border-top:0; }
+  .hist-item small { color:var(--muted); display:block; }
+  .hist-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .hidden { display:none; }
+  footer { text-align:center; color:var(--muted); font-size:.8rem; padding:4px 0 16px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Snap OCR</h1>
+
+  <section class="card">
+    <div class="row">
+      <label class="btn" for="cam">📷 Take photo</label>
+      <label class="btn secondary" for="file">🖼️ Choose image</label>
+    </div>
+    <input id="cam" type="file" accept="image/*" capture="environment">
+    <input id="file" type="file" accept="image/*">
+
+    <div class="opts">
+      <label>Language
+        <select id="lang">
+          <option value="eng">English</option>
+          <option value="fra">French</option>
+          <option value="spa">Spanish</option>
+          <option value="deu">German</option>
+          <option value="ita">Italian</option>
+          <option value="por">Portuguese</option>
+        </select>
+      </label>
+      <label><input type="checkbox" id="enhance" checked> Enhance image</label>
+    </div>
+
+    <img id="preview" alt="Selected photo preview">
+    <progress id="bar" max="1" value="0"></progress>
+    <div id="status"></div>
+  </section>
+
+  <section class="card hidden" id="resultCard">
+    <textarea id="out" aria-label="Recognized text"></textarea>
+    <div class="row" style="margin-top:12px">
+      <button id="copy">Copy</button>
+      <button id="download" class="secondary">Download .txt</button>
+    </div>
+    <div id="conf" class="opts"></div>
+  </section>
+
+  <section class="card hidden" id="histCard">
+    <strong>History</strong> <small style="color:var(--muted)">(stored only on this device)</small>
+    <div id="hist"></div>
+    <div class="row" style="margin-top:12px"><button id="clearHist" class="secondary">Clear history</button></div>
+  </section>
+</main>
+<footer>Snap OCR v<span id="ver"></span></footer>
+
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+const VERSION = '0.01';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
+const $ = id => document.getElementById(id);
+$('ver').textContent = VERSION;
+document.title = 'Snap OCR ' + VERSION;
+const MAX_SIDE = 2200;            // downscale big phone photos for speed
+let worker = null, workerLang = null, busy = false;
+
+function setStatus(msg) { $('status').textContent = msg; }
+
+async function getWorker(lang) {
+  if (worker && workerLang === lang) return worker;
+  if (worker) { await worker.terminate(); worker = null; }
+  worker = await Tesseract.createWorker(lang, 1, {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        $('bar').value = m.progress;
+        setStatus('Reading text… ' + Math.round(m.progress * 100) + '%');
+      } else if (m.status && m.status.includes('loading')) {
+        setStatus('Loading OCR engine (first run only)…');
+      }
+    }
+  });
+  workerLang = lang;
+  return worker;
+}
+
+// Load, fix phone rotation (EXIF), downscale, optionally grayscale + auto-contrast.
+async function prepare(file, enhance) {
+  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(bmp, 0, 0, w, h);
+  if (enhance) {
+    const img = ctx.getImageData(0, 0, w, h), d = img.data;
+    const hist = new Uint32Array(256);
+    for (let i = 0; i < d.length; i += 4) {
+      const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
+      d[i] = d[i+1] = d[i+2] = g; hist[g]++;
+    }
+    // stretch between 1st and 99th percentile
+    const total = w * h; let lo = 0, hi = 255, acc = 0;
+    for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc > total * 0.01) { lo = i; break; } }
+    acc = 0;
+    for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc > total * 0.01) { hi = i; break; } }
+    const span = Math.max(1, hi - lo);
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
+      d[i] = d[i+1] = d[i+2] = v;
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  return c;
+}
+
+async function handleFile(file) {
+  if (!file || busy) return;
+  busy = true;
+  $('preview').src = URL.createObjectURL(file);
+  $('preview').style.display = 'block';
+  $('resultCard').classList.add('hidden');
+  $('bar').style.display = 'block'; $('bar').value = 0;
+  try {
+    setStatus('Preparing image…');
+    const canvas = await prepare(file, $('enhance').checked);
+    const w = await getWorker($('lang').value);
+    const { data } = await w.recognize(canvas);
+    const text = data.text.trim();
+    $('out').value = text || '(No text found. Try better light, hold steady, and fill the frame with the text.)';
+    $('conf').textContent = text ? 'Confidence: ' + Math.round(data.confidence) + '%' : '';
+    $('resultCard').classList.remove('hidden');
+    setStatus('Done.');
+    if (text) saveHistory(text);
+    $('resultCard').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    console.error(e);
+    setStatus('Something went wrong: ' + (e.message || e));
+  } finally {
+    $('bar').style.display = 'none';
+    busy = false;
+  }
+}
+
+['cam', 'file'].forEach(id => $(id).addEventListener('change', e => {
+  handleFile(e.target.files[0]); e.target.value = '';
+}));
+
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('out').value); setStatus('Copied.'); }
+  catch { $('out').select(); document.execCommand('copy'); setStatus('Copied.'); }
+};
+
+$('download').onclick = () => {
+  const blob = new Blob([$('out').value], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ocr-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt';
+  a.click(); URL.revokeObjectURL(a.href);
+};
+
+// ---- history (text only, localStorage) ----
+const KEY = 'snapocr-history';
+function loadHistory() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
+function saveHistory(text) {
+  const h = loadHistory();
+  h.unshift({ t: Date.now(), text });
+  try { localStorage.setItem(KEY, JSON.stringify(h.slice(0, 30))); } catch {}
+  renderHistory();
+}
+function renderHistory() {
+  const h = loadHistory(), box = $('hist');
+  box.innerHTML = '';
+  $('histCard').classList.toggle('hidden', !h.length);
+  h.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'hist-item';
+    const s = document.createElement('small'); s.textContent = new Date(item.t).toLocaleString();
+    const p = document.createElement('span'); p.textContent = item.text.replace(/\s+/g, ' ');
+    div.append(s, p);
+    div.onclick = () => { $('out').value = item.text; $('conf').textContent = ''; $('resultCard').classList.remove('hidden'); $('resultCard').scrollIntoView({ behavior: 'smooth' }); };
+    box.appendChild(div);
+  });
+}
+$('clearHist').onclick = () => { if (confirm('Clear all saved results on this device?')) { localStorage.removeItem(KEY); renderHistory(); } };
+renderHistory();
+</script>
+</body>
+</html>
