@@ -18,13 +18,14 @@
   button, label.btn { appearance:none; border:0; background:var(--accent); color:#fff; padding:12px 16px; border-radius:10px;
     font:inherit; font-weight:600; cursor:pointer; flex:1 1 auto; text-align:center; }
   button.secondary, label.btn.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  button.secondary[aria-pressed="true"] { background:var(--accent); color:#fff; }
   button:disabled { opacity:.5; cursor:default; }
+  button:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   input[type=file] { display:none; }
   select { font:inherit; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
   .opts { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:12px; color:var(--muted); font-size:.9rem; }
-  img#preview { max-width:100%; border-radius:8px; margin-top:12px; display:none; }
   progress { width:100%; height:10px; margin-top:12px; display:none; }
-  #status { color:var(--muted); font-size:.9rem; margin-top:8px; min-height:1.3em; }
+  #status { color:var(--muted); font-size:.9rem; margin-top:8px; min-height:1.3em; overflow-wrap:anywhere; }
   textarea { width:100%; min-height:220px; font:inherit; padding:12px; border-radius:8px; border:1px solid var(--line);
     background:var(--card); color:var(--ink); resize:vertical; }
   .hist-item { border-top:1px solid var(--line); padding:10px 0; cursor:pointer; }
@@ -33,6 +34,19 @@
   .hist-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .hidden { display:none; }
   footer { text-align:center; color:var(--muted); font-size:.8rem; padding:4px 0 16px; }
+
+  /* photo editor: boxes over the photo */
+  .stagewrap { text-align:center; margin-top:12px; }
+  #stage { position:relative; display:inline-block; max-width:100%; line-height:0; border-radius:8px; overflow:hidden;
+    touch-action:none; user-select:none; -webkit-user-select:none; cursor:crosshair; }
+  #view { display:block; max-width:100%; max-height:60vh; width:auto; height:auto; }
+  .box { position:absolute; border:2px dashed #e24b4a; background:rgba(20,20,20,.88); cursor:move; }
+  #stage.keep .box { border-color:#1d9e75; background:rgba(29,158,117,.2); }
+  .box .h { position:absolute; right:0; bottom:0; width:26px; height:26px; background:var(--accent); cursor:nwse-resize;
+    clip-path:polygon(100% 0, 100% 100%, 0 100%); }
+  .box .x { position:absolute; right:0; top:0; width:26px; height:26px; padding:0; border-radius:0 0 0 8px; background:#e24b4a;
+    color:#fff; font-size:18px; line-height:26px; flex:none; }
+  #stage.keep .box .x { background:#1d9e75; }
 </style>
 </head>
 <body>
@@ -61,9 +75,22 @@
       <label><input type="checkbox" id="enhance" checked> Enhance image</label>
     </div>
 
-    <img id="preview" alt="Selected photo preview">
     <progress id="bar" max="1" value="0"></progress>
-    <div id="status"></div>
+    <div id="status" role="status"></div>
+  </section>
+
+  <section class="card hidden" id="editor">
+    <div class="row">
+      <button type="button" id="modeSkip" class="secondary" aria-pressed="true">Skip areas</button>
+      <button type="button" id="modeKeep" class="secondary" aria-pressed="false">Keep only</button>
+    </div>
+    <div class="stagewrap"><div id="stage"><canvas id="view"></canvas></div></div>
+    <div id="boxhint" class="opts"></div>
+    <div class="row" style="margin-top:12px">
+      <button type="button" id="undo" class="secondary">Undo</button>
+      <button type="button" id="clearBoxes" class="secondary">Clear boxes</button>
+    </div>
+    <button type="button" id="scan" style="width:100%;margin-top:12px">Scan text</button>
   </section>
 
   <section class="card hidden" id="resultCard">
@@ -85,23 +112,27 @@
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-const VERSION = '0.01';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
+const VERSION = '0.01a';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
 const $ = id => document.getElementById(id);
 $('ver').textContent = VERSION;
 document.title = 'Snap OCR ' + VERSION;
+
 const MAX_SIDE = 2200;            // downscale big phone photos for speed
 let worker = null, workerLang = null, busy = false;
 
 function setStatus(msg) { $('status').textContent = msg; }
 
 async function getWorker(lang) {
+  if (typeof Tesseract === 'undefined') throw new Error('The OCR library did not load.');
   if (worker && workerLang === lang) return worker;
   if (worker) { await worker.terminate(); worker = null; }
   worker = await Tesseract.createWorker(lang, 1, {
     logger: m => {
       if (m.status === 'recognizing text') {
+        const pct = Math.round(m.progress * 100);
         $('bar').value = m.progress;
-        setStatus('Reading text… ' + Math.round(m.progress * 100) + '%');
+        setStatus('Reading text… ' + pct + '%');
+        $('scan').textContent = 'Reading… ' + pct + '%';
       } else if (m.status && m.status.includes('loading')) {
         setStatus('Loading OCR engine (first run only)…');
       }
@@ -111,49 +142,207 @@ async function getWorker(lang) {
   return worker;
 }
 
-// Load, fix phone rotation (EXIF), downscale, optionally grayscale + auto-contrast.
-async function prepare(file, enhance) {
+// Load a photo, fix phone rotation (EXIF) and downscale. No filters yet.
+async function toCanvas(file) {
   const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
   const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
   const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(bmp, 0, 0, w, h);
-  if (enhance) {
-    const img = ctx.getImageData(0, 0, w, h), d = img.data;
-    const hist = new Uint32Array(256);
-    for (let i = 0; i < d.length; i += 4) {
-      const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
-      d[i] = d[i+1] = d[i+2] = g; hist[g]++;
-    }
-    // stretch between 1st and 99th percentile
-    const total = w * h; let lo = 0, hi = 255, acc = 0;
-    for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc > total * 0.01) { lo = i; break; } }
-    acc = 0;
-    for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc > total * 0.01) { hi = i; break; } }
-    const span = Math.max(1, hi - lo);
-    for (let i = 0; i < d.length; i += 4) {
-      const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
-      d[i] = d[i+1] = d[i+2] = v;
-    }
-    ctx.putImageData(img, 0, 0);
-  }
+  c.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0, w, h);
   return c;
 }
 
-async function handleFile(file) {
+// Grayscale + auto-contrast, in place.
+function enhance(c) {
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  const w = c.width, h = c.height;
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < d.length; i += 4) {
+    const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
+    d[i] = d[i+1] = d[i+2] = g; hist[g]++;
+  }
+  const total = w * h; let lo = 0, hi = 255, acc = 0;
+  for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc > total * 0.01) { lo = i; break; } }
+  acc = 0;
+  for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc > total * 0.01) { hi = i; break; } }
+  const span = Math.max(1, hi - lo);
+  for (let i = 0; i < d.length; i += 4) {
+    const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+// ---------- photo editor: skip or keep boxes ----------
+const stage = $('stage'), view = $('view');
+let srcCanvas = null, boxes = [], els = [], undoStack = [], mode = 'skip', drag = null;
+const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+
+function place(el, b) {
+  el.style.left = b.x * 100 + '%'; el.style.top = b.y * 100 + '%';
+  el.style.width = b.w * 100 + '%'; el.style.height = b.h * 100 + '%';
+}
+
+function updateHint() {
+  const n = boxes.length, s = n === 1 ? 'area' : 'areas';
+  $('boxhint').textContent = !n
+    ? 'Drag on the photo to draw a box. With no boxes, the whole photo is read.'
+    : mode === 'skip' ? n + ' ' + s + ' will be skipped. Drag a box to move it, or drag its corner to resize.'
+                      : 'Only ' + n + ' ' + s + ' will be read. Drag a box to move it, or drag its corner to resize.';
+}
+
+function render() {
+  els.forEach(e => e.remove()); els = [];
+  boxes.forEach((b, i) => {
+    const el = document.createElement('div');
+    el.className = 'box'; el.dataset.i = i;
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove this box');
+    const h = document.createElement('div'); h.className = 'h';
+    el.append(x, h); place(el, b); stage.appendChild(el); els.push(el);
+  });
+  $('undo').disabled = !undoStack.length;
+  $('clearBoxes').disabled = !boxes.length;
+  updateHint();
+}
+
+function setMode(m) {
+  mode = m;
+  stage.classList.toggle('keep', m === 'keep');
+  $('modeSkip').setAttribute('aria-pressed', String(m === 'skip'));
+  $('modeKeep').setAttribute('aria-pressed', String(m === 'keep'));
+  updateHint();
+}
+$('modeSkip').onclick = () => setMode('skip');
+$('modeKeep').onclick = () => setMode('keep');
+
+function rel(e) {
+  const r = stage.getBoundingClientRect();
+  return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height), r };
+}
+
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('.x')) return;               // handled on click
+  const p = rel(e), boxEl = e.target.closest('.box'), pre = JSON.stringify(boxes);
+  if (boxEl && e.target.classList.contains('h')) {
+    drag = { t: 'resize', i: +boxEl.dataset.i, pre };
+  } else if (boxEl) {
+    const i = +boxEl.dataset.i, b = boxes[i];
+    drag = { t: 'move', i, pre, dx: p.x - b.x, dy: p.y - b.y };
+  } else {
+    boxes.push({ x: p.x, y: p.y, w: 0, h: 0 });
+    render();
+    drag = { t: 'draw', i: boxes.length - 1, pre, sx: p.x, sy: p.y };
+  }
+  try { stage.setPointerCapture(e.pointerId); } catch {}
+  e.preventDefault();
+});
+
+stage.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const p = rel(e), b = boxes[drag.i];
+  if (drag.t === 'draw') {
+    b.x = Math.min(drag.sx, p.x); b.y = Math.min(drag.sy, p.y);
+    b.w = Math.abs(p.x - drag.sx); b.h = Math.abs(p.y - drag.sy);
+  } else if (drag.t === 'move') {
+    b.x = clamp(p.x - drag.dx, 0, 1 - b.w); b.y = clamp(p.y - drag.dy, 0, 1 - b.h);
+  } else {
+    b.w = clamp(p.x - b.x, 40 / p.r.width, 1 - b.x);
+    b.h = clamp(p.y - b.y, 40 / p.r.height, 1 - b.y);
+  }
+  place(els[drag.i], b);
+});
+
+function endDrag() {
+  if (!drag) return;
+  const r = stage.getBoundingClientRect(), b = boxes[drag.i];
+  if (drag.t === 'draw' && (b.w * r.width < 24 || b.h * r.height < 24)) {
+    boxes.pop();                                    // too small: treat as a stray tap
+  } else if (JSON.stringify(boxes) !== drag.pre) {
+    undoStack.push(drag.pre);
+  }
+  drag = null;
+  render();
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+stage.addEventListener('click', e => {
+  const x = e.target.closest('.x');
+  if (!x) return;
+  const i = +x.parentElement.dataset.i;
+  undoStack.push(JSON.stringify(boxes));
+  boxes.splice(i, 1);
+  render();
+});
+
+$('undo').onclick = () => {
+  if (!undoStack.length) return;
+  boxes = JSON.parse(undoStack.pop());
+  render();
+};
+$('clearBoxes').onclick = () => {
+  if (!boxes.length) return;
+  undoStack.push(JSON.stringify(boxes));
+  boxes = [];
+  render();
+};
+
+async function loadPhoto(file) {
   if (!file || busy) return;
+  try {
+    setStatus('Loading photo…');
+    srcCanvas = await toCanvas(file);
+    view.width = srcCanvas.width; view.height = srcCanvas.height;
+    view.getContext('2d').drawImage(srcCanvas, 0, 0);
+    boxes = []; undoStack = []; render();
+    $('editor').classList.remove('hidden');
+    $('resultCard').classList.add('hidden');
+    setStatus('Draw boxes over anything to skip, or tap Scan text to read the whole photo.');
+    $('editor').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    console.error(e);
+    setStatus('Could not open that photo: ' + (e.message || e));
+  }
+}
+
+// Build the image the OCR sees: enhance first, then paint skipped areas white
+// (or, in keep mode, white out everything outside the boxes).
+function buildInput() {
+  const work = document.createElement('canvas');
+  work.width = srcCanvas.width; work.height = srcCanvas.height;
+  const ctx = work.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(srcCanvas, 0, 0);
+  if ($('enhance').checked) enhance(work);
+  if (!boxes.length) return work;
+  const W = work.width, H = work.height;
+  const px = b => [Math.round(b.x * W), Math.round(b.y * H), Math.max(1, Math.round(b.w * W)), Math.max(1, Math.round(b.h * H))];
+  if (mode === 'skip') {
+    ctx.fillStyle = '#fff';
+    boxes.forEach(b => ctx.fillRect(...px(b)));
+    return work;
+  }
+  const out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#fff'; octx.fillRect(0, 0, W, H);
+  boxes.forEach(b => { const [x, y, w, h] = px(b); octx.drawImage(work, x, y, w, h, x, y, w, h); });
+  return out;
+}
+
+async function scan() {
+  if (!srcCanvas || busy) return;
   busy = true;
-  $('preview').src = URL.createObjectURL(file);
-  $('preview').style.display = 'block';
   $('resultCard').classList.add('hidden');
   $('bar').style.display = 'block'; $('bar').value = 0;
+  $('scan').disabled = true;
   try {
     setStatus('Preparing image…');
-    const canvas = await prepare(file, $('enhance').checked);
+    const input = buildInput();
     const w = await getWorker($('lang').value);
-    const { data } = await w.recognize(canvas);
+    const { data } = await w.recognize(input);
     const text = data.text.trim();
     $('out').value = text || '(No text found. Try better light, hold steady, and fill the frame with the text.)';
     $('conf').textContent = text ? 'Confidence: ' + Math.round(data.confidence) + '%' : '';
@@ -163,20 +352,23 @@ async function handleFile(file) {
     $('resultCard').scrollIntoView({ behavior: 'smooth' });
   } catch (e) {
     console.error(e);
+    worker = null; workerLang = null;
     setStatus('Something went wrong: ' + (e.message || e));
   } finally {
     $('bar').style.display = 'none';
+    $('scan').disabled = false; $('scan').textContent = 'Scan text';
     busy = false;
   }
 }
+$('scan').onclick = scan;
 
 ['cam', 'file'].forEach(id => $(id).addEventListener('change', e => {
-  handleFile(e.target.files[0]); e.target.value = '';
+  loadPhoto(e.target.files[0]); e.target.value = '';
 }));
 
 $('copy').onclick = async () => {
   try { await navigator.clipboard.writeText($('out').value); setStatus('Copied.'); }
-  catch { $('out').select(); document.execCommand('copy'); setStatus('Copied.'); }
+  catch { $('out').select(); try { document.execCommand('copy'); } catch {} setStatus('Copied.'); }
 };
 
 $('download').onclick = () => {
@@ -212,6 +404,7 @@ function renderHistory() {
 }
 $('clearHist').onclick = () => { if (confirm('Clear all saved results on this device?')) { localStorage.removeItem(KEY); renderHistory(); } };
 renderHistory();
+render();
 </script>
 </body>
 </html>
