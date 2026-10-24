@@ -34,7 +34,9 @@
   .hist-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .hidden { display:none; }
   footer { text-align:center; color:var(--muted); font-size:.8rem; padding:4px 0 16px; }
-  footer svg { display:block; margin:0 auto 4px; }
+  .ducks { display:flex; justify-content:center; gap:6px; margin-bottom:4px; }
+  .ducks svg { display:block; }
+  .ducks .flip { transform:scaleX(-1); }
 
   /* photo editor: boxes over the photo */
   .stagewrap { text-align:center; margin-top:12px; }
@@ -110,20 +112,28 @@
   </section>
 </main>
 <footer>
-  <svg id="duck" width="44" height="40" viewBox="0 0 44 40" role="img" aria-label="Small yellow rubber duck">
-    <ellipse cx="20" cy="27" rx="15" ry="9" fill="#ffd43b"/>
-    <path d="M30 22c3-1 5-4 5-8" fill="none" stroke="#ffd43b" stroke-width="0" />
-    <circle cx="30" cy="14" r="8" fill="#ffd43b"/>
-    <path d="M37 14l6 2.5-6 2.5z" fill="#f08c00"/>
-    <circle cx="32" cy="12" r="1.5" fill="#1c1f24"/>
-    <path d="M9 24c3 5 11 6 15 2" fill="none" stroke="#f5b800" stroke-width="2" stroke-linecap="round"/>
-  </svg>
+  <div class="ducks">
+    <svg width="44" height="40" viewBox="0 0 44 40" role="img" aria-label="Small yellow rubber duck">
+      <ellipse cx="20" cy="27" rx="15" ry="9" fill="#ffd43b"/>
+      <circle cx="30" cy="14" r="8" fill="#ffd43b"/>
+      <path d="M37 14l6 2.5-6 2.5z" fill="#f08c00"/>
+      <circle cx="32" cy="12" r="1.5" fill="#1c1f24"/>
+      <path d="M9 24c3 5 11 6 15 2" fill="none" stroke="#f5b800" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <svg class="flip" width="44" height="40" viewBox="0 0 44 40" role="img" aria-label="Small blue rubber duck">
+      <ellipse cx="20" cy="27" rx="15" ry="9" fill="#4dabf7"/>
+      <circle cx="30" cy="14" r="8" fill="#4dabf7"/>
+      <path d="M37 14l6 2.5-6 2.5z" fill="#f08c00"/>
+      <circle cx="32" cy="12" r="1.5" fill="#1c1f24"/>
+      <path d="M9 24c3 5 11 6 15 2" fill="none" stroke="#228be6" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
   <div>Snap OCR v<span id="ver"></span></div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
-const VERSION = '0.01b';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
+const VERSION = '0.01c';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
 const $ = id => document.getElementById(id);
 $('ver').textContent = VERSION;
 document.title = 'Snap OCR ' + VERSION;
