@@ -101,8 +101,8 @@ check(`boards keep the top ${BOARD_SIZE}`, () => {
   const late = recordRun(s, 'L', 'Zed', { pathMeters: 50, seconds: 9, spare: 1 }, 99);
   assert.equal(result(late, 'shortest').rank, null);
   assert.equal(result(late, 'shortest').improved, false);
-  assert.equal(result(late, 'spare').rank, 1);
   assert.equal(result(late, 'spare').rank, null);
+});
 
 check('levels have separate boards', () => {
   const s: AllScores = {};
