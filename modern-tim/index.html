@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modern TIM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="20" cy="20" r="12" fill="#f5c400" stroke="#1d2440" stroke-width="3" />
+            <g stroke="#1d2440" stroke-width="3" stroke-linecap="round">
+              <path d="M20 3v5M20 32v5M3 20h5M32 20h5M8 8l3.5 3.5M28.5 28.5L32 32M8 32l3.5-3.5M28.5 11.5L32 8" />
+            </g>
+            <circle cx="20" cy="20" r="4" fill="#ffffff" stroke="#1d2440" stroke-width="3" />
+          </svg>
+          <div class="brand-text">
+            <h1>Modern TIM</h1>
+            <span>Machine lab</span>
+          </div>
+        </div>
+        <nav id="levels" class="levels" aria-label="Levels"></nav>
+        <div class="controls">
+          <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+          <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
+          <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
+        </div>
+      </header>
+
+      <main class="layout">
+        <aside class="tray" aria-label="Parts">
+          <h2 class="panel-title">Parts</h2>
+          <div id="palette" class="palette"></div>
+          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them.</p>
+        </aside>
+
+        <section class="stage">
+          <div class="goal-bar">
+            <span class="goal-tag">Goal</span>
+            <span id="goal-text" class="goal-text"></span>
+            <span id="status" class="status" data-kind="edit">Building</span>
+          </div>
+          <div id="stage-area" class="stage-area">
+            <div id="board" class="board">
+              <canvas id="canvas"></canvas>
+              <div id="part-toolbar" class="part-toolbar" hidden>
+                <button id="tb-rot-l" type="button" title="Rotate left (Shift+R)" aria-label="Rotate left">⟲</button>
+                <button id="tb-rot-r" type="button" title="Rotate right (R)" aria-label="Rotate right">⟳</button>
+                <button id="tb-flip" type="button" title="Reverse direction (F)">⇄ Flip</button>
+                <span id="tb-power" class="tb-power" role="group" aria-label="Spring strength">
+                  <span class="tb-label">Strength</span>
+                  <button type="button" data-power="1" title="Soft (1)">1</button>
+                  <button type="button" data-power="2" title="Medium (2)">2</button>
+                  <button type="button" data-power="3" title="Strong (3)">3</button>
+                </span>
+                <button id="tb-delete" type="button" class="tb-delete" title="Remove (Delete)" aria-label="Remove part">✕</button>
+              </div>
+              <div id="zoom-controls" class="zoom-controls" role="group" aria-label="Zoom">
+                <button id="zoom-out" type="button" title="Zoom out (−)" aria-label="Zoom out" disabled>−</button>
+                <button id="zoom-reset" type="button" title="Show the whole board (0)">100%</button>
+                <button id="zoom-in" type="button" title="Zoom in (+)" aria-label="Zoom in">+</button>
+              </div>
+              <div id="toast" class="toast" role="status" aria-live="polite"></div>
+              <div id="solved" class="solved" hidden>
+                <div class="solved-card">
+                  <h2>Solved!</h2>
+                  <p id="solved-learned" class="solved-learned"></p>
+                  <div class="solved-actions">
+                    <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
+                    <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="science" aria-label="Science corner">
+          <div class="sci-card">
+            <span class="eyebrow">Science corner</span>
+            <h2 id="sci-topic"></h2>
+            <p id="sci-text"></p>
+            <div class="try">
+              <span class="eyebrow">Try this</span>
+              <p id="sci-try"></p>
+            </div>
+          </div>
+          <div id="part-info" class="part-info"></div>
+          <label class="toggle"><input type="checkbox" id="show-paths" checked /> Show ball paths</label>
+          <dl class="keys">
+            <div><dt><kbd>Space</kbd></dt><dd>Start / stop</dd></div>
+            <div><dt><kbd>R</kbd></dt><dd>Rotate (or Shift+scroll)</dd></div>
+            <div><dt><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></dt><dd>Zoom (or scroll / pinch)</dd></div>
+            <div><dt>Drag background</dt><dd>Pan when zoomed</dd></div>
+            <div><dt><kbd>F</kbd></dt><dd>Flip direction</dd></div>
+            <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>Spring strength</dd></div>
+            <div><dt><kbd>Del</kbd></dt><dd>Remove part</dd></div>
+            <div><dt><kbd>Ctrl</kbd><kbd>Z</kbd></dt><dd>Undo</dd></div>
+            <div><dt><kbd>Shift</kbd>+click</dt><dd>Place several</dd></div>
+          </dl>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

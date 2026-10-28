@@ -3,429 +3,3238 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Snap OCR</title>
+<title>Modern TIM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&display=swap"
+    />
+<meta name="claude:viewport-fit-sides" content="cover">
 <style>
-  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c1f24; --muted:#6b7280; --accent:#2563eb; --line:#e5e7eb; }
-  @media (prefers-color-scheme: dark) {
-    :root { --bg:#111317; --card:#1b1e24; --ink:#e8eaed; --muted:#9aa1ac; --accent:#5b8def; --line:#2a2e36; }
-  }
-  * { box-sizing:border-box; }
-  body { margin:0; font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-  main { max-width:680px; margin:0 auto; padding:16px; }
-  h1 { font-size:1.4rem; margin:8px 0 16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
-  .row { display:flex; gap:8px; flex-wrap:wrap; }
-  button, label.btn { appearance:none; border:0; background:var(--accent); color:#fff; padding:12px 16px; border-radius:10px;
-    font:inherit; font-weight:600; cursor:pointer; flex:1 1 auto; text-align:center; }
-  button.secondary, label.btn.secondary { background:transparent; color:var(--accent); border:1px solid var(--accent); }
-  button.secondary[aria-pressed="true"] { background:var(--accent); color:#fff; }
-  button:disabled { opacity:.5; cursor:default; }
-  button:focus-visible, select:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  input[type=file] { display:none; }
-  select { font:inherit; padding:8px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
-  .opts { display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:12px; color:var(--muted); font-size:.9rem; }
-  progress { width:100%; height:10px; margin-top:12px; display:none; }
-  #status { color:var(--muted); font-size:.9rem; margin-top:8px; min-height:1.3em; overflow-wrap:anywhere; }
-  textarea { width:100%; min-height:220px; font:inherit; padding:12px; border-radius:8px; border:1px solid var(--line);
-    background:var(--card); color:var(--ink); resize:vertical; }
-  .hist-item { border-top:1px solid var(--line); padding:10px 0; cursor:pointer; }
-  .hist-item:first-child { border-top:0; }
-  .hist-item small { color:var(--muted); display:block; }
-  .hist-item span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .hidden { display:none; }
-  footer { text-align:center; color:var(--muted); font-size:.8rem; padding:4px 0 16px; }
-  .ducks { display:flex; justify-content:center; gap:6px; margin-bottom:4px; }
-  .ducks svg { display:block; }
-  .ducks .flip { transform:scaleX(-1); }
+/* Layout: header with level chips; parts tray | graph-paper board | science corner. Stacks on narrow screens.
+   One bright, light "engineer's notebook" look by design (no dark variant). */
+:root {
+  color-scheme: light;
+  --paper: #eef3fa;
+  --panel: #ffffff;
+  --ink: #1d2440;
+  --muted: #56607d;
+  --line: #d5ddea;
+  --blue: #2f7df6;
+  --go: #1fae6a;
+  --orange: #ff7a1a;
+  --yellow: #f5c400;
+  --danger: #e63946;
+  --blue-soft: #e4eeff;
+  --font-display: 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 14px;
+  --press: 0 3px 0 var(--ink);
+}
 
-  /* photo editor: boxes over the photo */
-  .stagewrap { text-align:center; margin-top:12px; }
-  #stage { position:relative; display:inline-block; max-width:100%; line-height:0; border-radius:8px; overflow:hidden;
-    touch-action:none; user-select:none; -webkit-user-select:none; cursor:crosshair; }
-  #view { display:block; max-width:100%; max-height:60vh; width:auto; height:auto; }
-  .box { position:absolute; border:2px dashed #e24b4a; background:rgba(20,20,20,.88); cursor:move; }
-  #stage.keep .box { border-color:#1d9e75; background:rgba(29,158,117,.2); }
-  .box .h { position:absolute; right:0; bottom:0; width:26px; height:26px; background:var(--accent); cursor:nwse-resize;
-    clip-path:polygon(100% 0, 100% 100%, 0 100%); }
-  .box .x { position:absolute; right:0; top:0; width:26px; height:26px; padding:0; border-radius:0 0 0 8px; background:#e24b4a;
-    color:#fff; font-size:18px; line-height:26px; flex:none; }
-  #stage.keep .box .x { background:#1d9e75; }
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+#app { display: flex; flex-direction: column; height: 100%; }
+
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+
+button { font: inherit; color: inherit; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+/* Chunky toy-like buttons */
+.btn {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  padding: 7px 14px;
+  box-shadow: var(--press);
+  cursor: pointer;
+  transition: transform 0.06s, box-shadow 0.06s, background 0.12s;
+}
+.btn:hover { background: var(--blue-soft); }
+.btn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+.btn:disabled { opacity: 0.4; cursor: default; transform: none; box-shadow: var(--press); background: var(--panel); }
+.btn-go { background: var(--go); color: #fff; min-width: 112px; }
+.btn-go:hover { background: #17975b; }
+.btn-go.running { background: var(--danger); }
+.btn-go.running:hover { background: #c92f3b; }
+.btn-icon { font-size: 0.85em; }
+
+/* ---------- top bar ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding-block: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel);
+  border-bottom: 2px solid var(--ink);
+  flex-wrap: wrap;
+}
+.brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 38px; height: 38px; animation: spin 12s linear infinite; }
+.brand-text { display: flex; flex-direction: column; line-height: 1.05; }
+.brand h1 { font-size: 1.35rem; font-weight: 700; }
+.brand-text span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); font-weight: 800; }
+
+.levels {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-block: 2px;
+}
+.levels::-webkit-scrollbar { display: none; }
+.level-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  border-radius: 999px;
+  padding: 3px 11px 3px 3px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 0.85rem;
+  position: relative;
+  flex: none;
+  white-space: nowrap;
+}
+.level-chip .num {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--blue-soft);
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+.level-chip:hover { background: var(--blue-soft); }
+.level-chip.current { background: var(--ink); color: #fff; }
+.level-chip.current .num { background: var(--yellow); color: var(--ink); }
+.level-chip.done .num { background: var(--go); color: #fff; }
+.level-chip.done.current .num { background: var(--go); }
+
+.controls { display: flex; align-items: center; gap: 8px; }
+
+/* ---------- layout ---------- */
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 196px minmax(0, 1fr) 250px;
+  gap: 14px;
+  padding-block: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.panel-title {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-weight: 800;
+}
+
+.tray {
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 12px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.palette { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.palette.disabled { opacity: 0.45; pointer-events: none; }
+.part-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px 5px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: #f8faff;
+  cursor: grab;
+  position: relative;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.part-btn:hover { border-color: var(--blue); background: var(--blue-soft); }
+.part-btn.selected { border-color: var(--blue); background: var(--blue-soft); box-shadow: 0 0 0 2px var(--blue) inset; }
+.part-btn.empty { opacity: 0.4; }
+.part-btn .thumb { width: 64px; height: 40px; display: block; pointer-events: none; }
+.part-name { font-size: 0.74rem; font-weight: 800; line-height: 1.1; text-align: center; }
+.count {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.tray-hint { margin: 0; font-size: 0.78rem; color: var(--muted); }
+
+/* ---------- stage ---------- */
+.stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.goal-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  flex-wrap: wrap;
+}
+.goal-tag {
+  font-family: var(--font-display);
+  font-weight: 700;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 0 8px;
+}
+.goal-text { flex: 1; min-width: 0; font-weight: 700; }
+.status {
+  font-weight: 800;
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--blue-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.status[data-kind='running'] { background: #ffe8d6; color: #9a4100; }
+.status[data-kind='solved'] { background: var(--go); color: #fff; }
+
+.stage-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.board {
+  position: relative;
+  max-width: 100%;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 5px 0 var(--ink);
+  background: #f4f8fd;
+}
+#canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+.part-toolbar {
+  position: absolute;
+  /* Float well clear of the part so the part itself stays easy to grab. */
+  transform: translate(-50%, calc(-100% - 38px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 3px 0 var(--ink);
+  z-index: 3;
+  white-space: nowrap;
+}
+.part-toolbar.below { transform: translate(-50%, 38px); }
+/* A short stalk pointing at the selected part. */
+.part-toolbar::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 2px;
+  height: 34px;
+  margin-left: -1px;
+  background: repeating-linear-gradient(to bottom, var(--ink) 0 4px, transparent 4px 8px);
+  pointer-events: none;
+}
+.part-toolbar.below::after { top: auto; bottom: 100%; }
+
+.zoom-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 0 3px 0 var(--ink);
+  overflow: hidden;
+  z-index: 2;
+}
+.zoom-controls button {
+  border: 0;
+  background: transparent;
+  min-width: 38px;
+  height: 36px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.zoom-controls #zoom-reset { font-size: 0.85rem; min-width: 56px; border-inline: 2px solid var(--line); }
+.zoom-controls button:hover:not(:disabled) { background: var(--blue-soft); }
+.zoom-controls button:disabled { opacity: 0.35; cursor: default; }
+.part-toolbar button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 2px solid var(--line);
+  border-radius: 9px;
+  background: #f8faff;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.part-toolbar button:hover { border-color: var(--blue); background: var(--blue-soft); }
+.part-toolbar .tb-delete:hover { border-color: var(--danger); background: #fde8ea; color: var(--danger); }
+.tb-power { display: flex; align-items: center; gap: 3px; padding: 0 4px; }
+.tb-power button { min-width: 30px; }
+.tb-power button.on { background: var(--danger); border-color: var(--ink); color: #fff; }
+.tb-label { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translate(-50%, 10px);
+  background: var(--ink);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  max-width: 90%;
+  text-align: center;
+  z-index: 4;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+.solved {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(29, 36, 64, 0.35);
+  z-index: 5;
+  padding: 16px;
+}
+.solved-card {
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: 0 6px 0 var(--ink);
+  padding: 22px 26px;
+  text-align: center;
+  max-width: 420px;
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.solved-card h2 { font-size: 2.2rem; color: var(--go); }
+.solved-learned { margin: 6px 0 16px; font-weight: 700; }
+.solved-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+/* ---------- science corner ---------- */
+.science { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; }
+.sci-card {
+  background: var(--panel);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sci-card h2 { font-size: 1.3rem; font-weight: 700; }
+.sci-card p { margin: 0; }
+.eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--blue);
+}
+.try { background: #fff6cc; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.try .eyebrow { color: #8a6a00; }
+.part-info {
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.part-info:empty { display: none; }
+.part-info strong { font-family: var(--font-display); font-weight: 600; font-size: 1rem; }
+.toggle { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+.toggle input { width: 18px; height: 18px; accent-color: var(--blue); }
+.keys { margin: 0; display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+.keys div { display: flex; justify-content: space-between; gap: 8px; }
+.keys dt { display: flex; gap: 3px; white-space: nowrap; }
+.keys dd { margin: 0; text-align: right; }
+kbd {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.72rem;
+  background: var(--panel);
+  border: 1.5px solid var(--ink);
+  border-bottom-width: 3px;
+  border-radius: 5px;
+  padding: 0 5px;
+  color: var(--ink);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+@media (max-width: 1500px) {
+  .level-chip:not(.current) .name { display: none; }
+  .level-chip:not(.current) { padding-right: 3px; }
+}
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: 180px minmax(0, 1fr); }
+  .science { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; overflow: visible; }
+  .sci-card { flex: 2 1 320px; }
+  .part-info { flex: 1 1 200px; }
+  .keys { flex: 1 1 220px; }
+}
+
+@media (max-width: 860px) {
+  #app { height: auto; min-height: 100%; }
+  .layout { display: flex; flex-direction: column; }
+  .stage { order: -1; }
+  .tray { overflow: visible; }
+  .palette { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  .science { flex-direction: column; }
+  .sci-card, .part-info { flex: none; }
+  .keys { display: none; }
+  .levels { order: 3; flex-basis: 100%; }
+  .controls { margin-left: auto; }
+  .brand-text span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo, .solved-card { animation: none; }
+  .btn, .toast { transition: none; }
+}
+
 </style>
-</head>
-<body>
-<main>
-  <h1>Snap OCR</h1>
+<div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+            <circle cx="20" cy="20" r="12" fill="#f5c400" stroke="#1d2440" stroke-width="3" />
+            <g stroke="#1d2440" stroke-width="3" stroke-linecap="round">
+              <path d="M20 3v5M20 32v5M3 20h5M32 20h5M8 8l3.5 3.5M28.5 28.5L32 32M8 32l3.5-3.5M28.5 11.5L32 8" />
+            </g>
+            <circle cx="20" cy="20" r="4" fill="#ffffff" stroke="#1d2440" stroke-width="3" />
+          </svg>
+          <div class="brand-text">
+            <h1>Modern TIM</h1>
+            <span>Machine lab</span>
+          </div>
+        </div>
+        <nav id="levels" class="levels" aria-label="Levels"></nav>
+        <div class="controls">
+          <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
+          <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
+          <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
+        </div>
+      </header>
 
-  <section class="card">
-    <div class="row">
-      <label class="btn" for="cam">📷 Take photo</label>
-      <label class="btn secondary" for="file">🖼️ Choose image</label>
+      <main class="layout">
+        <aside class="tray" aria-label="Parts">
+          <h2 class="panel-title">Parts</h2>
+          <div id="palette" class="palette"></div>
+          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them.</p>
+        </aside>
+
+        <section class="stage">
+          <div class="goal-bar">
+            <span class="goal-tag">Goal</span>
+            <span id="goal-text" class="goal-text"></span>
+            <span id="status" class="status" data-kind="edit">Building</span>
+          </div>
+          <div id="stage-area" class="stage-area">
+            <div id="board" class="board">
+              <canvas id="canvas"></canvas>
+              <div id="part-toolbar" class="part-toolbar" hidden>
+                <button id="tb-rot-l" type="button" title="Rotate left (Shift+R)" aria-label="Rotate left">⟲</button>
+                <button id="tb-rot-r" type="button" title="Rotate right (R)" aria-label="Rotate right">⟳</button>
+                <button id="tb-flip" type="button" title="Reverse direction (F)">⇄ Flip</button>
+                <span id="tb-power" class="tb-power" role="group" aria-label="Spring strength">
+                  <span class="tb-label">Strength</span>
+                  <button type="button" data-power="1" title="Soft (1)">1</button>
+                  <button type="button" data-power="2" title="Medium (2)">2</button>
+                  <button type="button" data-power="3" title="Strong (3)">3</button>
+                </span>
+                <button id="tb-delete" type="button" class="tb-delete" title="Remove (Delete)" aria-label="Remove part">✕</button>
+              </div>
+              <div id="zoom-controls" class="zoom-controls" role="group" aria-label="Zoom">
+                <button id="zoom-out" type="button" title="Zoom out (−)" aria-label="Zoom out" disabled>−</button>
+                <button id="zoom-reset" type="button" title="Show the whole board (0)">100%</button>
+                <button id="zoom-in" type="button" title="Zoom in (+)" aria-label="Zoom in">+</button>
+              </div>
+              <div id="toast" class="toast" role="status" aria-live="polite"></div>
+              <div id="solved" class="solved" hidden>
+                <div class="solved-card">
+                  <h2>Solved!</h2>
+                  <p id="solved-learned" class="solved-learned"></p>
+                  <div class="solved-actions">
+                    <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
+                    <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="science" aria-label="Science corner">
+          <div class="sci-card">
+            <span class="eyebrow">Science corner</span>
+            <h2 id="sci-topic"></h2>
+            <p id="sci-text"></p>
+            <div class="try">
+              <span class="eyebrow">Try this</span>
+              <p id="sci-try"></p>
+            </div>
+          </div>
+          <div id="part-info" class="part-info"></div>
+          <label class="toggle"><input type="checkbox" id="show-paths" checked /> Show ball paths</label>
+          <dl class="keys">
+            <div><dt><kbd>Space</kbd></dt><dd>Start / stop</dd></div>
+            <div><dt><kbd>R</kbd></dt><dd>Rotate (or Shift+scroll)</dd></div>
+            <div><dt><kbd>+</kbd><kbd>−</kbd><kbd>0</kbd></dt><dd>Zoom (or scroll / pinch)</dd></div>
+            <div><dt>Drag background</dt><dd>Pan when zoomed</dd></div>
+            <div><dt><kbd>F</kbd></dt><dd>Flip direction</dd></div>
+            <div><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>Spring strength</dd></div>
+            <div><dt><kbd>Del</kbd></dt><dd>Remove part</dd></div>
+            <div><dt><kbd>Ctrl</kbd><kbd>Z</kbd></dt><dd>Undo</dd></div>
+            <div><dt><kbd>Shift</kbd>+click</dt><dd>Place several</dd></div>
+          </dl>
+        </aside>
+      </main>
     </div>
-    <input id="cam" type="file" accept="image/*" capture="environment">
-    <input id="file" type="file" accept="image/*">
-
-    <div class="opts">
-      <label>Language
-        <select id="lang">
-          <option value="eng">English</option>
-          <option value="fra">French</option>
-          <option value="spa">Spanish</option>
-          <option value="deu">German</option>
-          <option value="ita">Italian</option>
-          <option value="por">Portuguese</option>
-        </select>
-      </label>
-      <label><input type="checkbox" id="enhance" checked> Enhance image</label>
-    </div>
-
-    <progress id="bar" max="1" value="0"></progress>
-    <div id="status" role="status"></div>
-  </section>
-
-  <section class="card hidden" id="editor">
-    <div class="row">
-      <button type="button" id="modeSkip" class="secondary" aria-pressed="true">Skip areas</button>
-      <button type="button" id="modeKeep" class="secondary" aria-pressed="false">Keep only</button>
-    </div>
-    <div class="stagewrap"><div id="stage"><canvas id="view"></canvas></div></div>
-    <div id="boxhint" class="opts"></div>
-    <div class="row" style="margin-top:12px">
-      <button type="button" id="undo" class="secondary">Undo</button>
-      <button type="button" id="clearBoxes" class="secondary">Clear boxes</button>
-    </div>
-    <button type="button" id="scan" style="width:100%;margin-top:12px">Scan text</button>
-  </section>
-
-  <section class="card hidden" id="resultCard">
-    <textarea id="out" aria-label="Recognized text"></textarea>
-    <div class="row" style="margin-top:12px">
-      <button id="copy">Copy</button>
-      <button id="download" class="secondary">Download .txt</button>
-    </div>
-    <div id="conf" class="opts"></div>
-  </section>
-
-  <section class="card hidden" id="histCard">
-    <strong>History</strong> <small style="color:var(--muted)">(stored only on this device)</small>
-    <div id="hist"></div>
-    <div class="row" style="margin-top:12px"><button id="clearHist" class="secondary">Clear history</button></div>
-  </section>
-</main>
-<footer>
-  <div class="ducks">
-    <svg width="44" height="40" viewBox="0 0 44 40" role="img" aria-label="Small yellow rubber duck">
-      <ellipse cx="20" cy="27" rx="15" ry="9" fill="#ffd43b"/>
-      <circle cx="30" cy="14" r="8" fill="#ffd43b"/>
-      <path d="M37 14l6 2.5-6 2.5z" fill="#f08c00"/>
-      <circle cx="32" cy="12" r="1.5" fill="#1c1f24"/>
-      <path d="M9 24c3 5 11 6 15 2" fill="none" stroke="#f5b800" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-    <svg class="flip" width="44" height="40" viewBox="0 0 44 40" role="img" aria-label="Small blue rubber duck">
-      <ellipse cx="20" cy="27" rx="15" ry="9" fill="#4dabf7"/>
-      <circle cx="30" cy="14" r="8" fill="#4dabf7"/>
-      <path d="M37 14l6 2.5-6 2.5z" fill="#f08c00"/>
-      <circle cx="32" cy="12" r="1.5" fill="#1c1f24"/>
-      <path d="M9 24c3 5 11 6 15 2" fill="none" stroke="#228be6" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-  </div>
-  <div>Snap OCR v<span id="ver"></span></div>
-</footer>
-
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
-const VERSION = '0.01c';   // minor: 0.01a, 0.01b … 0.01z, 0.01aa …  major: 0.02, 0.03 …
-const $ = id => document.getElementById(id);
-$('ver').textContent = VERSION;
-document.title = 'Snap OCR ' + VERSION;
 
-const MAX_SIDE = 2200;            // downscale big phone photos for speed
-let worker = null, workerLang = null, busy = false;
+// ---- game/parts.ts ----
+const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, toWorld, PART_DEFS, PALETTE_ORDER, isGear } = (() => {
 
-function setStatus(msg) { $('status').textContent = msg; }
-
-async function getWorker(lang) {
-  if (typeof Tesseract === 'undefined') throw new Error('The OCR library did not load.');
-  if (worker && workerLang === lang) return worker;
-  if (worker) { await worker.terminate(); worker = null; }
-  worker = await Tesseract.createWorker(lang, 1, {
-    logger: m => {
-      if (m.status === 'recognizing text') {
-        const pct = Math.round(m.progress * 100);
-        $('bar').value = m.progress;
-        setStatus('Reading text… ' + pct + '%');
-        $('scan').textContent = 'Reading… ' + pct + '%';
-      } else if (m.status && m.status.includes('loading')) {
-        setStatus('Loading OCR engine (first run only)…');
-      }
+const { Bodies, Body } = Matter;
+const CAT_SOLID = 0x0001;
+const CAT_SENSOR = 0x0002;
+const GROUP_GEARS = -1;
+const CONVEYOR_SPEED = 3.2;
+const CONVEYOR_FORCE = 0.0009;
+const MOTOR_SPEED = 0.05;
+const SPRING_SPEEDS = [
+    0,
+    10,
+    13,
+    16
+];
+const PX_PER_TOOTH = 4;
+const COLORS = {
+    ink: '#1d2440',
+    ball: '#2f7df6',
+    heavy: '#5b4a9e',
+    wood: '#c98a45',
+    wall: '#8a96ad',
+    goal: '#1fae6a',
+    conveyor: '#ffb21e',
+    spring: '#ef476f',
+    domino: '#fdfdfd',
+    seesaw: '#9a7bea',
+    wheel: '#14b8c4',
+    motor: '#ff7a1a',
+    gear: '#f5c400',
+    mouse: '#c7ccd8'
+};
+const solid = {
+    category: CAT_SOLID,
+    mask: 0xffffffff,
+    group: 0
+};
+const gearFilter = {
+    category: CAT_SOLID,
+    mask: 0xffffffff,
+    group: GROUP_GEARS
+};
+function look(fill, extra = {}) {
+    return {
+        fillStyle: fill,
+        strokeStyle: COLORS.ink,
+        lineWidth: 2,
+        ...extra
+    };
+}
+function toWorld(x, y, angle, lx, ly) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return {
+        x: x + lx * c - ly * s,
+        y: y + lx * s + ly * c
+    };
+}
+function localRect(x, y, angle, lx, ly, w, h, options) {
+    const pos = toWorld(x, y, angle, lx, ly);
+    return Bodies.rectangle(pos.x, pos.y, w, h, {
+        angle,
+        ...options
+    });
+}
+function buildGear(x, y, angle, spec, fill, label, play, arms = 0) {
+    const parts = [
+        Bodies.circle(x, y, spec.radius - 3, {
+            render: look(fill)
+        })
+    ];
+    for(let i = 0; i < spec.teeth; i++){
+        const a = angle + i * Math.PI * 2 / spec.teeth;
+        const pos = toWorld(x, y, a, spec.radius + 2, 0);
+        parts.push(Bodies.rectangle(pos.x, pos.y, 12, 8, {
+            angle: a,
+            render: look(fill)
+        }));
     }
-  });
-  workerLang = lang;
-  return worker;
+    for(let i = 0; i < arms; i++){
+        const a = angle + i * Math.PI * 2 / arms;
+        const pos = toWorld(x, y, a, spec.radius + 34, 0);
+        parts.push(Bodies.rectangle(pos.x, pos.y, 64, 12, {
+            angle: a,
+            chamfer: {
+                radius: 5
+            },
+            render: look(COLORS.motor)
+        }));
+    }
+    const body = Body.create({
+        parts,
+        label,
+        friction: 0.4,
+        frictionAir: 0,
+        restitution: 0.2,
+        collisionFilter: gearFilter
+    });
+    Body.setDensity(body, 0.02);
+    if (!play) Body.setStatic(body, true);
+    return body;
+}
+function gearDef(type, label, blurb, teeth, motor, color, arms = 0) {
+    const spec = {
+        teeth,
+        radius: teeth * PX_PER_TOOTH,
+        motor
+    };
+    return {
+        type,
+        label,
+        blurb,
+        color,
+        rotatable: false,
+        flippable: motor,
+        hasPower: false,
+        motion: 'pivot',
+        gear: spec,
+        build: ({ x, y, angle }, play)=>[
+                buildGear(x, y, angle, spec, color, type, play, arms)
+            ]
+    };
+}
+const PART_DEFS = {
+    ball: {
+        type: 'ball',
+        label: 'Ball',
+        blurb: 'A light, bouncy ball. Gravity pulls it down.',
+        color: COLORS.ball,
+        rotatable: false,
+        flippable: false,
+        hasPower: false,
+        motion: 'dynamic',
+        build: ({ x, y }, play)=>[
+                Bodies.circle(x, y, 14, {
+                    label: 'ball',
+                    isStatic: !play,
+                    restitution: 0.45,
+                    friction: 0.02,
+                    frictionAir: 0.0005,
+                    density: 0.002,
+                    collisionFilter: solid,
+                    render: look(COLORS.ball)
+                })
+            ]
+    },
+    heavyBall: {
+        type: 'heavyBall',
+        label: 'Bowling ball',
+        blurb: 'Ten times heavier than a ball. Heavy things push harder.',
+        color: COLORS.heavy,
+        rotatable: false,
+        flippable: false,
+        hasPower: false,
+        motion: 'dynamic',
+        build: ({ x, y }, play)=>[
+                Bodies.circle(x, y, 18, {
+                    label: 'heavyBall',
+                    isStatic: !play,
+                    restitution: 0.05,
+                    friction: 0.05,
+                    frictionAir: 0.0005,
+                    density: 0.012,
+                    collisionFilter: solid,
+                    render: look(COLORS.heavy)
+                })
+            ]
+    },
+    plank: {
+        type: 'plank',
+        label: 'Ramp',
+        blurb: 'A tilted plank. Ramps turn falling into rolling.',
+        color: COLORS.wood,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'static',
+        build: ({ x, y, angle, w, h })=>[
+                Bodies.rectangle(x, y, w ?? 170, h ?? 12, {
+                    label: 'plank',
+                    angle,
+                    isStatic: true,
+                    friction: 0.1,
+                    restitution: 0.1,
+                    collisionFilter: solid,
+                    render: look(COLORS.wood)
+                })
+            ]
+    },
+    wall: {
+        type: 'wall',
+        label: 'Wall',
+        blurb: 'A solid block. Use it as a floor, a shelf or a stopper.',
+        color: COLORS.wall,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'static',
+        build: ({ x, y, angle, w, h })=>[
+                Bodies.rectangle(x, y, w ?? 120, h ?? 20, {
+                    label: 'wall',
+                    angle,
+                    isStatic: true,
+                    friction: 0.4,
+                    restitution: 0.1,
+                    collisionFilter: solid,
+                    render: look(COLORS.wall)
+                })
+            ]
+    },
+    basket: {
+        type: 'basket',
+        label: 'Basket',
+        blurb: 'The goal. Get a ball into the green zone.',
+        color: COLORS.goal,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'static',
+        build: ({ x, y, angle })=>{
+            const wall = {
+                isStatic: true,
+                friction: 0.4,
+                restitution: 0.05,
+                collisionFilter: solid,
+                render: look(COLORS.goal)
+            };
+            const sensorPos = toWorld(x, y, angle, 0, 6);
+            return [
+                Bodies.rectangle(sensorPos.x, sensorPos.y, 80, 36, {
+                    label: 'goalSensor',
+                    angle,
+                    isStatic: true,
+                    isSensor: true,
+                    collisionFilter: {
+                        category: CAT_SENSOR,
+                        mask: CAT_SOLID,
+                        group: 0
+                    },
+                    render: {
+                        fillStyle: 'rgba(31, 174, 106, 0.18)',
+                        strokeStyle: COLORS.goal,
+                        lineWidth: 1.5
+                    }
+                }),
+                localRect(x, y, angle, -50, 0, 10, 70, {
+                    label: 'basketWall',
+                    ...wall
+                }),
+                localRect(x, y, angle, 50, 0, 10, 70, {
+                    label: 'basketWall',
+                    ...wall
+                }),
+                localRect(x, y, angle, 0, 30, 110, 10, {
+                    label: 'basketWall',
+                    ...wall
+                })
+            ];
+        }
+    },
+    conveyor: {
+        type: 'conveyor',
+        label: 'Conveyor',
+        blurb: 'A moving belt. It pushes things along the arrows. Press F to reverse.',
+        color: COLORS.conveyor,
+        rotatable: true,
+        flippable: true,
+        hasPower: false,
+        motion: 'static',
+        build: ({ x, y, angle, w, h })=>[
+                Bodies.rectangle(x, y, w ?? 150, h ?? 18, {
+                    label: 'conveyor',
+                    angle,
+                    isStatic: true,
+                    friction: 0.8,
+                    restitution: 0,
+                    chamfer: {
+                        radius: 8
+                    },
+                    collisionFilter: solid,
+                    render: look(COLORS.conveyor)
+                })
+            ]
+    },
+    spring: {
+        type: 'spring',
+        label: 'Spring',
+        blurb: 'Squash it and it pushes back! Stronger springs launch higher.',
+        color: COLORS.spring,
+        rotatable: true,
+        flippable: false,
+        hasPower: true,
+        motion: 'static',
+        build: ({ x, y, angle })=>[
+                localRect(x, y, angle, 0, 16, 64, 10, {
+                    label: 'springBase',
+                    isStatic: true,
+                    collisionFilter: solid,
+                    render: look(COLORS.wall)
+                }),
+                localRect(x, y, angle, 0, -14, 70, 12, {
+                    label: 'springPad',
+                    isStatic: true,
+                    friction: 0.3,
+                    restitution: 0,
+                    chamfer: {
+                        radius: 4
+                    },
+                    collisionFilter: solid,
+                    render: look(COLORS.spring)
+                })
+            ]
+    },
+    domino: {
+        type: 'domino',
+        label: 'Domino',
+        blurb: 'Tall and wobbly. Knock one over and it knocks the next.',
+        color: COLORS.domino,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'dynamic',
+        build: ({ x, y, angle }, play)=>[
+                Bodies.rectangle(x, y, 12, 70, {
+                    label: 'domino',
+                    angle,
+                    isStatic: !play,
+                    density: 0.005,
+                    friction: 0.6,
+                    frictionAir: 0,
+                    restitution: 0,
+                    chamfer: {
+                        radius: 2
+                    },
+                    collisionFilter: solid,
+                    render: look(COLORS.domino)
+                })
+            ]
+    },
+    seesaw: {
+        type: 'seesaw',
+        label: 'Seesaw',
+        blurb: 'A lever on a pivot. Push one end down and the other goes up.',
+        color: COLORS.seesaw,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'pivot',
+        build: ({ x, y, angle, w }, play)=>{
+            const len = w ?? 200;
+            const style = {
+                render: look(COLORS.seesaw)
+            };
+            const body = Body.create({
+                parts: [
+                    Bodies.rectangle(x, y, len, 14, {
+                        angle,
+                        chamfer: {
+                            radius: 4
+                        },
+                        ...style
+                    }),
+                    localRect(x, y, angle, -len / 2 + 5, -12, 10, 14, {
+                        chamfer: {
+                            radius: 3
+                        },
+                        ...style
+                    }),
+                    localRect(x, y, angle, len / 2 - 5, -12, 10, 14, {
+                        chamfer: {
+                            radius: 3
+                        },
+                        ...style
+                    })
+                ],
+                label: 'seesaw',
+                friction: 0.6,
+                frictionAir: 0.01,
+                restitution: 0.05,
+                collisionFilter: solid
+            });
+            Body.setDensity(body, 0.001);
+            if (!play) Body.setStatic(body, true);
+            return [
+                body
+            ];
+        }
+    },
+    wheel: {
+        type: 'wheel',
+        label: 'Paddle wheel',
+        blurb: 'Spins freely on its axle when something pushes a paddle.',
+        color: COLORS.wheel,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'pivot',
+        build: ({ x, y, angle }, play)=>{
+            const parts = [
+                Bodies.circle(x, y, 16, {
+                    render: look(COLORS.wheel)
+                })
+            ];
+            for(let i = 0; i < 6; i++){
+                const a = angle + i * Math.PI / 3;
+                const pos = toWorld(x, y, a, 36, 0);
+                parts.push(Bodies.rectangle(pos.x, pos.y, 46, 9, {
+                    angle: a,
+                    chamfer: {
+                        radius: 3
+                    },
+                    render: look(COLORS.wheel)
+                }));
+            }
+            const body = Body.create({
+                parts,
+                label: 'wheel',
+                friction: 0.3,
+                frictionAir: 0.02,
+                restitution: 0.1,
+                collisionFilter: solid
+            });
+            Body.setDensity(body, 0.0015);
+            if (!play) Body.setStatic(body, true);
+            return [
+                body
+            ];
+        }
+    },
+    motorGear: gearDef('motorGear', 'Motor gear', 'Has a motor inside, so it turns by itself. Press F to reverse.', 10, true, COLORS.motor),
+    gear: gearDef('gear', 'Small gear', 'Turns when a gear next to it turns, in the opposite direction.', 8, false, COLORS.gear),
+    bigGear: gearDef('bigGear', 'Big gear', 'More teeth means it turns slower, but it reaches farther.', 16, false, COLORS.gear),
+    paddleGear: gearDef('paddleGear', 'Paddle gear', 'A gear with two paddles that bat things away.', 8, false, COLORS.gear, 2),
+    mouse: {
+        type: 'mouse',
+        label: 'Mouse',
+        blurb: 'Squeak! Just for fun.',
+        color: COLORS.mouse,
+        rotatable: false,
+        flippable: false,
+        hasPower: false,
+        motion: 'dynamic',
+        build: ({ x, y }, play)=>[
+                Bodies.rectangle(x, y, 36, 24, {
+                    label: 'mouse',
+                    isStatic: !play,
+                    chamfer: {
+                        radius: 10
+                    },
+                    friction: 0.6,
+                    restitution: 0.2,
+                    density: 0.002,
+                    collisionFilter: solid,
+                    render: look(COLORS.mouse)
+                })
+            ]
+    }
+};
+const PALETTE_ORDER = [
+    'ball',
+    'heavyBall',
+    'plank',
+    'wall',
+    'conveyor',
+    'spring',
+    'domino',
+    'seesaw',
+    'wheel',
+    'motorGear',
+    'gear',
+    'bigGear',
+    'paddleGear',
+    'basket',
+    'mouse'
+];
+function isGear(type) {
+    return !!PART_DEFS[type].gear;
 }
 
-// Load a photo, fix phone rotation (EXIF) and downscale. No filters yet.
-async function toCanvas(file) {
-  const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
-  const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
-  const c = document.createElement('canvas');
-  c.width = w; c.height = h;
-  c.getContext('2d', { willReadFrequently: true }).drawImage(bmp, 0, 0, w, h);
-  return c;
+return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, toWorld, PART_DEFS, PALETTE_ORDER, isGear };
+})();
+
+// ---- game/mechanics.ts ----
+const { MESH_TOLERANCE, SNAP_DISTANCE, computeGearTrain, snapGear, pointPolygonDistance } = (() => {
+
+const MESH_TOLERANCE = 6;
+const SNAP_DISTANCE = 30;
+function radiusOf(p) {
+    return PART_DEFS[p.type].gear?.radius ?? 0;
+}
+function meshes(a, b) {
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    return Math.abs(d - (radiusOf(a) + radiusOf(b))) <= MESH_TOLERANCE;
+}
+function computeGearTrain(parts) {
+    const gears = parts.filter((p)=>PART_DEFS[p.type].gear);
+    const links = [];
+    const neighbours = new Map();
+    for (const g of gears)neighbours.set(g.id, []);
+    for(let i = 0; i < gears.length; i++){
+        for(let j = i + 1; j < gears.length; j++){
+            if (meshes(gears[i], gears[j])) {
+                links.push({
+                    a: gears[i].id,
+                    b: gears[j].id
+                });
+                neighbours.get(gears[i].id).push(gears[j]);
+                neighbours.get(gears[j].id).push(gears[i]);
+            }
+        }
+    }
+    const speeds = new Map();
+    const jammed = new Set();
+    const queue = [];
+    for (const g of gears){
+        if (PART_DEFS[g.type].gear.motor) {
+            speeds.set(g.id, g.flip ? -MOTOR_SPEED : MOTOR_SPEED);
+            queue.push(g);
+        }
+    }
+    while(queue.length){
+        const g = queue.shift();
+        const w = speeds.get(g.id);
+        for (const n of neighbours.get(g.id)){
+            const next = -w * radiusOf(g) / radiusOf(n);
+            const known = speeds.get(n.id);
+            if (known === undefined) {
+                speeds.set(n.id, next);
+                queue.push(n);
+            } else if (Math.abs(known - next) > 1e-6) {
+                jammed.add(n.id);
+                jammed.add(g.id);
+            }
+        }
+    }
+    if (jammed.size) {
+        for (const id of jammed)speeds.set(id, 0);
+    }
+    return {
+        speeds,
+        links,
+        jammed
+    };
+}
+function snapGear(p, parts) {
+    const spec = PART_DEFS[p.type].gear;
+    if (!spec) return null;
+    let best = null;
+    for (const q of parts){
+        if (q.id === p.id || !PART_DEFS[q.type].gear) continue;
+        const target = spec.radius + radiusOf(q);
+        const d = Math.hypot(p.x - q.x, p.y - q.y);
+        const err = Math.abs(d - target);
+        if (err < SNAP_DISTANCE && (!best || err < best.err)) best = {
+            q,
+            err
+        };
+    }
+    if (!best) return null;
+    const q = best.q;
+    const rq = radiusOf(q);
+    const rp = spec.radius;
+    let dx = p.x - q.x;
+    let dy = p.y - q.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len;
+    dy /= len;
+    const x = q.x + dx * (rq + rp);
+    const y = q.y + dy * (rq + rp);
+    const pitch = 2 * Math.PI * PX_PER_TOOTH;
+    const theta = Math.atan2(dy, dx);
+    const sq = rq * (theta - q.angle);
+    const angle = theta + Math.PI - (pitch / 2 - sq) / rp;
+    return {
+        x,
+        y,
+        angle
+    };
+}
+function pointPolygonDistance(px, py, verts) {
+    let inside = false;
+    let best = Infinity;
+    for(let i = 0, j = verts.length - 1; i < verts.length; j = i++){
+        const a = verts[i];
+        const b = verts[j];
+        if (a.y > py !== b.y > py && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = !inside;
+        const ex = b.x - a.x;
+        const ey = b.y - a.y;
+        const t = Math.max(0, Math.min(1, ((px - a.x) * ex + (py - a.y) * ey) / (ex * ex + ey * ey || 1)));
+        best = Math.min(best, Math.hypot(px - (a.x + t * ex), py - (a.y + t * ey)));
+    }
+    return inside ? 0 : best;
 }
 
-// Grayscale + auto-contrast, in place.
-function enhance(c) {
-  const ctx = c.getContext('2d', { willReadFrequently: true });
-  const w = c.width, h = c.height;
-  const img = ctx.getImageData(0, 0, w, h), d = img.data;
-  const hist = new Uint32Array(256);
-  for (let i = 0; i < d.length; i += 4) {
-    const g = (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114) | 0;
-    d[i] = d[i+1] = d[i+2] = g; hist[g]++;
-  }
-  const total = w * h; let lo = 0, hi = 255, acc = 0;
-  for (let i = 0; i < 256; i++) { acc += hist[i]; if (acc > total * 0.01) { lo = i; break; } }
-  acc = 0;
-  for (let i = 255; i >= 0; i--) { acc += hist[i]; if (acc > total * 0.01) { hi = i; break; } }
-  const span = Math.max(1, hi - lo);
-  for (let i = 0; i < d.length; i += 4) {
-    const v = Math.max(0, Math.min(255, ((d[i] - lo) * 255) / span));
-    d[i] = d[i+1] = d[i+2] = v;
-  }
-  ctx.putImageData(img, 0, 0);
+return { MESH_TOLERANCE, SNAP_DISTANCE, computeGearTrain, snapGear, pointPolygonDistance };
+})();
+
+// ---- game/levels.ts ----
+const { LEVELS, levelToParts, solutionToParts } = (() => {
+function basketWithFunnel(cx) {
+    return [
+        {
+            type: 'basket',
+            x: cx,
+            y: 565
+        },
+        {
+            type: 'wall',
+            x: cx - 60,
+            y: 480,
+            angle: 45,
+            w: 100,
+            h: 12
+        },
+        {
+            type: 'wall',
+            x: cx + 60,
+            y: 480,
+            angle: -45,
+            w: 100,
+            h: 12
+        }
+    ];
+}
+const LEVELS = [
+    {
+        id: 'ramps',
+        name: 'Ramps',
+        goal: 'Get the ball into the basket.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'ball',
+                x: 300,
+                y: 60
+            },
+            ...basketWithFunnel(560)
+        ],
+        inventory: {
+            plank: 2
+        },
+        solution: [
+            {
+                type: 'plank',
+                x: 330,
+                y: 300,
+                angle: 30
+            }
+        ],
+        science: {
+            topic: 'Gravity and ramps',
+            text: 'Gravity pulls everything straight down. A ramp (scientists call it an inclined plane) turns that straight-down fall into a sideways roll.',
+            tryThis: 'Make the ramp steeper, then flatter. Which one gets the ball there faster?',
+            learned: 'You used an inclined plane, one of the six simple machines.'
+        }
+    },
+    {
+        id: 'conveyor',
+        name: 'Conveyors',
+        goal: 'The ball is stuck on a shelf. Move it into the basket.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'ball',
+                x: 150,
+                y: 200
+            },
+            {
+                type: 'wall',
+                x: 240,
+                y: 330,
+                w: 300,
+                h: 20
+            },
+            ...basketWithFunnel(560)
+        ],
+        inventory: {
+            conveyor: 2
+        },
+        solution: [
+            {
+                type: 'conveyor',
+                x: 180,
+                y: 310
+            },
+            {
+                type: 'conveyor',
+                x: 330,
+                y: 310
+            }
+        ],
+        science: {
+            topic: 'Forces and friction',
+            text: 'A force is a push or a pull. Nothing starts moving without one. A conveyor belt grips the ball with friction and pushes it along.',
+            tryThis: 'Select a conveyor and press F to reverse it. Which way does the ball go now?',
+            learned: 'Things stay still until a force moves them. That is Newton’s first law.'
+        }
+    },
+    {
+        id: 'springs',
+        name: 'Springs',
+        goal: 'A wall is in the way. Bounce the ball over it.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'ball',
+                x: 150,
+                y: 80
+            },
+            {
+                type: 'wall',
+                x: 450,
+                y: 470,
+                w: 24,
+                h: 260
+            },
+            ...basketWithFunnel(740)
+        ],
+        inventory: {
+            spring: 1,
+            plank: 1
+        },
+        solution: [
+            {
+                type: 'spring',
+                x: 150,
+                y: 570,
+                angle: 15,
+                power: 2
+            }
+        ],
+        science: {
+            topic: 'Elastic energy',
+            text: 'When the ball lands on a spring, the spring squashes and stores the ball’s energy. Then it springs back and gives the energy back. Tilt the spring to aim the bounce.',
+            tryThis: 'Click the spring and change its strength. How high does each setting bounce?',
+            learned: 'Falling energy turned into spring energy, then back into motion. Energy changes form but never disappears.'
+        }
+    },
+    {
+        id: 'levers',
+        name: 'Levers',
+        goal: 'Launch the blue ball into the basket using the seesaw.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'seesaw',
+                x: 260,
+                y: 546,
+                angle: -25,
+                w: 220
+            },
+            {
+                type: 'ball',
+                x: 175,
+                y: 560
+            },
+            ...basketWithFunnel(600)
+        ],
+        inventory: {
+            heavyBall: 1,
+            plank: 1
+        },
+        solution: [
+            {
+                type: 'heavyBall',
+                x: 340,
+                y: 100
+            }
+        ],
+        science: {
+            topic: 'Levers and fulcrums',
+            text: 'A seesaw is a lever: a stiff bar that turns on a point called the fulcrum. A big push down on one end makes the other end fly up.',
+            tryThis: 'Drop the bowling ball from different heights. The dotted line shows where the last throw went.',
+            learned: 'A heavy push on one side of a lever lifts the other side. Catapults work this way.'
+        }
+    },
+    {
+        id: 'dominoes',
+        name: 'Dominoes',
+        goal: 'The ball gets stuck in the gap. Knock the far ball into the basket.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'ball',
+                x: 100,
+                y: 60
+            },
+            {
+                type: 'plank',
+                x: 140,
+                y: 200,
+                angle: 20,
+                w: 150
+            },
+            {
+                type: 'wall',
+                x: 195,
+                y: 300,
+                w: 270,
+                h: 20
+            },
+            {
+                type: 'wall',
+                x: 470,
+                y: 284,
+                w: 220,
+                h: 20
+            },
+            {
+                type: 'ball',
+                x: 500,
+                y: 260
+            },
+            ...basketWithFunnel(650)
+        ],
+        inventory: {
+            domino: 6
+        },
+        solution: [
+            {
+                type: 'domino',
+                x: 322,
+                y: 255
+            },
+            {
+                type: 'domino',
+                x: 368,
+                y: 239
+            },
+            {
+                type: 'domino',
+                x: 408,
+                y: 239
+            },
+            {
+                type: 'domino',
+                x: 448,
+                y: 239
+            }
+        ],
+        science: {
+            topic: 'Chain reactions',
+            text: 'A standing domino stores energy because it is tall and wobbly. A tiny push tips it, and as it falls it pushes the next one. The energy travels down the line.',
+            tryThis: 'Spread the dominoes farther apart. How big can the gap get before the chain stops?',
+            learned: 'One small push set off a whole chain reaction.'
+        }
+    },
+    {
+        id: 'gears',
+        name: 'Gears',
+        goal: 'Connect the motor to the paddle gear so it bats the ball to the RIGHT.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'motorGear',
+                x: 130,
+                y: 300
+            },
+            {
+                type: 'paddleGear',
+                x: 430,
+                y: 300
+            },
+            {
+                type: 'wall',
+                x: 430,
+                y: 418,
+                w: 260,
+                h: 20
+            },
+            {
+                type: 'ball',
+                x: 430,
+                y: 394
+            },
+            ...basketWithFunnel(700)
+        ],
+        inventory: {
+            gear: 3,
+            bigGear: 2
+        },
+        solution: [
+            {
+                type: 'bigGear',
+                x: 221.3,
+                y: 250.1
+            },
+            {
+                type: 'bigGear',
+                x: 349.3,
+                y: 248.1
+            }
+        ],
+        science: {
+            topic: 'Gear trains',
+            text: 'Gears pass turning along. When two gears mesh, they spin in opposite directions. Bigger gears turn slower. Drop a gear near another and it clicks into place.',
+            tryThis: 'Watch the arrows before you press Start. Can you predict which way the paddle will spin?',
+            learned: 'Every gear in a train flips the direction, so counting gears tells you which way the last one turns.'
+        }
+    },
+    {
+        id: 'machine',
+        name: 'Big machine',
+        goal: 'Use everything you learned: get the ball up the hill, over the wall, and into the basket.',
+        hasGoal: true,
+        fixed: [
+            {
+                type: 'ball',
+                x: 90,
+                y: 60
+            },
+            {
+                type: 'plank',
+                x: 140,
+                y: 170,
+                angle: 25,
+                w: 150
+            },
+            {
+                type: 'wall',
+                x: 330,
+                y: 260,
+                angle: -15,
+                w: 260,
+                h: 20
+            },
+            {
+                type: 'wall',
+                x: 207,
+                y: 270,
+                w: 10,
+                h: 40
+            },
+            {
+                type: 'wall',
+                x: 730,
+                y: 490,
+                w: 24,
+                h: 220
+            },
+            ...basketWithFunnel(870)
+        ],
+        inventory: {
+            conveyor: 2,
+            spring: 1,
+            plank: 1
+        },
+        solution: [
+            {
+                type: 'conveyor',
+                x: 272,
+                y: 256,
+                angle: -15
+            },
+            {
+                type: 'conveyor',
+                x: 393,
+                y: 224,
+                angle: -15
+            },
+            {
+                type: 'spring',
+                x: 630,
+                y: 570,
+                angle: 0,
+                power: 2
+            }
+        ],
+        science: {
+            topic: 'Systems',
+            text: 'Real machines are systems: many simple parts working together. Each part passes energy to the next one. Engineers test each step on its own, then the whole machine.',
+            tryThis: 'Build one step at a time. Press Start after each step and watch the dotted path.',
+            learned: 'You built a Rube Goldberg machine: a chain of simple machines doing one job together.'
+        }
+    },
+    {
+        id: 'sandbox',
+        name: 'Sandbox',
+        goal: 'Free build: every part, no limits. Invent your own machine!',
+        hasGoal: false,
+        fixed: [],
+        inventory: null,
+        science: {
+            topic: 'Be an engineer',
+            text: 'Engineers build, test, and improve. Try an idea, press Start, watch what happens, then change one thing and test again.',
+            tryThis: 'Build a machine that uses a ramp, a spring and a gear all at once.',
+            learned: ''
+        }
+    }
+];
+function toPlaced(p, id, locked) {
+    return {
+        id,
+        type: p.type,
+        x: p.x,
+        y: p.y,
+        angle: (p.angle ?? 0) * Math.PI / 180,
+        w: p.w,
+        h: p.h,
+        flip: p.flip,
+        power: p.power,
+        locked
+    };
+}
+function levelToParts(level, nextId) {
+    return level.fixed.map((p)=>toPlaced(p, nextId(), !p.movable));
+}
+function solutionToParts(level, nextId) {
+    return (level.solution ?? []).map((p)=>toPlaced(p, nextId(), false));
 }
 
-// ---------- photo editor: skip or keep boxes ----------
-const stage = $('stage'), view = $('view');
-let srcCanvas = null, boxes = [], els = [], undoStack = [], mode = 'skip', drag = null;
-const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+return { LEVELS, levelToParts, solutionToParts };
+})();
 
-function place(el, b) {
-  el.style.left = b.x * 100 + '%'; el.style.top = b.y * 100 + '%';
-  el.style.width = b.w * 100 + '%'; el.style.height = b.h * 100 + '%';
+// ---- game/draw.ts ----
+const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+
+const INK = COLORS.ink;
+function pieces(body) {
+    return body.parts.length > 1 ? body.parts.slice(1) : [
+        body
+    ];
+}
+function pathPiece(ctx, piece, dx = 0, dy = 0) {
+    if (piece.circleRadius) {
+        ctx.moveTo(piece.position.x + dx + piece.circleRadius, piece.position.y + dy);
+        ctx.arc(piece.position.x + dx, piece.position.y + dy, piece.circleRadius, 0, Math.PI * 2);
+        return;
+    }
+    const v = piece.vertices;
+    ctx.moveTo(v[0].x + dx, v[0].y + dy);
+    for(let i = 1; i < v.length; i++)ctx.lineTo(v[i].x + dx, v[i].y + dy);
+    ctx.closePath();
+}
+function traceBodies(ctx, bodies) {
+    ctx.beginPath();
+    for (const body of bodies)for (const piece of pieces(body))pathPiece(ctx, piece);
+}
+function springKick(body, state) {
+    const fired = body.plugin?.firedAt;
+    if (fired === undefined || !state.playing) return 0;
+    const t = state.steps - fired;
+    if (t > 14) return 0;
+    return Math.sin(t / 14 * Math.PI) * -10;
+}
+function springOffset(body, state) {
+    const amount = springKick(body, state);
+    return {
+        x: -Math.sin(body.angle) * amount,
+        y: Math.cos(body.angle) * amount
+    };
+}
+function drawBodies(ctx, bodies, state) {
+    for (const body of bodies){
+        if (body.render?.visible === false) continue;
+        const off = body.label === 'springPad' ? springOffset(body, state) : {
+            x: 0,
+            y: 0
+        };
+        for (const piece of pieces(body)){
+            const r = piece.render?.fillStyle ? piece.render : body.render;
+            ctx.beginPath();
+            pathPiece(ctx, piece, off.x, off.y);
+            ctx.fillStyle = r.fillStyle ?? '#999';
+            ctx.fill();
+            if (body.isSensor) ctx.setLineDash([
+                5,
+                4
+            ]);
+            ctx.lineWidth = r.lineWidth ?? 2;
+            ctx.strokeStyle = r.strokeStyle ?? INK;
+            ctx.lineJoin = 'round';
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+}
+function drawUnderlay(ctx, body, state) {
+    const part = body.plugin?.part;
+    if (!part) return;
+    if (body.label === 'seesaw' || body.label === 'wheel' || PART_DEFS[part.type].gear) {
+        const h = body.label === 'seesaw' ? 30 : 0;
+        if (h) {
+            ctx.beginPath();
+            ctx.moveTo(part.x, part.y);
+            ctx.lineTo(part.x - 18, part.y + h);
+            ctx.lineTo(part.x + 18, part.y + h);
+            ctx.closePath();
+            ctx.fillStyle = '#6b7690';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = INK;
+            ctx.stroke();
+        }
+    }
+    if (body.label === 'springPad') {
+        ctx.save();
+        ctx.translate(part.x, part.y);
+        ctx.rotate(part.angle);
+        const top = -8 + springKick(body, state);
+        const bottom = 11;
+        const turns = 5;
+        ctx.beginPath();
+        for(let i = 0; i <= turns * 2; i++){
+            const y = top + (bottom - top) * i / (turns * 2);
+            const x = i === 0 || i === turns * 2 ? 0 : i % 2 ? -20 : 20;
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = INK;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#d7dbe6';
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+function drawDecoration(ctx, body, state) {
+    const part = body.plugin?.part;
+    const { x, y } = body.position;
+    ctx.save();
+    switch(body.label){
+        case 'ball':
+            {
+                ctx.beginPath();
+                ctx.arc(x - 5, y - 5, 4, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255,255,255,0.75)';
+                ctx.fill();
+                break;
+            }
+        case 'heavyBall':
+            {
+                ctx.translate(x, y);
+                ctx.rotate(body.angle);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '700 11px Nunito, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('10kg', 0, 1);
+                break;
+            }
+        case 'conveyor':
+            {
+                const len = part?.w ?? 150;
+                const sign = part?.flip ? -1 : 1;
+                ctx.translate(x, y);
+                ctx.rotate(body.angle);
+                const spacing = 26;
+                const span = len - 36;
+                const offset = state.playing ? state.steps * 0.9 % spacing : 0;
+                ctx.strokeStyle = 'rgba(29,36,64,0.7)';
+                ctx.lineWidth = 2.5;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                for(let k = 0; k * spacing < span; k++){
+                    const t = (k * spacing + offset) % span;
+                    const xx = sign * (-span / 2 + t);
+                    ctx.beginPath();
+                    ctx.moveTo(xx - 4 * sign, -4);
+                    ctx.lineTo(xx + 2 * sign, 0);
+                    ctx.lineTo(xx - 4 * sign, 4);
+                    ctx.stroke();
+                }
+                for (const ex of [
+                    -len / 2 + 9,
+                    len / 2 - 9
+                ]){
+                    ctx.beginPath();
+                    ctx.arc(ex, 0, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = '#fff4d6';
+                    ctx.fill();
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+                break;
+            }
+        case 'domino':
+            {
+                ctx.translate(x, y);
+                ctx.rotate(body.angle);
+                ctx.fillStyle = INK;
+                for (const yy of [
+                    -17,
+                    17
+                ]){
+                    ctx.beginPath();
+                    ctx.arc(0, yy, 2.6, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillRect(-4, -0.75, 8, 1.5);
+                break;
+            }
+        case 'seesaw':
+        case 'wheel':
+            {
+                ctx.beginPath();
+                ctx.arc(part?.x ?? x, part?.y ?? y, 4.5, 0, Math.PI * 2);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = INK;
+                ctx.stroke();
+                break;
+            }
+        case 'mouse':
+            {
+                ctx.translate(x, y);
+                ctx.rotate(body.angle);
+                ctx.fillStyle = '#f7a8b8';
+                ctx.strokeStyle = INK;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.arc(-6, -12, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = INK;
+                ctx.beginPath();
+                ctx.arc(10, -2, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(-18, 2);
+                ctx.quadraticCurveTo(-30, 0, -28, -10);
+                ctx.stroke();
+                break;
+            }
+    }
+    ctx.restore();
+    if (part && PART_DEFS[part.type].gear) drawGearMarks(ctx, body, part, state);
+}
+function drawGearMarks(ctx, body, part, state) {
+    const spec = PART_DEFS[part.type].gear;
+    const { x, y } = part;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(body.angle);
+    ctx.strokeStyle = 'rgba(29,36,64,0.55)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(spec.radius - 9, 0);
+    ctx.stroke();
+    ctx.rotate(-body.angle);
+    ctx.beginPath();
+    ctx.arc(0, 0, spec.motor ? 10 : 6, 0, Math.PI * 2);
+    ctx.fillStyle = spec.motor ? INK : '#ffffff';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    if (spec.motor) {
+        ctx.fillStyle = COLORS.gear;
+        ctx.beginPath();
+        ctx.moveTo(2, -7);
+        ctx.lineTo(-4, 1);
+        ctx.lineTo(0, 1);
+        ctx.lineTo(-2, 7);
+        ctx.lineTo(4, -1);
+        ctx.lineTo(0, -1);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.restore();
+    if (!state.playing && state.train) {
+        const speed = state.train.speeds.get(part.id);
+        const jammed = state.train.jammed.has(part.id);
+        if (jammed) drawJam(ctx, x, y);
+        else if (speed) drawSpinArrow(ctx, x, y, spec.radius + 14, speed > 0 ? 1 : -1, spec.motor ? COLORS.motor : COLORS.goal);
+    }
+}
+function drawSpinArrow(ctx, x, y, r, dir, color) {
+    const start = -Math.PI * 0.85;
+    const end = -Math.PI * 0.15;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(x, y, r, start, end);
+    ctx.stroke();
+    const tipAngle = dir > 0 ? end : start;
+    const tx = x + Math.cos(tipAngle) * r;
+    const ty = y + Math.sin(tipAngle) * r;
+    const tang = tipAngle + (dir > 0 ? Math.PI / 2 : -Math.PI / 2);
+    ctx.translate(tx, ty);
+    ctx.rotate(tang);
+    ctx.beginPath();
+    ctx.moveTo(8, 0);
+    ctx.lineTo(-4, -7);
+    ctx.lineTo(-4, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+}
+function drawJam(ctx, x, y) {
+    ctx.save();
+    ctx.strokeStyle = '#e63946';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - 10, y - 10);
+    ctx.lineTo(x + 10, y + 10);
+    ctx.moveTo(x + 10, y - 10);
+    ctx.lineTo(x - 10, y + 10);
+    ctx.stroke();
+    ctx.restore();
+}
+function drawPaper(ctx, w, h, floorTop) {
+    ctx.fillStyle = '#f4f8fd';
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineWidth = 1;
+    for(let gx = 0; gx <= w; gx += 20){
+        ctx.strokeStyle = gx % 100 === 0 ? 'rgba(47,125,246,0.20)' : 'rgba(47,125,246,0.08)';
+        ctx.beginPath();
+        ctx.moveTo(gx + 0.5, 0);
+        ctx.lineTo(gx + 0.5, floorTop);
+        ctx.stroke();
+    }
+    for(let gy = 0; gy <= floorTop; gy += 20){
+        ctx.strokeStyle = gy % 100 === 0 ? 'rgba(47,125,246,0.20)' : 'rgba(47,125,246,0.08)';
+        ctx.beginPath();
+        ctx.moveTo(0, gy + 0.5);
+        ctx.lineTo(w, gy + 0.5);
+        ctx.stroke();
+    }
+}
+function drawThumbnail(canvas, type) {
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const cw = canvas.clientWidth || 64;
+    const ch = canvas.clientHeight || 40;
+    canvas.width = cw * dpr;
+    canvas.height = ch * dpr;
+    const def = PART_DEFS[type];
+    const geom = {
+        x: 0,
+        y: 0,
+        angle: type === 'plank' ? -0.35 : 0,
+        power: 2
+    };
+    const bodies = def.build(geom, false);
+    const fake = {
+        id: -1,
+        type,
+        ...geom
+    };
+    for (const b of bodies)b.plugin = {
+        partId: -1,
+        partType: type,
+        part: fake
+    };
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const b of bodies){
+        for (const piece of pieces(b)){
+            for (const v of piece.vertices){
+                minX = Math.min(minX, v.x);
+                maxX = Math.max(maxX, v.x);
+                minY = Math.min(minY, v.y);
+                maxY = Math.max(maxY, v.y);
+            }
+        }
+    }
+    const pad = 5;
+    const scale = Math.min((cw - pad * 2) / (maxX - minX), (ch - pad * 2) / (maxY - minY), 1.1);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.translate(cw / 2, ch / 2);
+    ctx.scale(scale, scale);
+    ctx.translate(-(minX + maxX) / 2, -(minY + maxY) / 2);
+    const state = {
+        steps: 0,
+        playing: false,
+        train: null
+    };
+    for (const b of bodies)drawUnderlay(ctx, b, state);
+    drawBodies(ctx, bodies, state);
+    for (const b of bodies)drawDecoration(ctx, b, state);
 }
 
-function updateHint() {
-  const n = boxes.length, s = n === 1 ? 'area' : 'areas';
-  $('boxhint').textContent = !n
-    ? 'Drag on the photo to draw a box. With no boxes, the whole photo is read.'
-    : mode === 'skip' ? n + ' ' + s + ' will be skipped. Drag a box to move it, or drag its corner to resize.'
-                      : 'Only ' + n + ' ' + s + ' will be read. Drag a box to move it, or drag its corner to resize.';
+return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawSpinArrow, drawPaper, drawThumbnail };
+})();
+
+// ---- game/world.ts ----
+const { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
+
+
+
+const { Engine, Composite, Bodies, Body, Events } = Matter;
+const WORLD_W = 1000;
+const WORLD_H = 620;
+const FLOOR_TOP = 600;
+const STEP_MS = 1000 / 60;
+const TRAIL_EVERY = 2;
+const TRAIL_MAX = 900;
+const SPRING_COOLDOWN_STEPS = 12;
+class Simulation {
+    engine = Engine.create({
+        enableSleeping: false,
+        positionIterations: 10,
+        velocityIterations: 8
+    });
+    running = false;
+    goalEnabled = true;
+    goalTargets = [
+        'ball'
+    ];
+    solved = false;
+    onSolved = null;
+    steps = 0;
+    trails = new Map();
+    gearTrain = {
+        speeds: new Map(),
+        links: [],
+        jammed: new Set()
+    };
+    built = new Map();
+    partsById = new Map();
+    pivots = [];
+    conveyorContacts = [];
+    springContacts = [];
+    springCooldown = new Map();
+    constructor(){
+        this.engine.gravity.x = 0;
+        this.engine.gravity.y = 1;
+        Events.on(this.engine, 'beforeUpdate', ()=>this.beforeStep());
+        Events.on(this.engine, 'afterUpdate', ()=>this.afterStep());
+        Events.on(this.engine, 'collisionStart', (e)=>{
+            this.recordContacts(e);
+            this.detectGoal(e);
+        });
+        Events.on(this.engine, 'collisionActive', (e)=>this.recordContacts(e));
+    }
+    load(parts, play) {
+        const world = this.engine.world;
+        Composite.clear(world, false, true);
+        Engine.clear(this.engine);
+        this.built.clear();
+        this.partsById.clear();
+        this.pivots = [];
+        this.conveyorContacts = [];
+        this.springContacts = [];
+        this.springCooldown.clear();
+        this.trails.clear();
+        this.running = play;
+        this.solved = false;
+        this.steps = 0;
+        this.gearTrain = computeGearTrain(parts);
+        Composite.add(world, this.boundaries());
+        for (const p of parts){
+            const def = PART_DEFS[p.type];
+            const bodies = def.build(p, play);
+            for (const body of bodies){
+                body.plugin = {
+                    ...body.plugin ?? {},
+                    partId: p.id,
+                    partType: p.type,
+                    part: p
+                };
+            }
+            Composite.add(world, bodies);
+            this.built.set(p.id, bodies);
+            this.partsById.set(p.id, p);
+            if (play && def.motion === 'pivot') {
+                const body = bodies[0];
+                const speed = this.gearTrain.speeds.get(p.id);
+                const dx = body.position.x - p.x;
+                const dy = body.position.y - p.y;
+                const c = Math.cos(-body.angle);
+                const s = Math.sin(-body.angle);
+                this.pivots.push({
+                    body,
+                    x: p.x,
+                    y: p.y,
+                    ox: dx * c - dy * s,
+                    oy: dx * s + dy * c,
+                    speed,
+                    angle0: body.angle
+                });
+            }
+        }
+    }
+    step() {
+        this.steps++;
+        Engine.update(this.engine, STEP_MS);
+        if (this.steps % TRAIL_EVERY === 0) this.recordTrails();
+    }
+    bodiesOf(id) {
+        return this.built.get(id) ?? [];
+    }
+    allBodies() {
+        return Composite.allBodies(this.engine.world);
+    }
+    partNear(x, y, tolerance, accept) {
+        let bestId;
+        let bestDist = Infinity;
+        for (const [id, bodies] of this.built){
+            const part = this.partsById.get(id);
+            if (!part || !accept(part)) continue;
+            for (const body of bodies){
+                const pieces = body.parts.length > 1 ? body.parts.slice(1) : [
+                    body
+                ];
+                for (const piece of pieces){
+                    const d = pointPolygonDistance(x, y, piece.vertices);
+                    const score = d === 0 ? -1 / (1 + Math.hypot(x - part.x, y - part.y)) : d;
+                    if (d <= tolerance && score < bestDist) {
+                        bestDist = score;
+                        bestId = id;
+                    }
+                }
+            }
+        }
+        return bestId;
+    }
+    boundaries() {
+        const opts = {
+            label: 'bound',
+            isStatic: true,
+            friction: 0.5,
+            restitution: 0.2,
+            collisionFilter: {
+                category: CAT_SOLID,
+                mask: 0xffffffff,
+                group: 0
+            },
+            render: {
+                fillStyle: '#c9d3e6',
+                strokeStyle: '#1d2440',
+                lineWidth: 2
+            }
+        };
+        return [
+            Bodies.rectangle(WORLD_W / 2, FLOOR_TOP + 30, WORLD_W + 200, 60, opts),
+            Bodies.rectangle(-30, WORLD_H / 2, 60, WORLD_H + 400, opts),
+            Bodies.rectangle(WORLD_W + 30, WORLD_H / 2, 60, WORLD_H + 400, opts),
+            Bodies.rectangle(WORLD_W / 2, -230, WORLD_W + 200, 60, opts)
+        ];
+    }
+    recordContacts(event) {
+        for (const pair of event.pairs){
+            const a = pair.bodyA;
+            const b = pair.bodyB;
+            if (a.label === 'conveyor') this.conveyorContacts.push([
+                a,
+                b.parent
+            ]);
+            else if (b.label === 'conveyor') this.conveyorContacts.push([
+                b,
+                a.parent
+            ]);
+            if (a.label === 'springPad') this.springContacts.push([
+                a,
+                b.parent
+            ]);
+            else if (b.label === 'springPad') this.springContacts.push([
+                b,
+                a.parent
+            ]);
+        }
+    }
+    isFree(body) {
+        return !body.isStatic && !body.isSensor && body.plugin?.partType && PART_DEFS[body.plugin.partType].motion === 'dynamic';
+    }
+    beforeStep() {
+        if (!this.running) return;
+        for (const [belt, other] of this.conveyorContacts){
+            if (!this.isFree(other)) continue;
+            const part = belt.plugin?.part;
+            const sign = part?.flip ? -1 : 1;
+            const dx = Math.cos(belt.angle) * sign;
+            const dy = Math.sin(belt.angle) * sign;
+            const along = other.velocity.x * dx + other.velocity.y * dy;
+            if (along < CONVEYOR_SPEED) {
+                const f = other.mass * CONVEYOR_FORCE;
+                Body.applyForce(other, other.position, {
+                    x: dx * f,
+                    y: dy * f
+                });
+            }
+        }
+        this.conveyorContacts = [];
+        for (const pv of this.pivots){
+            if (pv.speed !== undefined) Body.setAngularVelocity(pv.body, pv.speed);
+        }
+    }
+    afterStep() {
+        if (!this.running) return;
+        for (const pv of this.pivots){
+            if (pv.speed !== undefined) {
+                Body.setAngle(pv.body, pv.angle0 + pv.speed * this.steps, false);
+            }
+            const c = Math.cos(pv.body.angle);
+            const s = Math.sin(pv.body.angle);
+            Body.setPosition(pv.body, {
+                x: pv.x + pv.ox * c - pv.oy * s,
+                y: pv.y + pv.ox * s + pv.oy * c
+            }, false);
+            Body.setVelocity(pv.body, {
+                x: 0,
+                y: 0
+            });
+        }
+        for (const [pad, other] of this.springContacts){
+            if (!this.isFree(other)) continue;
+            const key = `${pad.id}:${other.id}`;
+            const last = this.springCooldown.get(key);
+            if (last !== undefined && this.steps - last < SPRING_COOLDOWN_STEPS) continue;
+            const nx = Math.sin(pad.angle);
+            const ny = -Math.cos(pad.angle);
+            const side = (other.position.x - pad.position.x) * nx + (other.position.y - pad.position.y) * ny;
+            if (side <= 0) continue;
+            const part = pad.plugin?.part;
+            const speed = SPRING_SPEEDS[part?.power ?? 2];
+            const vn = other.velocity.x * nx + other.velocity.y * ny;
+            if (vn >= speed) continue;
+            Body.setVelocity(other, {
+                x: other.velocity.x + (speed - vn) * nx,
+                y: other.velocity.y + (speed - vn) * ny
+            });
+            this.springCooldown.set(key, this.steps);
+            pad.plugin.firedAt = this.steps;
+        }
+        this.springContacts = [];
+    }
+    recordTrails() {
+        for (const body of Composite.allBodies(this.engine.world)){
+            if (body.label !== 'ball' && body.label !== 'heavyBall') continue;
+            let trail = this.trails.get(body.id);
+            if (!trail) {
+                trail = {
+                    label: body.label,
+                    points: []
+                };
+                this.trails.set(body.id, trail);
+            }
+            if (trail.points.length < TRAIL_MAX) trail.points.push({
+                x: body.position.x,
+                y: body.position.y
+            });
+        }
+    }
+    detectGoal(event) {
+        if (!this.running || !this.goalEnabled || this.solved) return;
+        for (const pair of event.pairs){
+            const a = pair.bodyA;
+            const b = pair.bodyB;
+            const other = a.label === 'goalSensor' ? b.parent : b.label === 'goalSensor' ? a.parent : null;
+            if (other && this.goalTargets.includes(other.label)) {
+                this.solved = true;
+                this.onSolved?.();
+                return;
+            }
+        }
+    }
 }
 
-function render() {
-  els.forEach(e => e.remove()); els = [];
-  boxes.forEach((b, i) => {
-    const el = document.createElement('div');
-    el.className = 'box'; el.dataset.i = i;
-    const x = document.createElement('button');
-    x.type = 'button'; x.className = 'x'; x.textContent = '×'; x.setAttribute('aria-label', 'Remove this box');
-    const h = document.createElement('div'); h.className = 'h';
-    el.append(x, h); place(el, b); stage.appendChild(el); els.push(el);
-  });
-  $('undo').disabled = !undoStack.length;
-  $('clearBoxes').disabled = !boxes.length;
-  updateHint();
+return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
+})();
+
+// ---- game/ui.ts ----
+const { UI } = (() => {
+
+
+function $(id) {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`Missing #${id} in index.html`);
+    return el;
+}
+class UI {
+    handlers;
+    paletteEl = $('palette');
+    levelsEl = $('levels');
+    runBtn = $('btn-run');
+    undoBtn = $('btn-undo');
+    statusEl = $('status');
+    solvedEl = $('solved');
+    nextBtn = $('btn-next');
+    toolbar = $('part-toolbar');
+    toastEl = $('toast');
+    infoEl = $('part-info');
+    partButtons = new Map();
+    toastTimer = 0;
+    selectedTool = null;
+    constructor(handlers){
+        this.handlers = handlers;
+        this.runBtn.addEventListener('click', ()=>handlers.onToggleRun());
+        $('btn-reset').addEventListener('click', ()=>handlers.onReset());
+        this.undoBtn.addEventListener('click', ()=>handlers.onUndo());
+        $('btn-next').addEventListener('click', ()=>handlers.onNext());
+        $('btn-replay').addEventListener('click', ()=>handlers.onBackToEdit());
+        $('tb-rot-l').addEventListener('click', ()=>handlers.onRotate(-1));
+        $('tb-rot-r').addEventListener('click', ()=>handlers.onRotate(1));
+        $('tb-flip').addEventListener('click', ()=>handlers.onFlip());
+        $('tb-delete').addEventListener('click', ()=>handlers.onDelete());
+        this.toolbar.querySelectorAll('[data-power]').forEach((b)=>b.addEventListener('click', ()=>handlers.onPower(Number(b.dataset.power))));
+        $('zoom-in').addEventListener('click', ()=>handlers.onZoomIn());
+        $('zoom-out').addEventListener('click', ()=>handlers.onZoomOut());
+        $('zoom-reset').addEventListener('click', ()=>handlers.onZoomReset());
+        $('zoom-controls').addEventListener('pointerdown', (e)=>e.stopPropagation());
+        const paths = $('show-paths');
+        paths.addEventListener('change', ()=>handlers.onTogglePaths(paths.checked));
+        this.toolbar.addEventListener('pointerdown', (e)=>e.stopPropagation());
+        document.addEventListener('click', (e)=>{
+            const b = e.target.closest('button');
+            if (b) b.blur();
+        });
+    }
+    setLevels(levels, current, solved) {
+        this.levelsEl.innerHTML = '';
+        levels.forEach((l, i)=>{
+            const b = document.createElement('button');
+            b.className = 'level-chip';
+            b.type = 'button';
+            if (i === current) b.classList.add('current');
+            if (solved.has(l.id)) b.classList.add('done');
+            const label = l.hasGoal ? String(i + 1) : '★';
+            b.innerHTML = `<span class="num">${label}</span><span class="name">${l.name}</span>`;
+            b.title = `${l.name}: ${l.science.topic}`;
+            b.setAttribute('aria-label', `Level ${label}: ${l.name}${solved.has(l.id) ? ' (solved)' : ''}`);
+            b.addEventListener('click', ()=>this.handlers.onSelectLevel(i));
+            this.levelsEl.appendChild(b);
+        });
+    }
+    setLevelInfo(level, hasNext) {
+        $('goal-text').textContent = level.goal;
+        $('sci-topic').textContent = level.science.topic;
+        $('sci-text').textContent = level.science.text;
+        $('sci-try').textContent = level.science.tryThis;
+        $('solved-learned').textContent = level.science.learned;
+        this.nextBtn.hidden = !hasNext;
+    }
+    setPalette(remaining) {
+        this.paletteEl.innerHTML = '';
+        this.partButtons.clear();
+        for (const type of PALETTE_ORDER){
+            if (!(type in remaining)) continue;
+            const def = PART_DEFS[type];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'part-btn';
+            btn.title = def.blurb;
+            btn.innerHTML = `<canvas class="thumb" aria-hidden="true"></canvas><span class="part-name">${def.label}</span><span class="count"></span>`;
+            btn.addEventListener('pointerdown', (e)=>{
+                if (e.button !== 0) return;
+                this.handlers.onPaletteDragStart(type, e);
+            });
+            btn.addEventListener('click', ()=>this.handlers.onPaletteClick(type));
+            btn.addEventListener('pointerenter', ()=>this.showPartInfo(type));
+            this.paletteEl.appendChild(btn);
+            this.partButtons.set(type, btn);
+            drawThumbnail(btn.querySelector('canvas'), type);
+        }
+        this.updateCounts(remaining);
+    }
+    updateCounts(remaining) {
+        for (const [type, btn] of this.partButtons){
+            const left = remaining[type];
+            const count = btn.querySelector('.count');
+            count.textContent = left === null || left === undefined ? '∞' : `×${left}`;
+            btn.classList.toggle('empty', left === 0);
+            btn.classList.toggle('selected', type === this.selectedTool);
+        }
+    }
+    setSelectedTool(type) {
+        this.selectedTool = type;
+        for (const [t, btn] of this.partButtons)btn.classList.toggle('selected', t === type);
+    }
+    showPartInfo(type) {
+        if (!type) return;
+        const def = PART_DEFS[type];
+        this.infoEl.innerHTML = '';
+        const h = document.createElement('strong');
+        h.textContent = def.label;
+        const p = document.createElement('span');
+        p.textContent = def.blurb;
+        this.infoEl.append(h, p);
+    }
+    showToolbar(pos, opts) {
+        if (!pos || !opts) {
+            this.toolbar.hidden = true;
+            return;
+        }
+        this.toolbar.hidden = false;
+        this.toolbar.style.left = `${pos.left}%`;
+        this.toolbar.style.top = `${pos.top}%`;
+        this.toolbar.classList.toggle('below', pos.below);
+        $('tb-rot-l').hidden = !opts.rotatable;
+        $('tb-rot-r').hidden = !opts.rotatable;
+        $('tb-flip').hidden = !opts.flippable;
+        const powerRow = $('tb-power');
+        powerRow.hidden = opts.power === null;
+        powerRow.querySelectorAll('[data-power]').forEach((b)=>b.classList.toggle('on', Number(b.dataset.power) === opts.power));
+    }
+    setZoom(z) {
+        $('zoom-reset').textContent = `${Math.round(z * 100)}%`;
+        $('zoom-out').disabled = z <= 1.001;
+        $('zoom-in').disabled = z >= 2.999;
+    }
+    setUndoEnabled(enabled) {
+        this.undoBtn.disabled = !enabled;
+    }
+    setRunning(running) {
+        this.runBtn.innerHTML = running ? '<span class="btn-icon">■</span> Stop' : '<span class="btn-icon">▶</span> Start';
+        this.runBtn.classList.toggle('running', running);
+        document.body.classList.toggle('is-running', running);
+        this.paletteEl.classList.toggle('disabled', running);
+    }
+    setStatus(text, kind = 'edit') {
+        this.statusEl.textContent = text;
+        this.statusEl.dataset.kind = kind;
+    }
+    toast(text) {
+        this.toastEl.textContent = text;
+        this.toastEl.classList.add('show');
+        window.clearTimeout(this.toastTimer);
+        this.toastTimer = window.setTimeout(()=>this.toastEl.classList.remove('show'), 2200);
+    }
+    showSolved(show) {
+        this.solvedEl.hidden = !show;
+    }
 }
 
-function setMode(m) {
-  mode = m;
-  stage.classList.toggle('keep', m === 'keep');
-  $('modeSkip').setAttribute('aria-pressed', String(m === 'skip'));
-  $('modeKeep').setAttribute('aria-pressed', String(m === 'keep'));
-  updateHint();
-}
-$('modeSkip').onclick = () => setMode('skip');
-$('modeKeep').onclick = () => setMode('keep');
+return { UI };
+})();
 
-function rel(e) {
-  const r = stage.getBoundingClientRect();
-  return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height), r };
-}
+// ---- main.ts ----
+(() => {
 
-stage.addEventListener('pointerdown', e => {
-  if (e.target.closest('.x')) return;               // handled on click
-  const p = rel(e), boxEl = e.target.closest('.box'), pre = JSON.stringify(boxes);
-  if (boxEl && e.target.classList.contains('h')) {
-    drag = { t: 'resize', i: +boxEl.dataset.i, pre };
-  } else if (boxEl) {
-    const i = +boxEl.dataset.i, b = boxes[i];
-    drag = { t: 'move', i, pre, dx: p.x - b.x, dy: p.y - b.y };
-  } else {
-    boxes.push({ x: p.x, y: p.y, w: 0, h: 0 });
-    render();
-    drag = { t: 'draw', i: boxes.length - 1, pre, sx: p.x, sy: p.y };
-  }
-  try { stage.setPointerCapture(e.pointerId); } catch {}
-  e.preventDefault();
+
+
+
+
+
+
+const GRID = 10;
+const ROTATE_STEP = Math.PI / 12;
+const SOLVED_KEY = 'modern-tim:solved';
+const SANDBOX_KEY = 'modern-tim:sandbox';
+const MAX_UNDO = 60;
+const sim = new Simulation();
+let levelIndex = 0;
+let level = LEVELS[0];
+let parts = [];
+let idCounter = 1;
+const nextId = ()=>idCounter++;
+let playing = false;
+let tool = null;
+let toolAngle = 0;
+let selectedId = null;
+let hover = null;
+let hoverId;
+let drag = null;
+let paletteDrag = null;
+let suppressPaletteClick = false;
+let undoStack = [];
+let lastTrails = [];
+let showPaths = true;
+let solvedLevels = loadSolved();
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
+const view = {
+    z: 1,
+    cx: 0,
+    cy: 0
+};
+let pan = null;
+const touches = new Map();
+let pinch = null;
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const board = document.getElementById('board');
+const stageArea = document.getElementById('stage-area');
+function fitBoard() {
+    const r = stageArea.getBoundingClientRect();
+    const stacked = window.matchMedia('(max-width: 860px)').matches;
+    const maxH = stacked ? Infinity : r.height;
+    const w = Math.max(200, Math.min(r.width, maxH * WORLD_W / WORLD_H));
+    board.style.width = `${w}px`;
+    board.style.height = `${w * WORLD_H / WORLD_W}px`;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(w * WORLD_H / WORLD_W * dpr);
+}
+new ResizeObserver(fitBoard).observe(stageArea);
+fitBoard();
+const ui = new UI({
+    onPaletteClick: (type)=>{
+        if (suppressPaletteClick) {
+            suppressPaletteClick = false;
+            return;
+        }
+        selectTool(tool === type ? null : type);
+    },
+    onPaletteDragStart: (type, e)=>{
+        if (playing) return;
+        suppressPaletteClick = false;
+        paletteDrag = {
+            type,
+            x0: e.clientX,
+            y0: e.clientY,
+            active: false
+        };
+        e.target.releasePointerCapture?.(e.pointerId);
+    },
+    onToggleRun: ()=>playing ? stop() : start(),
+    onReset: ()=>loadLevel(levelIndex, false),
+    onUndo: ()=>undo(),
+    onRotate: (dir)=>rotate(dir),
+    onFlip: ()=>flip(),
+    onPower: (p)=>setPower(p),
+    onDelete: ()=>deleteSelected(),
+    onSelectLevel: (i)=>loadLevel(i, true),
+    onNext: ()=>loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
+    onBackToEdit: ()=>stop(),
+    onTogglePaths: (show)=>showPaths = show,
+    onZoomIn: ()=>zoomStep(1.25),
+    onZoomOut: ()=>zoomStep(1 / 1.25),
+    onZoomReset: ()=>resetZoom()
 });
-
-stage.addEventListener('pointermove', e => {
-  if (!drag) return;
-  const p = rel(e), b = boxes[drag.i];
-  if (drag.t === 'draw') {
-    b.x = Math.min(drag.sx, p.x); b.y = Math.min(drag.sy, p.y);
-    b.w = Math.abs(p.x - drag.sx); b.h = Math.abs(p.y - drag.sy);
-  } else if (drag.t === 'move') {
-    b.x = clamp(p.x - drag.dx, 0, 1 - b.w); b.y = clamp(p.y - drag.dy, 0, 1 - b.h);
-  } else {
-    b.w = clamp(p.x - b.x, 40 / p.r.width, 1 - b.x);
-    b.h = clamp(p.y - b.y, 40 / p.r.height, 1 - b.y);
-  }
-  place(els[drag.i], b);
+sim.onSolved = ()=>{
+    solvedLevels.add(level.id);
+    saveSolved();
+    ui.setLevels(LEVELS, levelIndex, solvedLevels);
+    ui.setStatus('Solved!', 'solved');
+    window.setTimeout(()=>{
+        if (playing && sim.solved) ui.showSolved(true);
+    }, 700);
+};
+const snap = (v)=>Math.round(v / GRID) * GRID;
+const clamp = (v, lo, hi)=>Math.max(lo, Math.min(hi, v));
+const clone = (list)=>list.map((p)=>({
+            ...p
+        }));
+function loadSolved() {
+    try {
+        return new Set(JSON.parse(localStorage.getItem(SOLVED_KEY) ?? '[]'));
+    } catch  {
+        return new Set();
+    }
+}
+function saveSolved() {
+    try {
+        localStorage.setItem(SOLVED_KEY, JSON.stringify([
+            ...solvedLevels
+        ]));
+    } catch  {}
+}
+function persistSandbox() {
+    if (level.id !== 'sandbox') return;
+    try {
+        localStorage.setItem(SANDBOX_KEY, JSON.stringify(parts.filter((p)=>!p.locked)));
+    } catch  {}
+}
+function restoreSandbox() {
+    try {
+        const saved = JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]');
+        return saved.filter((p)=>p && p.type in PART_DEFS).map((p)=>({
+                ...p,
+                id: nextId(),
+                locked: false
+            }));
+    } catch  {
+        return [];
+    }
+}
+function remaining() {
+    const out = {};
+    if (level.inventory === null) {
+        for (const type of Object.keys(PART_DEFS))out[type] = null;
+        return out;
+    }
+    for (const [type, count] of Object.entries(level.inventory)){
+        const used = parts.filter((p)=>!p.locked && p.type === type).length;
+        out[type] = Math.max(0, count - used);
+    }
+    return out;
+}
+const selectedPart = ()=>parts.find((p)=>p.id === selectedId);
+function worldPoint(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+        x: view.cx + (clientX - rect.left) / rect.width * (WORLD_W / view.z),
+        y: view.cy + (clientY - rect.top) / rect.height * (WORLD_H / view.z),
+        inside: clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
+    };
+}
+function clampView() {
+    view.z = clamp(view.z, MIN_ZOOM, MAX_ZOOM);
+    view.cx = clamp(view.cx, 0, WORLD_W - WORLD_W / view.z);
+    view.cy = clamp(view.cy, 0, WORLD_H - WORLD_H / view.z);
+}
+function zoomAt(factor, px, py) {
+    const z = clamp(view.z * factor, MIN_ZOOM, MAX_ZOOM);
+    view.cx = px - (px - view.cx) * view.z / z;
+    view.cy = py - (py - view.cy) * view.z / z;
+    view.z = z;
+    clampView();
+    ui.setZoom(view.z);
+    updateToolbar();
+}
+function zoomStep(factor) {
+    zoomAt(factor, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
+}
+function resetZoom() {
+    view.z = 1;
+    view.cx = 0;
+    view.cy = 0;
+    ui.setZoom(1);
+    updateToolbar();
+}
+function rebuild() {
+    sim.goalEnabled = level.hasGoal;
+    sim.goalTargets = level.goalTargets ?? [
+        'ball'
+    ];
+    sim.load(parts, playing);
+}
+function pushUndo(snapshot = clone(parts)) {
+    undoStack.push(snapshot);
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    ui.setUndoEnabled(true);
+}
+function changed() {
+    rebuild();
+    persistSandbox();
+    refreshUI();
+}
+function refreshUI() {
+    ui.updateCounts(remaining());
+    ui.setSelectedTool(tool);
+    ui.setUndoEnabled(undoStack.length > 0 && !playing);
+    updateToolbar();
+}
+function updateToolbar() {
+    const sel = selectedPart();
+    if (!sel || playing || drag?.moved) {
+        ui.showToolbar(null);
+        return;
+    }
+    const def = PART_DEFS[sel.type];
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const b of sim.bodiesOf(sel.id)){
+        minY = Math.min(minY, b.bounds.min.y);
+        maxY = Math.max(maxY, b.bounds.max.y);
+    }
+    const sx = (sel.x - view.cx) * view.z / WORLD_W;
+    const top = (minY - view.cy) * view.z / WORLD_H;
+    const bottom = (maxY - view.cy) * view.z / WORLD_H;
+    if (sx < 0 || sx > 1 || bottom < 0 || top > 1) {
+        ui.showToolbar(null);
+        return;
+    }
+    const below = top < 0.2;
+    ui.showToolbar({
+        left: clamp(sx, 0.08, 0.92) * 100,
+        top: clamp(below ? bottom : top, 0, 1) * 100,
+        below
+    }, {
+        rotatable: def.rotatable,
+        flippable: def.flippable,
+        power: def.hasPower ? sel.power ?? 2 : null
+    });
+}
+function loadLevel(index, restore) {
+    levelIndex = index;
+    level = LEVELS[index];
+    idCounter = 1;
+    parts = levelToParts(level, nextId);
+    if (level.id === 'sandbox' && restore) parts.push(...restoreSandbox());
+    playing = false;
+    tool = null;
+    toolAngle = 0;
+    selectedId = null;
+    drag = null;
+    undoStack = [];
+    lastTrails = [];
+    view.z = 1;
+    view.cx = 0;
+    view.cy = 0;
+    ui.setZoom(1);
+    rebuild();
+    persistSandbox();
+    ui.setLevels(LEVELS, levelIndex, solvedLevels);
+    ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
+    ui.setPalette(remaining());
+    ui.setRunning(false);
+    ui.showSolved(false);
+    ui.setStatus('Building');
+    const first = Object.keys(remaining())[0];
+    ui.showPartInfo(first ?? null);
+    refreshUI();
+}
+function start() {
+    if (playing) return;
+    playing = true;
+    tool = null;
+    selectedId = null;
+    drag = null;
+    paletteDrag = null;
+    rebuild();
+    ui.setRunning(true);
+    ui.setStatus('Running…', 'running');
+    refreshUI();
+}
+function stop() {
+    if (!playing) {
+        ui.showSolved(false);
+        return;
+    }
+    lastTrails = [
+        ...sim.trails.values()
+    ];
+    playing = false;
+    rebuild();
+    ui.setRunning(false);
+    ui.showSolved(false);
+    ui.setStatus('Building');
+    refreshUI();
+}
+function selectTool(type) {
+    if (playing) return;
+    if (type && remaining()[type] === 0) {
+        ui.toast(`No ${PART_DEFS[type].label.toLowerCase()}s left. Drag one you placed, or delete one.`);
+        return;
+    }
+    tool = type;
+    if (type) {
+        selectedId = null;
+        ui.showPartInfo(type);
+        if (!PART_DEFS[type].rotatable) toolAngle = 0;
+    }
+    refreshUI();
+}
+function rotate(dir) {
+    if (playing) return;
+    if (tool) {
+        if (PART_DEFS[tool].rotatable) toolAngle += dir * ROTATE_STEP;
+        return;
+    }
+    const sel = selectedPart();
+    if (sel && !sel.locked && PART_DEFS[sel.type].rotatable) {
+        pushUndo();
+        sel.angle += dir * ROTATE_STEP;
+        changed();
+    }
+}
+function flip() {
+    const sel = selectedPart();
+    if (playing || !sel || sel.locked || !PART_DEFS[sel.type].flippable) return;
+    pushUndo();
+    sel.flip = !sel.flip;
+    changed();
+}
+function setPower(power) {
+    const sel = selectedPart();
+    if (playing || !sel || sel.locked || !PART_DEFS[sel.type].hasPower) return;
+    pushUndo();
+    sel.power = clamp(power, 1, 3);
+    changed();
+}
+function deleteById(id) {
+    const part = parts.find((p)=>p.id === id);
+    if (!part || part.locked) return;
+    pushUndo();
+    parts = parts.filter((p)=>p.id !== id);
+    if (selectedId === id) selectedId = null;
+    changed();
+}
+function deleteSelected() {
+    if (!playing && selectedId !== null) deleteById(selectedId);
+}
+function undo() {
+    if (playing) return;
+    const prev = undoStack.pop();
+    if (!prev) return;
+    parts = prev;
+    selectedId = null;
+    changed();
+}
+function positionPart(p, x, y) {
+    p.x = clamp(snap(x), 10, WORLD_W - 10);
+    p.y = clamp(snap(y), 10, FLOOR_TOP - 10);
+    if (isGear(p.type)) {
+        const raw = {
+            ...p,
+            x: clamp(x, 10, WORLD_W - 10),
+            y: clamp(y, 10, FLOOR_TOP - 10)
+        };
+        const snapped = snapGear(raw, parts);
+        if (snapped) {
+            p.x = snapped.x;
+            p.y = snapped.y;
+            p.angle = snapped.angle;
+        }
+    }
+}
+function placeAt(type, x, y) {
+    if (remaining()[type] === 0) return;
+    const def = PART_DEFS[type];
+    pushUndo();
+    const part = {
+        id: nextId(),
+        type,
+        x: 0,
+        y: 0,
+        angle: def.rotatable ? toolAngle : 0,
+        power: def.hasPower ? 2 : undefined
+    };
+    positionPart(part, x, y);
+    parts.push(part);
+    selectedId = part.id;
+    ui.showPartInfo(type);
+    changed();
+}
+const ownParts = (p)=>!p.locked;
+function updateCursor() {
+    let cursor = 'default';
+    if (!playing) {
+        if (drag) cursor = 'grabbing';
+        else if (hoverId !== undefined) cursor = parts.find((p)=>p.id === hoverId)?.locked ? 'not-allowed' : 'grab';
+        else if (tool) cursor = 'copy';
+        else if (view.z > 1) cursor = 'grab';
+    }
+    if (pan?.moved && view.z > 1) cursor = 'grabbing';
+    canvas.style.cursor = cursor;
+}
+function cancelDrag() {
+    if (!drag) return;
+    if (drag.moved) {
+        parts = drag.before;
+        rebuild();
+    }
+    drag = null;
+}
+canvas.addEventListener('pointerdown', (e)=>{
+    if (e.button !== 0) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    if (e.pointerType === 'touch') {
+        touches.set(e.pointerId, {
+            x: e.clientX,
+            y: e.clientY
+        });
+        if (touches.size === 2) {
+            cancelDrag();
+            pan = null;
+            const [a, b] = [
+                ...touches.values()
+            ];
+            pinch = {
+                dist: Math.hypot(a.x - b.x, a.y - b.y),
+                midX: (a.x + b.x) / 2,
+                midY: (a.y + b.y) / 2
+            };
+            refreshUI();
+            return;
+        }
+        if (touches.size > 2) return;
+    }
+    const p = worldPoint(e.clientX, e.clientY);
+    const startPan = (lockedHit)=>{
+        pan = {
+            x0: e.clientX,
+            y0: e.clientY,
+            cx0: view.cx,
+            cy0: view.cy,
+            moved: false,
+            lockedHit
+        };
+    };
+    if (playing) {
+        startPan(false);
+        updateCursor();
+        return;
+    }
+    const touch = e.pointerType === 'touch';
+    const tolerance = (tool ? touch ? 8 : 3 : touch ? 26 : 16) / view.z;
+    const ownId = sim.partNear(p.x, p.y, tolerance, ownParts);
+    if (ownId !== undefined) {
+        const part = parts.find((q)=>q.id === ownId);
+        tool = null;
+        selectedId = part.id;
+        drag = {
+            id: part.id,
+            dx: part.x - p.x,
+            dy: part.y - p.y,
+            moved: false,
+            before: clone(parts)
+        };
+        ui.showPartInfo(part.type);
+    } else if (tool) {
+        const t = tool;
+        placeAt(t, p.x, p.y);
+        if (!e.shiftKey || remaining()[t] === 0) tool = null;
+    } else {
+        const lockedId = sim.partNear(p.x, p.y, tolerance, (q)=>!!q.locked);
+        startPan(lockedId !== undefined);
+    }
+    refreshUI();
+    updateCursor();
 });
-
+canvas.addEventListener('pointermove', (e)=>{
+    if (e.pointerType === 'touch' && touches.has(e.pointerId)) {
+        touches.set(e.pointerId, {
+            x: e.clientX,
+            y: e.clientY
+        });
+        if (pinch && touches.size === 2) {
+            const [a, b] = [
+                ...touches.values()
+            ];
+            const dist = Math.hypot(a.x - b.x, a.y - b.y);
+            const midX = (a.x + b.x) / 2;
+            const midY = (a.y + b.y) / 2;
+            const rect = canvas.getBoundingClientRect();
+            view.cx -= (midX - pinch.midX) / rect.width * (WORLD_W / view.z);
+            view.cy -= (midY - pinch.midY) / rect.height * (WORLD_H / view.z);
+            clampView();
+            const m = worldPoint(midX, midY);
+            zoomAt(dist / (pinch.dist || dist), m.x, m.y);
+            pinch = {
+                dist,
+                midX,
+                midY
+            };
+            return;
+        }
+    }
+    const p = worldPoint(e.clientX, e.clientY);
+    hover = p;
+    if (pan) {
+        const dx = e.clientX - pan.x0;
+        const dy = e.clientY - pan.y0;
+        if (!pan.moved && Math.hypot(dx, dy) > 5) pan.moved = true;
+        if (pan.moved && view.z > 1) {
+            const rect = canvas.getBoundingClientRect();
+            view.cx = pan.cx0 - dx / rect.width * (WORLD_W / view.z);
+            view.cy = pan.cy0 - dy / rect.height * (WORLD_H / view.z);
+            clampView();
+            updateToolbar();
+        }
+        updateCursor();
+        return;
+    }
+    if (playing) return;
+    if (drag) {
+        const part = parts.find((q)=>q.id === drag.id);
+        if (!part) return;
+        const oldX = part.x;
+        const oldY = part.y;
+        positionPart(part, p.x + drag.dx, p.y + drag.dy);
+        if (part.x !== oldX || part.y !== oldY) {
+            if (!drag.moved) updateToolbarHidden();
+            drag.moved = true;
+            rebuild();
+        }
+    } else {
+        hoverId = sim.partNear(p.x, p.y, (e.pointerType === 'touch' ? 26 : 16) / view.z, ()=>true);
+    }
+    updateCursor();
+});
+function updateToolbarHidden() {
+    ui.showToolbar(null);
+}
+function endPointer(e) {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinch = null;
+    if (pan) {
+        const p = pan;
+        pan = null;
+        if (!p.moved && playing) ui.toast('Press Stop to change your machine.');
+        else if (!p.moved) {
+            selectedId = null;
+            if (p.lockedHit) ui.toast('That part belongs to the puzzle, so it stays put.');
+            refreshUI();
+        }
+        updateCursor();
+    }
+    endDrag();
+}
 function endDrag() {
-  if (!drag) return;
-  const r = stage.getBoundingClientRect(), b = boxes[drag.i];
-  if (drag.t === 'draw' && (b.w * r.width < 24 || b.h * r.height < 24)) {
-    boxes.pop();                                    // too small: treat as a stray tap
-  } else if (JSON.stringify(boxes) !== drag.pre) {
-    undoStack.push(drag.pre);
-  }
-  drag = null;
-  render();
+    if (!drag) return;
+    if (drag.moved) {
+        pushUndo(drag.before);
+        persistSandbox();
+    }
+    drag = null;
+    refreshUI();
+    updateCursor();
 }
-stage.addEventListener('pointerup', endDrag);
-stage.addEventListener('pointercancel', endDrag);
-
-stage.addEventListener('click', e => {
-  const x = e.target.closest('.x');
-  if (!x) return;
-  const i = +x.parentElement.dataset.i;
-  undoStack.push(JSON.stringify(boxes));
-  boxes.splice(i, 1);
-  render();
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', ()=>{
+    if (!drag && !paletteDrag) hover = null;
+    hoverId = undefined;
 });
-
-$('undo').onclick = () => {
-  if (!undoStack.length) return;
-  boxes = JSON.parse(undoStack.pop());
-  render();
+window.addEventListener('pointermove', (e)=>{
+    if (!paletteDrag || playing) return;
+    if (!paletteDrag.active && Math.hypot(e.clientX - paletteDrag.x0, e.clientY - paletteDrag.y0) > 6) {
+        paletteDrag.active = true;
+        tool = paletteDrag.type;
+        selectedId = null;
+        refreshUI();
+    }
+    if (paletteDrag.active) {
+        const p = worldPoint(e.clientX, e.clientY);
+        hover = p.inside ? p : null;
+    }
+});
+window.addEventListener('pointerup', (e)=>{
+    if (!paletteDrag) return;
+    const pd = paletteDrag;
+    paletteDrag = null;
+    if (!pd.active) return;
+    suppressPaletteClick = true;
+    const p = worldPoint(e.clientX, e.clientY);
+    if (p.inside && !playing) {
+        placeAt(pd.type, p.x, p.y);
+        tool = null;
+    }
+    refreshUI();
+});
+let wheelAccum = 0;
+canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    if (e.shiftKey && !playing) {
+        wheelAccum += e.deltaY || e.deltaX;
+        if (Math.abs(wheelAccum) >= 60) {
+            rotate(wheelAccum > 0 ? 1 : -1);
+            wheelAccum = 0;
+        }
+        return;
+    }
+    const p = worldPoint(e.clientX, e.clientY);
+    const speed = e.ctrlKey ? 0.01 : 0.0015;
+    zoomAt(Math.exp(-e.deltaY * speed), p.x, p.y);
+}, {
+    passive: false
+});
+canvas.addEventListener('contextmenu', (e)=>{
+    e.preventDefault();
+    if (playing) return;
+    const p = worldPoint(e.clientX, e.clientY);
+    const id = sim.partNear(p.x, p.y, 16 / view.z, ownParts);
+    if (id !== undefined) deleteById(id);
+    else if (tool) selectTool(null);
+});
+window.addEventListener('keydown', (e)=>{
+    const target = e.target;
+    if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
+    if (e.code === 'Space') {
+        e.preventDefault();
+        if (playing) stop();
+        else start();
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        undo();
+    } else if (e.key === 'r' || e.key === 'R') {
+        rotate(e.shiftKey ? -1 : 1);
+    } else if (e.key === 'f' || e.key === 'F') {
+        flip();
+    } else if (e.key === '1' || e.key === '2' || e.key === '3') {
+        setPower(Number(e.key));
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        deleteSelected();
+    } else if (e.key === '+' || e.key === '=') {
+        zoomStep(1.25);
+    } else if (e.key === '-' || e.key === '_') {
+        zoomStep(1 / 1.25);
+    } else if (e.key === '0') {
+        resetZoom();
+    } else if (e.key === 'Escape') {
+        tool = null;
+        selectedId = null;
+        refreshUI();
+    } else if (e.key.startsWith('Arrow')) {
+        const sel = selectedPart();
+        if (!sel || sel.locked || playing) return;
+        e.preventDefault();
+        pushUndo();
+        const d = {
+            ArrowLeft: [
+                -GRID,
+                0
+            ],
+            ArrowRight: [
+                GRID,
+                0
+            ],
+            ArrowUp: [
+                0,
+                -GRID
+            ],
+            ArrowDown: [
+                0,
+                GRID
+            ]
+        }[e.key] ?? [
+            0,
+            0
+        ];
+        positionPart(sel, sel.x + d[0], sel.y + d[1]);
+        changed();
+    }
+});
+function drawTrails(trails, faded) {
+    ctx.save();
+    ctx.lineWidth = faded ? 2 : 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (faded) ctx.setLineDash([
+        2,
+        7
+    ]);
+    for (const t of trails){
+        if (t.points.length < 2) continue;
+        ctx.strokeStyle = t.label === 'heavyBall' ? 'rgba(91,74,158,0.5)' : 'rgba(47,125,246,0.5)';
+        ctx.beginPath();
+        ctx.moveTo(t.points[0].x, t.points[0].y);
+        for (const pt of t.points)ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+function drawGearLinks() {
+    ctx.save();
+    for (const link of sim.gearTrain.links){
+        const a = parts.find((p)=>p.id === link.a);
+        const b = parts.find((p)=>p.id === link.b);
+        if (!a || !b) continue;
+        const ra = PART_DEFS[a.type].gear.radius;
+        const t = ra / (ra + PART_DEFS[b.type].gear.radius);
+        const mx = a.x + (b.x - a.x) * t;
+        const my = a.y + (b.y - a.y) * t;
+        ctx.beginPath();
+        ctx.arc(mx, my, 6, 0, Math.PI * 2);
+        ctx.fillStyle = '#1fae6a';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+function render() {
+    const scale = canvas.width / WORLD_W * view.z;
+    ctx.setTransform(scale, 0, 0, scale, -view.cx * scale, -view.cy * scale);
+    drawPaper(ctx, WORLD_W, WORLD_H, FLOOR_TOP);
+    const state = {
+        steps: sim.steps,
+        playing,
+        train: sim.gearTrain
+    };
+    const bodies = sim.allBodies();
+    if (showPaths) {
+        if (playing) drawTrails([
+            ...sim.trails.values()
+        ], false);
+        else drawTrails(lastTrails, true);
+    }
+    const ghostBodies = (()=>{
+        if (playing || !tool || !hover) return null;
+        const def = PART_DEFS[tool];
+        const ghost = {
+            id: -1,
+            type: tool,
+            x: 0,
+            y: 0,
+            angle: def.rotatable ? toolAngle : 0,
+            power: 2
+        };
+        positionPart(ghost, hover.x, hover.y);
+        return def.build(ghost, false);
+    })();
+    const sensors = bodies.filter((b)=>b.isSensor);
+    const solids = bodies.filter((b)=>!b.isSensor);
+    for (const b of solids)drawUnderlay(ctx, b, state);
+    drawBodies(ctx, sensors, state);
+    drawBodies(ctx, solids, state);
+    for (const b of solids)drawDecoration(ctx, b, state);
+    if (!playing) {
+        drawGearLinks();
+        if (hoverId !== undefined && hoverId !== selectedId && !drag) {
+            const hp = parts.find((p)=>p.id === hoverId);
+            if (hp && !hp.locked) {
+                ctx.save();
+                ctx.lineWidth = 6 / view.z;
+                ctx.strokeStyle = 'rgba(47,125,246,0.35)';
+                traceBodies(ctx, sim.bodiesOf(hoverId));
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+        if (selectedId !== null) {
+            ctx.save();
+            ctx.lineWidth = 3 / view.z;
+            ctx.setLineDash([
+                7 / view.z,
+                5 / view.z
+            ]);
+            ctx.lineDashOffset = -performance.now() / 40;
+            ctx.strokeStyle = '#2f7df6';
+            traceBodies(ctx, sim.bodiesOf(selectedId));
+            ctx.stroke();
+            ctx.restore();
+        }
+        if (ghostBodies) {
+            const ok = remaining()[tool] !== 0;
+            ctx.save();
+            ctx.globalAlpha = 0.55;
+            drawBodies(ctx, ghostBodies, state);
+            ctx.globalAlpha = 1;
+            ctx.lineWidth = 2;
+            ctx.setLineDash([
+                5,
+                4
+            ]);
+            ctx.strokeStyle = ok ? '#2f7df6' : '#e63946';
+            traceBodies(ctx, ghostBodies);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+}
+let last = performance.now();
+let acc = 0;
+function frame(now) {
+    const dt = Math.min(now - last, 100);
+    last = now;
+    if (playing) {
+        acc += dt;
+        let n = 0;
+        while(acc >= STEP_MS && n < 4){
+            sim.step();
+            acc -= STEP_MS;
+            n++;
+        }
+        if (n === 4) acc = 0;
+    } else {
+        acc = 0;
+    }
+    render();
+    requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+loadLevel(0, true);
+window.tim = {
+    sim,
+    levels: LEVELS,
+    get parts () {
+        return parts;
+    },
+    get tool () {
+        return tool;
+    },
+    view,
+    loadLevel: (i)=>loadLevel(i, false),
+    addSolution: ()=>{
+        parts.push(...solutionToParts(level, nextId));
+        rebuild();
+        refreshUI();
+    },
+    start,
+    stop
 };
-$('clearBoxes').onclick = () => {
-  if (!boxes.length) return;
-  undoStack.push(JSON.stringify(boxes));
-  boxes = [];
-  render();
-};
 
-async function loadPhoto(file) {
-  if (!file || busy) return;
-  try {
-    setStatus('Loading photo…');
-    srcCanvas = await toCanvas(file);
-    view.width = srcCanvas.width; view.height = srcCanvas.height;
-    view.getContext('2d').drawImage(srcCanvas, 0, 0);
-    boxes = []; undoStack = []; render();
-    $('editor').classList.remove('hidden');
-    $('resultCard').classList.add('hidden');
-    setStatus('Draw boxes over anything to skip, or tap Scan text to read the whole photo.');
-    $('editor').scrollIntoView({ behavior: 'smooth' });
-  } catch (e) {
-    console.error(e);
-    setStatus('Could not open that photo: ' + (e.message || e));
-  }
-}
+})();
 
-// Build the image the OCR sees: enhance first, then paint skipped areas white
-// (or, in keep mode, white out everything outside the boxes).
-function buildInput() {
-  const work = document.createElement('canvas');
-  work.width = srcCanvas.width; work.height = srcCanvas.height;
-  const ctx = work.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(srcCanvas, 0, 0);
-  if ($('enhance').checked) enhance(work);
-  if (!boxes.length) return work;
-  const W = work.width, H = work.height;
-  const px = b => [Math.round(b.x * W), Math.round(b.y * H), Math.max(1, Math.round(b.w * W)), Math.max(1, Math.round(b.h * H))];
-  if (mode === 'skip') {
-    ctx.fillStyle = '#fff';
-    boxes.forEach(b => ctx.fillRect(...px(b)));
-    return work;
-  }
-  const out = document.createElement('canvas');
-  out.width = W; out.height = H;
-  const octx = out.getContext('2d');
-  octx.fillStyle = '#fff'; octx.fillRect(0, 0, W, H);
-  boxes.forEach(b => { const [x, y, w, h] = px(b); octx.drawImage(work, x, y, w, h, x, y, w, h); });
-  return out;
-}
-
-async function scan() {
-  if (!srcCanvas || busy) return;
-  busy = true;
-  $('resultCard').classList.add('hidden');
-  $('bar').style.display = 'block'; $('bar').value = 0;
-  $('scan').disabled = true;
-  try {
-    setStatus('Preparing image…');
-    const input = buildInput();
-    const w = await getWorker($('lang').value);
-    const { data } = await w.recognize(input);
-    const text = data.text.trim();
-    $('out').value = text || '(No text found. Try better light, hold steady, and fill the frame with the text.)';
-    $('conf').textContent = text ? 'Confidence: ' + Math.round(data.confidence) + '%' : '';
-    $('resultCard').classList.remove('hidden');
-    setStatus('Done.');
-    if (text) saveHistory(text);
-    $('resultCard').scrollIntoView({ behavior: 'smooth' });
-  } catch (e) {
-    console.error(e);
-    worker = null; workerLang = null;
-    setStatus('Something went wrong: ' + (e.message || e));
-  } finally {
-    $('bar').style.display = 'none';
-    $('scan').disabled = false; $('scan').textContent = 'Scan text';
-    busy = false;
-  }
-}
-$('scan').onclick = scan;
-
-['cam', 'file'].forEach(id => $(id).addEventListener('change', e => {
-  loadPhoto(e.target.files[0]); e.target.value = '';
-}));
-
-$('copy').onclick = async () => {
-  try { await navigator.clipboard.writeText($('out').value); setStatus('Copied.'); }
-  catch { $('out').select(); try { document.execCommand('copy'); } catch {} setStatus('Copied.'); }
-};
-
-$('download').onclick = () => {
-  const blob = new Blob([$('out').value], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'ocr-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt';
-  a.click(); URL.revokeObjectURL(a.href);
-};
-
-// ---- history (text only, localStorage) ----
-const KEY = 'snapocr-history';
-function loadHistory() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
-function saveHistory(text) {
-  const h = loadHistory();
-  h.unshift({ t: Date.now(), text });
-  try { localStorage.setItem(KEY, JSON.stringify(h.slice(0, 30))); } catch {}
-  renderHistory();
-}
-function renderHistory() {
-  const h = loadHistory(), box = $('hist');
-  box.innerHTML = '';
-  $('histCard').classList.toggle('hidden', !h.length);
-  h.forEach(item => {
-    const div = document.createElement('div');
-    div.className = 'hist-item';
-    const s = document.createElement('small'); s.textContent = new Date(item.t).toLocaleString();
-    const p = document.createElement('span'); p.textContent = item.text.replace(/\s+/g, ' ');
-    div.append(s, p);
-    div.onclick = () => { $('out').value = item.text; $('conf').textContent = ''; $('resultCard').classList.remove('hidden'); $('resultCard').scrollIntoView({ behavior: 'smooth' }); };
-    box.appendChild(div);
-  });
-}
-$('clearHist').onclick = () => { if (confirm('Clear all saved results on this device?')) { localStorage.removeItem(KEY); renderHistory(); } };
-renderHistory();
-render();
 </script>
 </body>
 </html>
