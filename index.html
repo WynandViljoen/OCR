@@ -407,6 +407,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
   font-size: 0.9rem;
 }
 .part-info:empty { display: none; }
+.part-info .preset-note { font-style: normal; font-weight: 800; color: var(--blue, #2f6fed); margin-top: 2px; }
 .part-info strong { font-family: var(--font-display); font-weight: 600; font-size: 1rem; }
 /* ---------- high scores ---------- */
 .scores h2 { font-size: 1.1rem; }
@@ -2219,7 +2220,7 @@ return { ropeLength, solveRope };
 })();
 
 // ---- game/levels.ts ----
-const { LEVELS, levelToParts, solutionToParts } = (() => {
+const { LEVELS, levelToParts, describePreset, withPreset, solutionToParts } = (() => {
 function basketWithFunnel(cx) {
     return [
         {
@@ -2360,14 +2361,13 @@ const LEVELS = [
                 type: 'spring',
                 x: 150,
                 y: 570,
-                angle: 15,
-                power: 2
+                angle: 15
             }
         ],
         science: {
             topic: 'Elastic energy',
             text: 'When the ball lands on a spring, the spring squashes and stores the ball’s energy. Then it springs back and gives the energy back. Tilt the spring to aim the bounce.',
-            tryThis: 'Click the spring and change its strength. How high does each setting bounce?',
+            tryThis: 'Turn the spring with the rotate keys. Which angle bounces the ball over the wall? In the Sandbox you can also change a spring\'s strength.',
             learned: 'Falling energy turned into spring energy, then back into motion. Energy changes form but never disappears.'
         }
     },
@@ -2617,10 +2617,10 @@ const LEVELS = [
         id: 'pulleys',
         hints: [
             "A pulley turns a downward pull into an upward lift. The crate has to go UP into the upside-down basket.",
-            "Hang the pulley above the crate, a little to its right. Rope: click the crate on the floor, then the pulley, then your own crate. Then press Start. If nothing moves, click your crate and tinker with its weight."
+            "Hang the pulley above the crate, a little to its right. Rope: click the crate on the floor, then the pulley, then your own crate. Then press Start. Your crate is heavier than the load, so it wins the tug of war."
         ],
         name: 'Pulleys',
-        goal: 'Lift the heavy crate up into the upside-down basket. Hint: the rope needs a weight on the other end that wins.',
+        goal: 'Lift the heavy crate up into the upside-down basket. Hint: your crate is the heavier one, so it wins the tug of war.',
         hasGoal: true,
         goalTargets: [
             'crate'
@@ -2644,6 +2644,13 @@ const LEVELS = [
             pulley: 1,
             rope: 1
         },
+        presets: {
+            crate: {
+                props: {
+                    weight: 0.012
+                }
+            }
+        },
         solution: [
             {
                 type: 'pulley',
@@ -2655,10 +2662,7 @@ const LEVELS = [
                 type: 'crate',
                 x: 306,
                 y: 100,
-                key: 'weight',
-                props: {
-                    weight: 0.012
-                }
+                key: 'weight'
             },
             {
                 type: 'rope',
@@ -2674,7 +2678,7 @@ const LEVELS = [
         science: {
             topic: 'Pulleys and balance',
             text: 'A pulley changes the direction of a pull: pull down on one side and the other side goes up. Both sides feel the same rope tension, so the heavier side wins. To lift a load you need an effort that weighs MORE than the load, or a block and tackle with extra rope strands.',
-            tryThis: 'Start with a crate the same weight as the load. Does anything move? Now click your crate and drag its weight slider up. Try the strands slider on the rope too.',
+            tryThis: 'Press Start and watch which crate falls. Then try the Sandbox, where you can change a crate\'s weight and the number of rope strands.',
             learned: 'A pulley changes the direction of a force, and the heavier side wins the tug-of-war.'
         }
     },
@@ -2746,8 +2750,7 @@ const LEVELS = [
                 type: 'spring',
                 x: 630,
                 y: 570,
-                angle: 0,
-                power: 2
+                angle: 0
             }
         ],
         science: {
@@ -2803,20 +2806,23 @@ const LEVELS = [
             spring: 1,
             plank: 2
         },
+        presets: {
+            spring: {
+                power: 3
+            }
+        },
         solution: [
             {
                 type: 'spring',
                 x: 160,
                 y: 570,
-                angle: 35,
-                power: 3
+                angle: 35
             },
             {
                 type: 'plank',
                 x: 650,
                 y: 260,
-                angle: -10,
-                w: 150
+                angle: -10
             }
         ],
         science: {
@@ -2877,8 +2883,7 @@ const LEVELS = [
             {
                 type: 'plank',
                 x: 390,
-                y: 312,
-                w: 180
+                y: 312
             },
             ...[
                 0,
@@ -3156,14 +3161,14 @@ const LEVELS = [
     {
         id: 'tackle',
         name: 'Heavy lifting',
-        goal: 'The crate is far too heavy for your crate to lift one-to-one. Lift it into the basket anyway.',
+        goal: 'The crate is far too heavy to lift one-to-one. Your rope has four strands. Lift it into the basket anyway.',
         hasGoal: true,
         goalTargets: [
             'crate'
         ],
         hints: [
-            "One rope strand will never do it: the heavy crate wins. But a rope looped back and forth shares the load between strands.",
-            "Pulley above the crate, rope from your crate over the pulley to the heavy one, then open the rope and raise the strands to 4. Make your crate as heavy as it goes."
+            "A single strand would never do it: the heavy crate would win. Your rope has four strands, and they share the load.",
+            "Pulley above the crate, a little to its right. Rope: click your crate, then the pulley, then the heavy crate. Then press Start."
         ],
         fixed: [
             {
@@ -3187,6 +3192,18 @@ const LEVELS = [
             pulley: 1,
             rope: 1
         },
+        presets: {
+            crate: {
+                props: {
+                    weight: 0.012
+                }
+            },
+            rope: {
+                props: {
+                    strands: 4
+                }
+            }
+        },
         solution: [
             {
                 type: 'pulley',
@@ -3198,18 +3215,12 @@ const LEVELS = [
                 type: 'crate',
                 x: 324,
                 y: 110,
-                key: 'eff',
-                props: {
-                    weight: 0.012
-                }
+                key: 'eff'
             },
             {
                 type: 'rope',
                 x: 290,
                 y: 300,
-                props: {
-                    strands: 4
-                },
                 link: {
                     a: 'eff',
                     via: 'pul',
@@ -3220,21 +3231,21 @@ const LEVELS = [
         science: {
             topic: 'Block and tackle',
             text: 'With four rope strands holding the load, each strand carries only a quarter of the weight, so a small pull wins. The price is distance: to lift the load 1 m you pull 4 m of rope.',
-            tryThis: 'Try 3 strands, then 4. What changes? How far does your crate fall compared to how far the load rises?',
+            tryThis: 'Watch how far your crate falls compared to how far the load rises. In the Sandbox you can try 2 or 3 strands and see what changes.',
             learned: 'More strands means less force but more rope: you never get something for nothing.'
         }
     },
     {
         id: 'tradeoff',
         name: 'Force or distance',
-        goal: 'Lift the crate to the high basket. More strands is not always better. Think about how far the rope has to travel.',
+        goal: 'Lift the crate to the high basket. Your rope has two strands, so your crate must fall twice as far as the load rises. Make room for that.',
         hasGoal: true,
         goalTargets: [
             'crate'
         ],
         hints: [
-            "Count the strands: one is too weak, but four would need your crate to fall farther than the room allows.",
-            "Two strands is the sweet spot. Hang your crate as HIGH as you can, near the pulley, so it has a long way to fall, and make it as heavy as it goes."
+            "Two strands halve the force you need, but your crate has to fall twice as far as the load rises. Where you hang your crate matters.",
+            "Pulley above and a little to the right of the load. Hang your crate as HIGH as you can, close under the pulley, so it has a long way to fall."
         ],
         fixed: [
             {
@@ -3258,6 +3269,18 @@ const LEVELS = [
             pulley: 1,
             rope: 1
         },
+        presets: {
+            crate: {
+                props: {
+                    weight: 0.012
+                }
+            },
+            rope: {
+                props: {
+                    strands: 2
+                }
+            }
+        },
         solution: [
             {
                 type: 'pulley',
@@ -3269,18 +3292,12 @@ const LEVELS = [
                 type: 'crate',
                 x: 334,
                 y: 100,
-                key: 'eff',
-                props: {
-                    weight: 0.012
-                }
+                key: 'eff'
             },
             {
                 type: 'rope',
                 x: 290,
                 y: 300,
-                props: {
-                    strands: 2
-                },
                 link: {
                     a: 'eff',
                     via: 'pul',
@@ -3291,21 +3308,21 @@ const LEVELS = [
         science: {
             topic: 'Trade-offs',
             text: 'A machine can trade force for distance. Two strands halve the force you need but double the rope you use. If you run out of room to pull, you cannot use that many strands. Engineers always balance the two.',
-            tryThis: 'Try 1, 2, 3 and 4 strands. For each one, say whether you ran out of strength or out of rope.',
+            tryThis: 'Hang your crate low, then high. Does the load reach the basket both times? In the Sandbox, try 1, 3 and 4 strands and say whether you ran out of strength or out of rope.',
             learned: 'Machines trade force for distance, and the room you have limits the trade.'
         }
     },
     {
         id: 'crane',
         name: 'Crane',
-        goal: 'Lift the heavy crate to the high basket. This time a motor does the lifting. Dropping a weight will not help!',
+        goal: 'Lift the heavy crate to the high basket. This pulley has a motor, so it climbs its own rail. Dropping a weight will not help!',
         hasGoal: true,
         goalTargets: [
             'crate'
         ],
         hints: [
-            "Click the pulley and look at its settings. A pulley with a motor can slide up on its rail and take the rope with it.",
-            "Hang a crate as heavy as the load on the other end of the rope, so neither side wins. Then set the motor to Lift up and make the rail long enough to reach the basket."
+            "This pulley has a motor: when you press Start it slides up its rail and takes the rope with it. The motor should only have to move the difference between the two crates.",
+            "Put the pulley beside the shaft with plenty of room above it. Rope: click your crate, then the pulley, then the load. Your crate is as heavy as the load, so neither side wins."
         ],
         fixed: [
             {
@@ -3343,25 +3360,31 @@ const LEVELS = [
             pulley: 1,
             rope: 1
         },
+        presets: {
+            crate: {
+                props: {
+                    weight: 0.012
+                }
+            },
+            pulley: {
+                props: {
+                    lift: 1,
+                    travel: 300
+                }
+            }
+        },
         solution: [
             {
                 type: 'pulley',
                 x: 360,
                 y: 320,
-                key: 'pul',
-                props: {
-                    lift: 1,
-                    travel: 300
-                }
+                key: 'pul'
             },
             {
                 type: 'crate',
                 x: 384,
                 y: 578,
-                key: 'eff',
-                props: {
-                    weight: 0.012
-                }
+                key: 'eff'
             },
             {
                 type: 'rope',
@@ -3377,7 +3400,7 @@ const LEVELS = [
         science: {
             topic: 'Cranes and counterweights',
             text: 'Real cranes and lifts use a counterweight so the motor only has to move the difference between the load and the weight. When both sides weigh the same, the rope stays balanced and a small motor can lift a huge load.',
-            tryThis: 'Try a lighter crate on the other end. Why does the motor not lift the load any more?',
+            tryThis: 'In the Sandbox, try a lighter crate on the other end. Why does the motor not lift the load any more?',
             learned: 'A counterweight balances the load, so the motor only has to do the lifting work.'
         }
     },
@@ -3427,27 +3450,29 @@ const LEVELS = [
             spring: 1,
             plank: 3
         },
+        presets: {
+            spring: {
+                power: 3
+            }
+        },
         solution: [
             {
                 type: 'spring',
-                x: 90,
+                x: 140,
                 y: 570,
-                angle: 5,
-                power: 3
+                angle: 15
             },
             {
                 type: 'plank',
-                x: 630,
-                y: 360,
-                angle: -5,
-                w: 150
+                x: 680,
+                y: 345,
+                angle: -10
             },
             {
                 type: 'plank',
-                x: 725,
+                x: 705,
                 y: 195,
-                angle: -30,
-                w: 150
+                angle: -20
             }
         ],
         science: {
@@ -3510,9 +3535,31 @@ function resolveLinks(source, placed, idOf) {
         };
     });
 }
+function describePreset(level, type) {
+    const preset = level.presets?.[type];
+    if (!preset) return '';
+    const bits = [];
+    if (preset.power !== undefined) bits.push(`strength ${preset.power} of 3`);
+    const w = preset.props?.weight;
+    if (w !== undefined) bits.push(`${Math.round(w * 1250)} kg`);
+    const n = preset.props?.strands;
+    if (n !== undefined) bits.push(n === 1 ? '1 strand' : `${n} strands`);
+    if (preset.props?.lift) bits.push('has a motor and a long rail');
+    return bits.length ? `In this level: ${bits.join(', ')}.` : '';
+}
+function withPreset(level, part) {
+    const preset = level.presets?.[part.type];
+    if (!preset) return part;
+    if (preset.power !== undefined) part.power = preset.power;
+    if (preset.props) part.props = {
+        ...preset.props,
+        ...part.props
+    };
+    return part;
+}
 function solutionToParts(level, nextId) {
     const sol = level.solution ?? [];
-    const placed = sol.map((p)=>toPlaced(p, nextId(), false));
+    const placed = sol.map((p)=>withPreset(level, toPlaced(p, nextId(), false)));
     resolveLinks(sol, placed, (k)=>{
         const f = level.fixed.findIndex((p)=>p.key === k);
         if (f >= 0) return f + 1;
@@ -3522,12 +3569,12 @@ function solutionToParts(level, nextId) {
     return placed;
 }
 
-return { LEVELS, levelToParts, solutionToParts };
+return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 })();
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2n';
+const VERSION = '0.2o';
 
 return { VERSION };
 })();
@@ -5431,6 +5478,22 @@ function run(level, withSolution) {
         seconds: steps / 60
     };
 }
+function solutionProblem(level) {
+    const used = {};
+    for (const p of level.solution ?? []){
+        if (p.props || p.power !== undefined || p.w !== undefined || p.h !== undefined) {
+            return `solution sets attributes on a ${p.type} (attributes are locked outside the Sandbox; use Level.presets)`;
+        }
+        used[p.type] = (used[p.type] ?? 0) + 1;
+    }
+    if (level.inventory) {
+        for (const [type, n] of Object.entries(used)){
+            const have = level.inventory[type] ?? 0;
+            if (n > have) return `solution uses ${n} ${type}, the inventory has ${have}`;
+        }
+    }
+    return '';
+}
 function testLevel(level) {
     if (!level.hasGoal || !level.solution) {
         return {
@@ -5440,9 +5503,11 @@ function testLevel(level) {
             solutionSolves: false,
             seconds: 0,
             solvesAlone: false,
+            problem: '',
             ok: true
         };
     }
+    const problem = solutionProblem(level);
     const good = run(level, true);
     const empty = run(level, false);
     return {
@@ -5452,7 +5517,8 @@ function testLevel(level) {
         solutionSolves: good.solved,
         seconds: good.seconds,
         solvesAlone: empty.solved,
-        ok: good.solved && !empty.solved
+        problem,
+        ok: good.solved && !empty.solved && problem === ''
     };
 }
 function testAllLevels() {
@@ -5636,6 +5702,7 @@ class UI {
         this.selectedTool = type;
         for (const [t, btn] of this.partButtons)btn.classList.toggle('selected', t === type);
     }
+    presetNote = ()=>'';
     showPartInfo(type) {
         if (!type) return;
         const def = PART_DEFS[type];
@@ -5645,6 +5712,13 @@ class UI {
         const p = document.createElement('span');
         p.textContent = def.blurb;
         this.infoEl.append(h, p);
+        const note = this.presetNote(type);
+        if (note) {
+            const n = document.createElement('em');
+            n.className = 'preset-note';
+            n.textContent = note;
+            this.infoEl.append(n);
+        }
     }
     showToolbar(pos, opts) {
         if (!pos || !opts) {
@@ -6068,6 +6142,7 @@ const ui = new UI({
         ui.toast(first ? `Hi, ${name}! Let's build a machine.` : `Now playing as ${name}.`);
     }
 });
+ui.presetNote = (type)=>describePreset(level, type);
 sim.onSolved = (info)=>{
     solvedLevels.add(level.id);
     saveSolved();
@@ -6462,7 +6537,7 @@ function updateToolbar() {
     }, {
         rotatable: def.rotatable,
         flippable: def.flippable,
-        power: def.hasPower ? sel.power ?? 2 : null
+        power: def.hasPower && canTinker() ? sel.power ?? 2 : null
     });
 }
 function loadLevel(index, restore) {
@@ -6595,7 +6670,7 @@ function ropeClick(x, y, touch = false) {
         return;
     }
     pushUndo();
-    const part = {
+    const part = withPreset(level, {
         id: nextId(),
         type: 'rope',
         x: 0,
@@ -6606,7 +6681,7 @@ function ropeClick(x, y, touch = false) {
             via,
             b: id
         }
-    };
+    });
     parts.push(part);
     tool = null;
     setSelection([
@@ -6659,9 +6734,12 @@ function stringClick(x, y, touch = false) {
     ui.showPartInfo('string');
     changed();
 }
+function canTinker() {
+    return level.id === 'sandbox';
+}
 function propsModel() {
     const sel = selectedPart();
-    if (!sel || playing) return null;
+    if (!sel || playing || !canTinker()) return null;
     const def = PART_DEFS[sel.type];
     const items = (PROP_SPECS[sel.type] ?? []).map((spec)=>({
             spec,
@@ -6696,7 +6774,7 @@ function propsModel() {
 }
 function setProp(key, value) {
     const sel = selectedPart();
-    if (!sel || sel.locked || playing) return;
+    if (!sel || sel.locked || playing || !canTinker()) return;
     const spec = PROP_SPECS[sel.type]?.find((p)=>p.key === key);
     if (!spec) return;
     const v = clamp(value, spec.min, spec.max);
@@ -6751,7 +6829,7 @@ function flip() {
 }
 function setPower(power) {
     const sel = selectedPart();
-    if (playing || !sel || sel.locked || !PART_DEFS[sel.type].hasPower) return;
+    if (playing || !sel || sel.locked || !PART_DEFS[sel.type].hasPower || !canTinker()) return;
     pushUndo();
     sel.power = clamp(power, 1, 3);
     changed();
@@ -6826,14 +6904,14 @@ function placeAt(type, x, y) {
     }
     if (remaining()[type] === 0) return;
     const def = PART_DEFS[type];
-    const part = {
+    const part = withPreset(level, {
         id: nextId(),
         type,
         x: 0,
         y: 0,
         angle: def.rotatable ? toolAngle : 0,
         power: def.hasPower ? 2 : undefined
-    };
+    });
     if (!positionPart(part, x, y)) {
         ui.toast(NO_ROOM);
         return;
@@ -7634,7 +7712,7 @@ document.getElementById('run-selftest')?.addEventListener('click', ()=>{
             for (const r of results){
                 const li = document.createElement('li');
                 li.className = r.ok ? 'ok' : 'bad';
-                li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
+                li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.problem ? `, ${r.problem}` : '') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
                 testerList.appendChild(li);
             }
             const bad = results.filter((r)=>!r.ok).length;

@@ -8,6 +8,10 @@
  *   POST admin.php?api=track   called by the game (see src/game/tracker.ts)
  *   GET  admin.php             the admin dashboard (password protected)
  *   GET  admin.php?api=export  all players as JSON (admin only)
+ *   GET  admin.php?view=scores the "High scores" page: every broken record + the current boards
+ *
+ * Records come from scores.php, which writes tim-data/records.log whenever a run breaks a
+ * community record (strictly better than the old number one; ties and first scores do not count).
  *
  * Device ids: the server makes a random id and signs it (HMAC with a secret kept
  * in tim-data/secret.key). The browser keeps it in localStorage AND a cookie, and
@@ -29,6 +33,14 @@ const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
 const MAX_EVENTS_PER_HOUR = 240;
 const EVENTS = ['visit', 'name', 'level', 'play', 'solve', 'hint'];
+const SCORES_FILE = __DIR__ . '/scores-data.json';
+const LEVEL_NAMES = [
+    'ramps' => 'Ramps', 'conveyor' => 'Conveyors', 'springs' => 'Springs', 'levers' => 'Levers', 'dominoes' => 'Dominoes',
+    'gears' => 'Gears', 'spin' => 'Spin it', 'pulleys' => 'Pulleys', 'machine' => 'Big machine', 'overtop' => 'Over the Top',
+    'bridge' => 'Domino Bridge', 'chain' => 'Chain reaction', 'double' => 'Double dominoes', 'reach' => 'Long reach',
+    'tackle' => 'Heavy lifting', 'tradeoff' => 'Force or distance', 'crane' => 'Crane', 'skyhigh' => 'Sky high',
+];
+const BOARDS = ['shortest' => 'Shortest path', 'fastest' => 'Fastest solve', 'spare' => 'Most spare tools'];
 
 date_default_timezone_set('UTC');
 
@@ -381,8 +393,99 @@ function read_log(int $limit, array $filter): array {
     return array_slice($rows, 0, $limit);
 }
 
+function level_label(string $id): string {
+    return LEVEL_NAMES[$id] ?? $id;
+}
+
+function format_score(string $category, mixed $v): string {
+    $n = (float) $v;
+    if ($category === 'shortest') return rtrim(rtrim(number_format($n, 2, '.', ''), '0'), '.') . ' m';
+    if ($category === 'fastest') return number_format($n, 1, '.', '') . ' s';
+    return (int) $n . ' spare';
+}
+
+/** Broken-record entries written by scores.php, newest first. */
+function read_records(int $limit, string $level, string $category): array {
+    $rows = [];
+    foreach (['records.old.log', 'records.log'] as $f) {
+        $p = DATA_DIR . '/' . $f;
+        if (!is_file($p)) continue;
+        foreach (file($p, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $e = json_decode($line, true);
+            if (!is_array($e) || !isset($e['t'], $e['level'], $e['category'], $e['name'], $e['value'])) continue;
+            if ($level !== '' && $e['level'] !== $level) continue;
+            if ($category !== '' && $e['category'] !== $category) continue;
+            $rows[] = $e;
+        }
+    }
+    return array_slice(array_reverse($rows), 0, $limit);
+}
+
+/** The community boards as scores.php keeps them: level => category => rows. */
+function read_boards(): array {
+    $d = is_file(SCORES_FILE) ? json_decode((string) @file_get_contents(SCORES_FILE), true) : [];
+    return is_array($d) ? $d : [];
+}
+
+function scores_view(): void {
+    $level = (string) ($_GET['level'] ?? '');
+    $level = isset(LEVEL_NAMES[$level]) ? $level : '';
+    $cat = (string) ($_GET['cat'] ?? '');
+    $cat = isset(BOARDS[$cat]) ? $cat : '';
+    $rows = read_records(300, $level, $cat);
+    $all = read_records(100000, '', '');
+    $weekAgo = time() - 7 * 86400;
+    $week = count(array_filter($all, fn($e) => (int) $e['t'] >= $weekAgo));
+
+    echo '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. '
+        . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
+    echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="level"><option value="">All levels</option>';
+    foreach (LEVEL_NAMES as $id => $label) {
+        echo '<option value="' . h($id) . '"' . ($level === $id ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    echo '</select><select name="cat"><option value="">All boards</option>';
+    foreach (BOARDS as $id => $label) {
+        echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
+    echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>New record</th><th>Beat</th><th>By how much</th></tr>';
+    foreach ($rows as $e) {
+        $c = (string) $e['category'];
+        $gain = isset($e['prevValue']) ? abs((float) $e['value'] - (float) $e['prevValue']) : null;
+        $same = isset($e['prevName']) && mb_strtolower((string) $e['prevName']) === mb_strtolower((string) $e['name']);
+        echo '<tr><td title="' . h(fmt_time((int) $e['t'])) . '">' . h(fmt_time((int) $e['t'])) . ' <span class="mute">(' . h(ago((int) $e['t'])) . ')</span></td>'
+            . '<td><b>' . h(level_label((string) $e['level'])) . '</b></td><td>' . h(BOARDS[$c] ?? $c) . '</td>'
+            . '<td><b>' . h($e['name']) . '</b> ' . h(format_score($c, $e['value'])) . '</td>'
+            . '<td class="mute">' . (isset($e['prevName']) ? h($e['prevName']) . ' ' . h(format_score($c, $e['prevValue'] ?? 0)) . ($same ? ' (their own)' : '') : '-') . '</td>'
+            . '<td class="mute">' . ($gain === null ? '-' : h(format_score($c, $gain))) . '</td></tr>';
+    }
+    if (!$rows) echo '<tr><td colspan="6" class="mute">No broken records yet.</td></tr>';
+    echo '</table></div><p class="mute">Newest first, up to 300 rows. Times are ' . h(DISPLAY_TZ) . '.</p>';
+
+    $boards = read_boards();
+    echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';
+    foreach (BOARDS as $label) echo '<th>' . h($label) . '</th>';
+    echo '</tr>';
+    foreach (LEVEL_NAMES as $id => $label) {
+        if ($level !== '' && $level !== $id) continue;
+        echo '<tr><td><b>' . h($label) . '</b></td>';
+        foreach (BOARDS as $c => $_) {
+            $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
+            echo '<td>';
+            if (!$list) echo '<span class="mute">-</span>';
+            foreach (array_slice($list, 0, 5) as $i => $row) {
+                if (!is_array($row) || !isset($row['name'], $row['value'])) continue;
+                echo ($i === 0 ? '<b>' : '') . ($i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value'])) . ($i === 0 ? '</b>' : '') . '<br>';
+            }
+            echo '</td>';
+        }
+        echo '</tr>';
+    }
+    echo '</table></div><p class="mute">Top 5 per board, one row per name. The bold line is the current record.</p>';
+}
+
 function dashboard(): void {
-    $view = in_array($_GET['view'] ?? '', ['players', 'levels', 'log'], true) ? $_GET['view'] : 'players';
+    $view = in_array($_GET['view'] ?? '', ['players', 'levels', 'scores', 'log'], true) ? $_GET['view'] : 'players';
     $auto = !empty($_GET['auto']);
     $players = read_json('players.json');
     $now = time();
@@ -400,7 +503,7 @@ function dashboard(): void {
 
     page_head('Modern TIM admin', $auto);
     echo '<main><header><h1>Modern TIM admin</h1><nav>';
-    foreach (['players' => 'Players', 'levels' => 'Levels', 'log' => 'Log'] as $k => $label) {
+    foreach (['players' => 'Players', 'levels' => 'Levels', 'scores' => 'High scores', 'log' => 'Log'] as $k => $label) {
         echo '<a class="' . ($view === $k ? 'on' : '') . '" href="admin.php?view=' . $k . ($auto ? '&amp;auto=1' : '') . '">' . $label . '</a>';
     }
     echo '<a href="admin.php?view=' . h($view) . ($auto ? '' : '&amp;auto=1') . '">' . ($auto ? 'Auto-refresh: on' : 'Auto-refresh: off') . '</a>'
@@ -456,6 +559,8 @@ function dashboard(): void {
         }
         if (!$lv) echo '<tr><td colspan="7" class="mute">No level activity yet.</td></tr>';
         echo '</table></div><p class="mute">Many "Start pressed" with few solves means a level is hard or confusing.</p>';
+    } elseif ($view === 'scores') {
+        scores_view();
     } else {
         $filter = ['id' => preg_replace('/[^a-f0-9.]/', '', (string) ($_GET['id'] ?? '')) ?? '', 'ev' => in_array($_GET['ev'] ?? '', EVENTS, true) ? $_GET['ev'] : '', 'q' => clean($_GET['q'] ?? '', 30)];
         $rows = read_log(300, $filter);

@@ -254,6 +254,9 @@ export class UI {
     for (const [t, btn] of this.partButtons) btn.classList.toggle('selected', t === type);
   }
 
+  /** Set by main.ts: what this level fixes about a part ("Heavy: 15 kg"), or ''. */
+  presetNote: (type: PartType) => string = () => '';
+
   showPartInfo(type: PartType | null) {
     if (!type) return;
     const def = PART_DEFS[type];
@@ -263,6 +266,13 @@ export class UI {
     const p = document.createElement('span');
     p.textContent = def.blurb;
     this.infoEl.append(h, p);
+    const note = this.presetNote(type);
+    if (note) {
+      const n = document.createElement('em');
+      n.className = 'preset-note';
+      n.textContent = note;
+      this.infoEl.append(n);
+    }
   }
 
   /** Show the floating toolbar above (or below) a part, in % of the board, or hide it. */

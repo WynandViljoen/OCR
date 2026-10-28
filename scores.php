@@ -13,6 +13,11 @@
  * (case-insensitive), a run only replaces a row if it is strictly better,
  * ties keep the earlier row, and 0 spare tools is not a score.
  * Names are not passwords: anyone can type any name.
+ *
+ * Every time a run BREAKS a record (a new number one that is strictly better than the
+ * old number one; a tie does not count, and neither does the very first score on an
+ * empty board), one line is added to tim-data/records.log for the admin dashboard
+ * (admin.php, "High scores" page).
  */
 declare(strict_types=1);
 
@@ -26,6 +31,8 @@ const LOWER_IS_BETTER = ['shortest' => true, 'fastest' => true];
 const BOARD_SIZE = 5;
 const MAX_NAME = 16;
 const DATA_FILE = __DIR__ . '/scores-data.json';
+const RECORD_DIR = __DIR__ . '/tim-data';
+const RECORD_LOG_MAX_BYTES = 1500000;
 
 function fail(int $code, string $message): void {
     http_response_code($code);
@@ -92,6 +99,37 @@ function recordRun(array &$board, string $name, array $values, int $now): array 
     return $results;
 }
 
+/** Best effort: a record that cannot be logged must never stop the score from being saved. */
+function logRecord(array $entry): void {
+    if (!is_dir(RECORD_DIR)) {
+        @mkdir(RECORD_DIR, 0750, true);
+    }
+    foreach (['.htaccess' => "Require all denied\nDeny from all\n", 'index.html' => ''] as $f => $c) {
+        if (!file_exists(RECORD_DIR . '/' . $f)) {
+            @file_put_contents(RECORD_DIR . '/' . $f, $c);
+        }
+    }
+    $p = RECORD_DIR . '/records.log';
+    if (is_file($p) && filesize($p) > RECORD_LOG_MAX_BYTES) {
+        @rename($p, RECORD_DIR . '/records.old.log');
+    }
+    @file_put_contents($p, json_encode($entry, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
+}
+
+/** The records that this run broke: category => the old number one (name, value, at). */
+function brokenRecords(array $before, array $after, array $results): array {
+    $broken = [];
+    foreach (CATEGORIES as $category) {
+        $old = $before[$category][0] ?? null;
+        $new = $after[$category][0] ?? null;
+        if ($old === null || $new === null || empty($results[$category]['record'])) continue;
+        if (better($category, (float)$new['value'], (float)$old['value'])) {
+            $broken[$category] = ['old' => $old, 'new' => $new];
+        }
+    }
+    return $broken;
+}
+
 function readAll($handle): array {
     rewind($handle);
     $raw = stream_get_contents($handle);
@@ -156,7 +194,9 @@ $handle = @fopen(DATA_FILE, 'c+');
 if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here.');
 $all = readAll($handle);
 $board = boardFor($all, $level);
+$before = $board;
 $results = recordRun($board, $name, $values, time());
+$broken = brokenRecords($before, $board, $results);
 $all[$level] = $board;
 rewind($handle);
 ftruncate($handle, 0);
@@ -164,5 +204,17 @@ fwrite($handle, json_encode($all, JSON_UNESCAPED_UNICODE));
 fflush($handle);
 flock($handle, LOCK_UN);
 fclose($handle);
+
+foreach ($broken as $category => $b) {
+    logRecord([
+        't' => time(),
+        'level' => $level,
+        'category' => $category,
+        'name' => $b['new']['name'],
+        'value' => $b['new']['value'],
+        'prevName' => $b['old']['name'],
+        'prevValue' => $b['old']['value'],
+    ]);
+}
 
 echo json_encode(['board' => $board, 'results' => $results]);

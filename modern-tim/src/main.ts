@@ -9,7 +9,7 @@
  */
 import { VERSION } from './game/version';
 import './styles.css';
-import { LEVELS, levelToParts, solutionToParts, type Level } from './game/levels';
+import { LEVELS, levelToParts, solutionToParts, withPreset, describePreset, type Level } from './game/levels';
 import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts';
 import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './game/world';
 import { HUB_RADIUS, snapGear } from './game/mechanics';
@@ -162,6 +162,7 @@ const ui = new UI({
     ui.toast(first ? `Hi, ${name}! Let's build a machine.` : `Now playing as ${name}.`);
   },
 });
+ui.presetNote = (type) => describePreset(level, type);
 
 sim.onSolved = (info) => {
   solvedLevels.add(level.id);
@@ -572,7 +573,7 @@ function updateToolbar() {
       top: clamp(below ? bottom : top, 0, 1) * 100,
       below,
     },
-    { rotatable: def.rotatable, flippable: def.flippable, power: def.hasPower ? sel.power ?? 2 : null },
+    { rotatable: def.rotatable, flippable: def.flippable, power: def.hasPower && canTinker() ? sel.power ?? 2 : null },
   );
 }
 
@@ -721,7 +722,7 @@ function ropeClick(x: number, y: number, touch = false) {
     return;
   }
   pushUndo();
-  const part: PlacedPart = { id: nextId(), type: 'rope', x: 0, y: 0, angle: 0, link: { a, via, b: id } };
+  const part: PlacedPart = withPreset(level, { id: nextId(), type: 'rope', x: 0, y: 0, angle: 0, link: { a, via, b: id } });
   parts.push(part);
   tool = null;
   setSelection([part.id]);
@@ -765,10 +766,15 @@ function stringClick(x: number, y: number, touch = false) {
   changed();
 }
 
+/** Attributes (weight, power, strands, speed...) can only be changed in the Sandbox. Puzzle levels hand out fixed tools. */
+function canTinker(): boolean {
+  return level.id === 'sandbox';
+}
+
 /** The Tinker lab card for the selected part. */
 function propsModel(): PropsModel | null {
   const sel = selectedPart();
-  if (!sel || playing) return null;
+  if (!sel || playing || !canTinker()) return null;
   const def = PART_DEFS[sel.type];
   const items = (PROP_SPECS[sel.type] ?? []).map((spec) => ({ spec, value: partProp(sel, spec.key) }));
   const facts: string[] = [];
@@ -797,7 +803,7 @@ function propsModel(): PropsModel | null {
 /** A Tinker lab slider moved: change the selected part and rebuild so the preview matches. */
 function setProp(key: string, value: number) {
   const sel = selectedPart();
-  if (!sel || sel.locked || playing) return;
+  if (!sel || sel.locked || playing || !canTinker()) return;
   const spec = PROP_SPECS[sel.type]?.find((p) => p.key === key);
   if (!spec) return;
   const v = clamp(value, spec.min, spec.max);
@@ -854,7 +860,7 @@ function flip() {
 
 function setPower(power: number) {
   const sel = selectedPart();
-  if (playing || !sel || sel.locked || !PART_DEFS[sel.type].hasPower) return;
+  if (playing || !sel || sel.locked || !PART_DEFS[sel.type].hasPower || !canTinker()) return;
   pushUndo();
   sel.power = clamp(power, 1, 3);
   changed();
@@ -933,14 +939,14 @@ function placeAt(type: PartType, x: number, y: number) {
   }
   if (remaining()[type] === 0) return;
   const def = PART_DEFS[type];
-  const part: PlacedPart = {
+  const part: PlacedPart = withPreset(level, {
     id: nextId(),
     type,
     x: 0,
     y: 0,
     angle: def.rotatable ? toolAngle : 0,
     power: def.hasPower ? 2 : undefined,
-  };
+  });
   if (!positionPart(part, x, y)) {
     ui.toast(NO_ROOM);
     return;
@@ -1674,7 +1680,7 @@ document.getElementById('run-selftest')?.addEventListener('click', () => {
       for (const r of results) {
         const li = document.createElement('li');
         li.className = r.ok ? 'ok' : 'bad';
-        li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
+        li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.problem ? `, ${r.problem}` : '') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
         testerList.appendChild(li);
       }
       const bad = results.filter((r) => !r.ok).length;

@@ -16,7 +16,7 @@ for (const r of testAllLevels()) {
   if (!r.ok) failures++;
   console.log(
     `${r.ok ? 'OK' : 'XX'} ${r.name}: solution ${r.solutionSolves ? `solves in ${r.seconds.toFixed(1)}s` : 'FAILS'}, ` +
-      `empty board ${r.solvesAlone ? 'SOLVES BY ITSELF' : 'needs parts'}`,
+      `empty board ${r.solvesAlone ? 'SOLVES BY ITSELF' : 'needs parts'}${r.problem ? `, PROBLEM: ${r.problem}` : ''}`,
   );
 }
 process.exitCode = failures ? 1 : 0;

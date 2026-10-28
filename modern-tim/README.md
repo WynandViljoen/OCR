@@ -39,7 +39,7 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 - **String**: pick the tool, click a gear, then click a second gear. The string is drawn as a belt around two little pulleys on the gear hubs.
   Both gears turn the same way; F crosses it so they turn opposite ways; the "Second pulley size" slider changes the speed ratio (bigger = slower).
   A string that disagrees with a meshing pair jams the gears. Strings follow their gears when you move them and vanish if a gear is deleted.
-- **Tinker lab**: select a part to get its sliders (numbers and defaults live in `src/game/props.ts`; a default is exactly the old physics value).
+- **Tinker lab** (Sandbox only): select a part to get its sliders (numbers and defaults live in `src/game/props.ts`; a default is exactly the old physics value).
   `npm run check-ropes` tests the pulley and block-and-tackle maths.
   `npm run check-belts` tests the belt maths and that every default sits on its slider.
 
@@ -178,6 +178,9 @@ scripts/build-single.mjs bundle into one HTML file
    generated from the part's own bodies automatically.
 
 ### Adding a level
+
+Attributes (a spring's strength, a crate's weight, a rope's strands, speeds) can only be changed in the Sandbox. A puzzle level that needs a strong spring or a heavy crate lists them in `presets`, so every part handed out in that level arrives with those values fixed. A level's `solution` must not set `props`, `power`, `w` or `h`, and must stay within the `inventory` (`check-levels` fails otherwise).
+
 
 Add an object to `LEVELS` in `src/game/levels.ts`: fixed parts, an `inventory`, a `solution`, and
 the `science` text. Then run `npm run check-levels`. It fails if the solution doesn't work or if the

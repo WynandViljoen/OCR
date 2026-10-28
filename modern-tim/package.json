@@ -13,7 +13,8 @@
     "check-space": "tsx scripts/check-space.ts",
     "check-community": "tsx scripts/check-community.ts",
     "check-belts": "tsx scripts/check-belts.ts",
-    "check-ropes": "tsx scripts/check-ropes.ts"
+    "check-ropes": "tsx scripts/check-ropes.ts",
+    "check-records": "node scripts/check-records.mjs"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

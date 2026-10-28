@@ -1,5 +1,13 @@
 # Changelog
 
+## Modern TIM 0.2o
+
+- **Attributes are locked outside the Sandbox.** In the 18 puzzle levels there is no Tinker lab card and no spring Strength buttons. Players use basic tools only. Levels that need a strong spring, a heavy crate, a multi-strand rope or a motor pulley now hand those out already set, and the part card says so ("In this level: 15 kg, 4 strands"). Rotate and flip still work. The Sandbox keeps every slider.
+- All 18 levels were re-tested on the real physics with the attribute lock: every solution uses only basic tools and the level's own inventory, and no empty board solves itself. `check-levels` and the in-game "Test all levels" now fail a level whose solution sets attributes. Sky high was re-solved with the standard plank length. Level hints and science text no longer mention sliders.
+- **Admin dashboard: new "High scores" page.** It lists every time a community record was broken (new record, who it beat, by how much), with filters by level and board, plus the current top 5 of every board. A record counts only when it is strictly better than the old number one: ties and the first score on an empty board are not logged.
+- `scores.php` writes the record log (`tim-data/records.log`). Copy both `scores.php` and `admin.php` to the server.
+- New check: `npm run check-records` (needs php).
+
 ## Modern TIM 0.2n
 
 - **Nine new, harder levels** (10 to 18). Each one was checked on the real physics: its solution solves, and the empty board does not.
