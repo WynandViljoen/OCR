@@ -14,6 +14,7 @@ import {
   pathMeters,
   recordRun,
   sanitizeName,
+  stepsToSeconds,
   savePlayer,
   saveScores,
   type AllScores,
@@ -47,21 +48,21 @@ check('metres and labels', () => {
 
 check('first run takes first place in every category', () => {
   const s: AllScores = {};
-  const r = recordRun(s, 'ramps', 'Ana', { pathMeters: 5, spare: 1 }, 1);
-  assert.deepEqual(r.map((x) => [x.category, x.rank, x.record]), [['shortest', 1, true], ['longest', 1, true], ['spare', 1, true]]);
+  const r = recordRun(s, 'ramps', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
+  assert.deepEqual(r.map((x) => [x.category, x.rank, x.record]), [['shortest', 1, true], ['longest', 1, true], ['fastest', 1, true], ['slowest', 1, true], ['spare', 1, true]]);
 });
 
 check('zero spare tools is not a score', () => {
   const s: AllScores = {};
-  const r = recordRun(s, 'ramps', 'Ana', { pathMeters: 5, spare: 0 }, 1);
+  const r = recordRun(s, 'ramps', 'Ana', { pathMeters: 5, seconds: 9, spare: 0 }, 1);
   assert.equal(result(r, 'spare').rank, null);
   assert.equal(s.ramps.spare.length, 0);
 });
 
 check('shortest wants less, longest and spare want more', () => {
   const s: AllScores = {};
-  recordRun(s, 'L', 'Ana', { pathMeters: 5, spare: 1 }, 1);
-  const r = recordRun(s, 'L', 'Ben', { pathMeters: 3, spare: 2 }, 2);
+  recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
+  const r = recordRun(s, 'L', 'Ben', { pathMeters: 3, seconds: 9, spare: 2 }, 2);
   assert.equal(result(r, 'shortest').rank, 1);
   assert.equal(result(r, 'longest').rank, 2);
   assert.equal(result(r, 'spare').rank, 1);
@@ -71,13 +72,13 @@ check('shortest wants less, longest and spare want more', () => {
 
 check('one row per player (case-insensitive), only strictly better runs replace it', () => {
   const s: AllScores = {};
-  recordRun(s, 'L', 'Ana', { pathMeters: 5, spare: 2 }, 1);
-  const worse = recordRun(s, 'L', 'ANA', { pathMeters: 6, spare: 1 }, 2);
+  recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 9, spare: 2 }, 1);
+  const worse = recordRun(s, 'L', 'ANA', { pathMeters: 6, seconds: 9, spare: 1 }, 2);
   assert.equal(result(worse, 'shortest').improved, false);
   assert.equal(result(worse, 'shortest').rank, 1);
   assert.equal(s.L.shortest.length, 1);
   assert.equal(s.L.shortest[0].value, 5);
-  const better = recordRun(s, 'L', 'ana', { pathMeters: 4, spare: 3 }, 3);
+  const better = recordRun(s, 'L', 'ana', { pathMeters: 4, seconds: 9, spare: 3 }, 3);
   assert.equal(result(better, 'shortest').improved, true);
   assert.equal(s.L.shortest.length, 1);
   assert.equal(s.L.shortest[0].value, 4);
@@ -86,8 +87,8 @@ check('one row per player (case-insensitive), only strictly better runs replace 
 
 check('a tie does not push out the earlier player', () => {
   const s: AllScores = {};
-  recordRun(s, 'L', 'Ana', { pathMeters: 5, spare: 1 }, 1);
-  const r = recordRun(s, 'L', 'Ben', { pathMeters: 5, spare: 1 }, 2);
+  recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
+  const r = recordRun(s, 'L', 'Ben', { pathMeters: 5, seconds: 9, spare: 1 }, 2);
   assert.equal(result(r, 'shortest').rank, 2);
   assert.equal(result(r, 'shortest').record, false);
   assert.equal(s.L.shortest[0].name, 'Ana');
@@ -95,11 +96,11 @@ check('a tie does not push out the earlier player', () => {
 
 check(`boards keep the top ${BOARD_SIZE}`, () => {
   const s: AllScores = {};
-  for (let i = 1; i <= 7; i++) recordRun(s, 'L', `P${i}`, { pathMeters: i, spare: i }, i);
+  for (let i = 1; i <= 7; i++) recordRun(s, 'L', `P${i}`, { pathMeters: i, seconds: 9, spare: i }, i);
   assert.equal(s.L.shortest.length, BOARD_SIZE);
   assert.deepEqual(s.L.shortest.map((e) => e.name), ['P1', 'P2', 'P3', 'P4', 'P5']);
   assert.deepEqual(s.L.spare.map((e) => e.name), ['P7', 'P6', 'P5', 'P4', 'P3']);
-  const late = recordRun(s, 'L', 'Zed', { pathMeters: 50, spare: 1 }, 99);
+  const late = recordRun(s, 'L', 'Zed', { pathMeters: 50, seconds: 9, spare: 1 }, 99);
   assert.equal(result(late, 'shortest').rank, null);
   assert.equal(result(late, 'shortest').improved, false);
   assert.equal(result(late, 'longest').rank, 1);
@@ -107,14 +108,14 @@ check(`boards keep the top ${BOARD_SIZE}`, () => {
 
 check('levels have separate boards', () => {
   const s: AllScores = {};
-  recordRun(s, 'A', 'Ana', { pathMeters: 5, spare: 1 }, 1);
+  recordRun(s, 'A', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
   assert.deepEqual(s.B ?? emptyBoard(), emptyBoard());
 });
 
 check('saving and loading round-trips; the name is stored cleaned', () => {
   const store = fakeStore();
   const s: AllScores = {};
-  recordRun(s, 'L', 'Ana', { pathMeters: 5, spare: 1 }, 1);
+  recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
   saveScores(s, store);
   assert.deepEqual(loadScores(store), s);
   savePlayer('  Ana   M ', store);
@@ -149,6 +150,26 @@ check('works with no storage at all (private browsing)', () => {
   assert.deepEqual(loadScores(null), {});
   savePlayer('Ana', null);
   saveScores({}, null);
+});
+
+check('fastest wants less time, slowest wants more', () => {
+  const s: AllScores = {};
+  recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 10, spare: 1 }, 1);
+  const r = recordRun(s, 'L', 'Ben', { pathMeters: 5, seconds: 4, spare: 1 }, 2);
+  assert.equal(result(r, 'fastest').rank, 1);
+  assert.equal(result(r, 'slowest').rank, 2);
+  assert.deepEqual(s.L.fastest.map((e) => e.name), ['Ben', 'Ana']);
+  assert.deepEqual(s.L.slowest.map((e) => e.name), ['Ana', 'Ben']);
+  assert.equal(formatValue('fastest', 4.25), '4.3 s');
+  assert.equal(stepsToSeconds(90), 1.5);
+});
+
+check('boards saved before time scores existed still load', () => {
+  const data: Record<string, string> = { 'modern-tim:scores': JSON.stringify({ L: { shortest: [{ name: 'Old', value: 3, at: 1 }] } }) };
+  const store = { getItem: (k: string) => data[k] ?? null, setItem: (k: string, v: string) => void (data[k] = v) };
+  const loaded = loadScores(store);
+  assert.deepEqual(loaded.L.fastest, []);
+  assert.equal(loaded.L.shortest[0].name, 'Old');
 });
 
 console.log(`\n${passed} checks passed`);

@@ -46,6 +46,8 @@ export interface SolveInfo {
   label: string;
   /** Distance that ball travelled since the run started, in world pixels. */
   pathPx: number;
+  /** Simulation steps from Start to the goal (60 per second). */
+  steps: number;
 }
 
 interface PivotInfo {
@@ -323,7 +325,7 @@ export class Simulation {
       const other = a.label === 'goalSensor' ? b.parent : b.label === 'goalSensor' ? a.parent : null;
       if (other && this.goalTargets.includes(other.label)) {
         this.solved = true;
-        this.solvedInfo = { label: other.label, pathPx: this.paths.get(other.id)?.length ?? 0 };
+        this.solvedInfo = { label: other.label, pathPx: this.paths.get(other.id)?.length ?? 0, steps: this.steps };
         this.onSolved?.(this.solvedInfo);
         return;
       }

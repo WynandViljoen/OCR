@@ -353,6 +353,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
   padding: 22px 26px;
   text-align: center;
   max-width: 420px;
+  max-height: 100%;
+  overflow-y: auto;
   animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
 .solved-card h2 { font-size: 2.2rem; color: var(--go); }
@@ -522,3 +524,5 @@ kbd {
   .logo, .solved-card, .gate-card { animation: none; }
   .btn, .toast { transition: none; }
 }
+
+.version-badge { position: fixed; right: 10px; bottom: 8px; z-index: 5; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; background: rgba(255,255,255,0.85); color: #1d2440; border: 2px solid #1d2440; pointer-events: none; }

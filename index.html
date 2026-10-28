@@ -367,6 +367,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
   padding: 22px 26px;
   text-align: center;
   max-width: 420px;
+  max-height: 100%;
+  overflow-y: auto;
   animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
 .solved-card h2 { font-size: 2.2rem; color: var(--go); }
@@ -537,6 +539,8 @@ kbd {
   .btn, .toast { transition: none; }
 }
 
+.version-badge { position: fixed; right: 10px; bottom: 8px; z-index: 5; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; background: rgba(255,255,255,0.85); color: #1d2440; border: 2px solid #1d2440; pointer-events: none; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -550,7 +554,7 @@ kbd {
           </svg>
           <div class="brand-text">
             <h1>Modern TIM</h1>
-            <span>Machine lab · v0.2a</span>
+            <span>Machine lab · v<span id="version-tag"></span></span>
           </div>
         </div>
         <nav id="levels" class="levels" aria-label="Levels"></nav>
@@ -658,6 +662,7 @@ kbd {
         </div>
       </form>
     </div>
+    <div id="version-badge" class="version-badge" aria-label="Game version"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
 
@@ -1676,8 +1681,15 @@ function solutionToParts(level, nextId) {
 return { LEVELS, levelToParts, solutionToParts };
 })();
 
+// ---- game/version.ts ----
+const { VERSION } = (() => {
+const VERSION = '0.2b';
+
+return { VERSION };
+})();
+
 // ---- game/profile.ts ----
-const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores } = (() => {
+const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores } = (() => {
 const NAME_KEY = 'modern-tim:player';
 const SCORES_KEY = 'modern-tim:scores';
 const MAX_NAME = 16;
@@ -1686,6 +1698,8 @@ const PX_PER_METER = 100;
 const CATEGORIES = [
     'shortest',
     'longest',
+    'fastest',
+    'slowest',
     'spare'
 ];
 const CATEGORY_INFO = {
@@ -1697,6 +1711,16 @@ const CATEGORY_INFO = {
     longest: {
         label: 'Longest path',
         blurb: 'The ball took the scenic route.',
+        lowerIsBetter: false
+    },
+    fastest: {
+        label: 'Fastest solve',
+        blurb: 'Start to goal in the least time.',
+        lowerIsBetter: true
+    },
+    slowest: {
+        label: 'Slowest solve',
+        blurb: 'The long, patient machine.',
         lowerIsBetter: false
     },
     spare: {
@@ -1718,12 +1742,18 @@ function sanitizeName(raw) {
 const emptyBoard = ()=>({
         shortest: [],
         longest: [],
+        fastest: [],
+        slowest: [],
         spare: []
     });
+function stepsToSeconds(steps) {
+    return Math.round(steps / 60 * 100) / 100;
+}
 function pathMeters(px) {
     return Math.round(px / PX_PER_METER * 100) / 100;
 }
 function formatValue(category, value) {
+    if (category === 'fastest' || category === 'slowest') return `${value.toFixed(1)} s`;
     if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
     return `${value.toFixed(1)} m`;
 }
@@ -1741,6 +1771,8 @@ function recordRun(scores, levelId, rawName, run, now = Date.now()) {
     const values = {
         shortest: run.pathMeters,
         longest: run.pathMeters,
+        fastest: run.seconds,
+        slowest: run.seconds,
         spare: run.spare
     };
     return CATEGORIES.map((category)=>{
@@ -1827,7 +1859,7 @@ function saveScores(scores, store = browserStore()) {
     } catch  {}
 }
 
-return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores };
+return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores };
 })();
 
 // ---- game/draw.ts ----
@@ -2494,7 +2526,8 @@ class Simulation {
                 this.solved = true;
                 this.solvedInfo = {
                     label: other.label,
-                    pathPx: this.paths.get(other.id)?.length ?? 0
+                    pathPx: this.paths.get(other.id)?.length ?? 0,
+                    steps: this.steps
                 };
                 this.onSolved?.(this.solvedInfo);
                 return;
@@ -2797,6 +2830,7 @@ return { UI };
 
 
 
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -2900,6 +2934,7 @@ sim.onSolved = (info)=>{
     ui.setStatus('Solved!', 'solved');
     const run = {
         pathMeters: pathMeters(info.pathPx),
+        seconds: stepsToSeconds(info.steps),
         spare: spareTools()
     };
     const results = player ? recordRun(allScores, level.id, player, run) : [];
@@ -3666,6 +3701,13 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 loadLevel(0, true);
+for (const id of [
+    'version-tag',
+    'version-badge'
+]){
+    const el = document.getElementById(id);
+    if (el) el.textContent = id === 'version-badge' ? `Modern TIM v${VERSION}` : VERSION;
+}
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();

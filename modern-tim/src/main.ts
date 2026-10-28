@@ -7,6 +7,7 @@
  *   - Play mode -> dynamic parts fall, conveyors push, springs bounce, gears turn
  * Stop rebuilds edit mode with the player's parts intact; Reset clears them.
  */
+import { VERSION } from './game/version';
 import './styles.css';
 import { LEVELS, levelToParts, solutionToParts, type Level } from './game/levels';
 import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts';
@@ -16,6 +17,7 @@ import { drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type 
 import { UI, type Remaining, type SolvedRow } from './game/ui';
 import {
   CATEGORY_INFO,
+  stepsToSeconds,
   emptyBoard,
   formatValue,
   loadPlayer,
@@ -145,7 +147,7 @@ sim.onSolved = (info) => {
   ui.setStatus('Solved!', 'solved');
 
   // Score this run: how far the ball went, and how many parts were not needed.
-  const run = { pathMeters: pathMeters(info.pathPx), spare: spareTools() };
+  const run = { pathMeters: pathMeters(info.pathPx), seconds: stepsToSeconds(info.steps), spare: spareTools() };
   const results = player ? recordRun(allScores, level.id, player, run) : [];
   if (results.length) {
     saveScores(allScores);
@@ -166,7 +168,7 @@ function spareTools(): number {
 }
 
 /** The lines shown on the Solved card, one per score category. */
-function describeRun(run: { pathMeters: number; spare: number }, results: RunResult[]): SolvedRow[] {
+function describeRun(run: { pathMeters: number; seconds: number; spare: number }, results: RunResult[]): SolvedRow[] {
   return results.map((r) => {
     let note = '';
     let kind: SolvedRow['kind'] = 'plain';
@@ -939,6 +941,10 @@ requestAnimationFrame(frame);
 loadLevel(0, true);
 
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
+for (const id of ['version-tag', 'version-badge']) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = id === 'version-badge' ? `Modern TIM v${VERSION}` : VERSION;
+}
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
