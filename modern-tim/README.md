@@ -35,6 +35,11 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 7. A dotted line shows where the ball went last time, so you can see what to fix.
 8. Get a ball into the green zone of the basket to solve the level.
 
+### Name and high scores
+- The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
+- Every level has three boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
+- Scores live in localStorage (`modern-tim:player`, `modern-tim:scores`), so they are per browser and device. A shared online board would need a small server script.
+
 ### Controls
 
 | Input | Action |
@@ -100,8 +105,10 @@ src/game/mechanics.ts    gear-train maths (meshing, speeds, snapping), hit-testi
 src/game/world.ts        Simulation: Matter engine, conveyors, springs, pivots, gears, goal
 src/game/draw.ts         custom canvas drawing for parts, thumbnails, arrows, paper
 src/game/levels.ts       level data and science text
+src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)
+scripts/check-scores.ts  high-score rules check (npm run check-scores)
 scripts/build-single.mjs bundle into one HTML file
 ```
 

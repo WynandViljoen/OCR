@@ -6,6 +6,7 @@
 import { PALETTE_ORDER, PART_DEFS, type PartType } from './parts';
 import type { Level } from './levels';
 import { drawThumbnail } from './draw';
+import { CATEGORIES, CATEGORY_INFO, formatValue, sanitizeName, type Board } from './profile';
 
 export interface UIHandlers {
   onPaletteClick(type: PartType): void;
@@ -24,6 +25,16 @@ export interface UIHandlers {
   onZoomIn(): void;
   onZoomOut(): void;
   onZoomReset(): void;
+  /** The player typed a valid name in the name dialog. */
+  onNameChosen(name: string): void;
+}
+
+/** One line on the Solved card: how this run did in one score category. */
+export interface SolvedRow {
+  label: string;
+  value: string;
+  note: string;
+  kind: 'record' | 'board' | 'plain';
 }
 
 export type Remaining = Partial<Record<PartType, number | null>>;
@@ -54,8 +65,12 @@ export class UI {
   private partButtons = new Map<PartType, HTMLButtonElement>();
   private toastTimer = 0;
   private selectedTool: PartType | null = null;
+  private gateEl = $('gate');
+  private gateInput = $('gate-name') as HTMLInputElement;
+  private currentName = '';
 
   constructor(private handlers: UIHandlers) {
+    this.setupGate();
     this.runBtn.addEventListener('click', () => handlers.onToggleRun());
     $('btn-reset').addEventListener('click', () => handlers.onReset());
     this.undoBtn.addEventListener('click', () => handlers.onUndo());
@@ -216,5 +231,136 @@ export class UI {
 
   showSolved(show: boolean) {
     this.solvedEl.hidden = !show;
+  }
+
+  // -------------------------------------------------------------------------
+  // Player name
+  // -------------------------------------------------------------------------
+
+  private setupGate() {
+    const error = $('gate-error');
+    const clearError = () => (error.hidden = true);
+    this.gateInput.addEventListener('input', clearError);
+    $('gate-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = sanitizeName(this.gateInput.value);
+      if (!name) {
+        error.textContent = 'Enter a name to continue.';
+        error.hidden = false;
+        this.gateInput.focus();
+        return;
+      }
+      this.handlers.onNameChosen(name);
+    });
+    $('gate-cancel').addEventListener('click', () => this.closeGate());
+    // Keys typed in the dialog must never reach the game shortcuts (Space starts the machine).
+    this.gateEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !($('gate-cancel') as HTMLButtonElement).hidden) this.closeGate();
+      e.stopPropagation();
+    });
+    $('player-chip').addEventListener('click', () => this.openGate());
+  }
+
+  /** Show the player's name in the top bar. */
+  setPlayer(name: string) {
+    this.currentName = name;
+    $('player-name').textContent = name || 'Player';
+  }
+
+  /** Ask for a name. First visit: no way to skip. Changing player: can be cancelled. */
+  openGate() {
+    const changing = this.currentName !== '';
+    $('gate-title').textContent = changing ? 'Change player' : 'Welcome to Modern TIM!';
+    $('gate-text').textContent = changing
+      ? 'Who is playing now? Scores go under this name.'
+      : 'What is your name? It goes on the high score board.';
+    ($('gate-cancel') as HTMLButtonElement).hidden = !changing;
+    $('gate-error').hidden = true;
+    this.gateInput.value = this.currentName;
+    this.gateEl.hidden = false;
+    $('app').setAttribute('inert', '');
+    window.setTimeout(() => {
+      this.gateInput.focus();
+      this.gateInput.select();
+    }, 0);
+  }
+
+  closeGate() {
+    this.gateEl.hidden = true;
+    $('app').removeAttribute('inert');
+  }
+
+  // -------------------------------------------------------------------------
+  // High scores
+  // -------------------------------------------------------------------------
+
+  /** Fill the High scores card for the current level. `board` is null for levels without a goal. */
+  setScores(level: Level, board: Board | null, player: string) {
+    $('scores-level').textContent = level.hasGoal ? level.name : 'Sandbox';
+    const body = $('scores-body');
+    body.innerHTML = '';
+    if (!board) {
+      const p = document.createElement('p');
+      p.className = 'scores-empty';
+      p.textContent = 'The sandbox has no goal, so there are no scores here. Build anything you like.';
+      body.appendChild(p);
+      return;
+    }
+    for (const category of CATEGORIES) {
+      const info = CATEGORY_INFO[category];
+      const section = document.createElement('section');
+      section.className = 'board-group';
+      const h = document.createElement('h3');
+      h.textContent = info.label;
+      h.title = info.blurb;
+      section.appendChild(h);
+      const rows = board[category].slice(0, 3);
+      if (!rows.length) {
+        const p = document.createElement('p');
+        p.className = 'scores-empty';
+        p.textContent = 'No score yet. Be the first!';
+        section.appendChild(p);
+      } else {
+        const ol = document.createElement('ol');
+        rows.forEach((entry) => {
+          const li = document.createElement('li');
+          if (entry.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+          const who = document.createElement('span');
+          who.className = 'who';
+          who.textContent = entry.name;
+          const val = document.createElement('span');
+          val.className = 'val';
+          val.textContent = formatValue(category, entry.value);
+          li.append(who, val);
+          ol.appendChild(li);
+        });
+        section.appendChild(ol);
+      }
+      body.appendChild(section);
+    }
+  }
+
+  /** The three score lines on the Solved card. */
+  setSolvedScores(rows: SolvedRow[]) {
+    const list = $('solved-scores');
+    list.innerHTML = '';
+    for (const row of rows) {
+      const li = document.createElement('li');
+      const label = document.createElement('span');
+      label.className = 'lab';
+      label.textContent = row.label;
+      const value = document.createElement('span');
+      value.className = 'val';
+      value.textContent = row.value;
+      li.append(label, value);
+      if (row.note) {
+        const badge = document.createElement('span');
+        badge.className = `badge ${row.kind}`;
+        badge.textContent = row.note;
+        li.appendChild(badge);
+      }
+      list.appendChild(li);
+    }
+    list.hidden = rows.length === 0;
   }
 }

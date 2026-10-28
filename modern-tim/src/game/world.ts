@@ -40,6 +40,14 @@ export interface Trail {
   points: { x: number; y: number }[];
 }
 
+/** What the simulation reports when a ball reaches the goal. */
+export interface SolveInfo {
+  /** Body label of the ball that scored (e.g. 'ball'). */
+  label: string;
+  /** Distance that ball travelled since the run started, in world pixels. */
+  pathPx: number;
+}
+
 interface PivotInfo {
   body: Matter.Body;
   /** The axle (the part's x, y). */
@@ -65,7 +73,8 @@ export class Simulation {
   /** Body labels that count for the goal. */
   goalTargets: string[] = ['ball'];
   solved = false;
-  onSolved: (() => void) | null = null;
+  solvedInfo: SolveInfo | null = null;
+  onSolved: ((info: SolveInfo) => void) | null = null;
   steps = 0;
   /** Motion paths of balls during the current run. */
   trails = new Map<number, Trail>();
@@ -77,6 +86,8 @@ export class Simulation {
   private conveyorContacts: [Matter.Body, Matter.Body][] = [];
   private springContacts: [Matter.Body, Matter.Body][] = [];
   private springCooldown = new Map<string, number>();
+  /** Distance travelled so far by each ball (read-only bookkeeping, it never moves anything). */
+  private paths = new Map<number, { x: number; y: number; length: number }>();
 
   constructor() {
     this.engine.gravity.x = 0;
@@ -102,8 +113,10 @@ export class Simulation {
     this.springContacts = [];
     this.springCooldown.clear();
     this.trails.clear();
+    this.paths.clear();
     this.running = play;
     this.solved = false;
+    this.solvedInfo = null;
     this.steps = 0;
     this.gearTrain = computeGearTrain(parts);
 
@@ -129,13 +142,32 @@ export class Simulation {
         this.pivots.push({ body, x: p.x, y: p.y, ox: dx * c - dy * s, oy: dx * s + dy * c, speed, angle0: body.angle });
       }
     }
+
+    // Balls start their path where the player placed them.
+    for (const body of Composite.allBodies(world)) {
+      if (body.label === 'ball' || body.label === 'heavyBall') {
+        this.paths.set(body.id, { x: body.position.x, y: body.position.y, length: 0 });
+      }
+    }
   }
 
   /** Advance the physics by one fixed 60 Hz step. */
   step() {
     this.steps++;
     Engine.update(this.engine, STEP_MS);
+    this.trackPaths();
     if (this.steps % TRAIL_EVERY === 0) this.recordTrails();
+  }
+
+  /** Add this step's movement to each ball's travelled distance. */
+  private trackPaths() {
+    for (const [id, path] of this.paths) {
+      const body = this.engine.world.bodies.find((b) => b.id === id);
+      if (!body) continue;
+      path.length += Math.hypot(body.position.x - path.x, body.position.y - path.y);
+      path.x = body.position.x;
+      path.y = body.position.y;
+    }
   }
 
   bodiesOf(id: number): Matter.Body[] {
@@ -291,7 +323,8 @@ export class Simulation {
       const other = a.label === 'goalSensor' ? b.parent : b.label === 'goalSensor' ? a.parent : null;
       if (other && this.goalTargets.includes(other.label)) {
         this.solved = true;
-        this.onSolved?.();
+        this.solvedInfo = { label: other.label, pathPx: this.paths.get(other.id)?.length ?? 0 };
+        this.onSolved?.(this.solvedInfo);
         return;
       }
     }

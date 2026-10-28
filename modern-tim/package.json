@@ -1,14 +1,15 @@
 {
   "name": "modern-tim",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "check-levels": "tsx scripts/check-levels.ts",
-    "build:single": "node scripts/build-single.mjs"
+    "build:single": "node scripts/build-single.mjs",
+    "check-scores": "tsx scripts/check-scores.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

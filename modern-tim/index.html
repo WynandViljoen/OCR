@@ -24,11 +24,14 @@
           </svg>
           <div class="brand-text">
             <h1>Modern TIM</h1>
-            <span>Machine lab</span>
+            <span>Machine lab · v0.2a</span>
           </div>
         </div>
         <nav id="levels" class="levels" aria-label="Levels"></nav>
         <div class="controls">
+          <button id="player-chip" class="btn player-chip" type="button" title="Change player">
+            <span id="player-name">Player</span>
+          </button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
           <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
@@ -73,6 +76,7 @@
                 <div class="solved-card">
                   <h2>Solved!</h2>
                   <p id="solved-learned" class="solved-learned"></p>
+                  <ul id="solved-scores" class="solved-scores" aria-label="Your scores" hidden></ul>
                   <div class="solved-actions">
                     <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
                     <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
@@ -93,6 +97,11 @@
               <p id="sci-try"></p>
             </div>
           </div>
+          <div id="scores-card" class="sci-card scores">
+            <span class="eyebrow">High scores</span>
+            <h2 id="scores-level"></h2>
+            <div id="scores-body"></div>
+          </div>
           <div id="part-info" class="part-info"></div>
           <label class="toggle"><input type="checkbox" id="show-paths" checked /> Show ball paths</label>
           <dl class="keys">
@@ -108,6 +117,20 @@
           </dl>
         </aside>
       </main>
+    </div>
+
+    <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
+      <form id="gate-form" class="gate-card" novalidate>
+        <h2 id="gate-title">Welcome to Modern TIM!</h2>
+        <p id="gate-text"></p>
+        <label class="sr-only" for="gate-name">Your name</label>
+        <input id="gate-name" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" />
+        <p id="gate-error" class="gate-error" role="alert" hidden></p>
+        <div class="gate-actions">
+          <button id="gate-cancel" class="btn" type="button" hidden>Cancel</button>
+          <button id="gate-ok" class="btn btn-go" type="submit">Let’s build ▶</button>
+        </div>
+      </form>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>

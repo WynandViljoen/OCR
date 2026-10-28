@@ -406,6 +406,84 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
 }
 .part-info:empty { display: none; }
 .part-info strong { font-family: var(--font-display); font-weight: 600; font-size: 1rem; }
+/* ---------- high scores ---------- */
+.scores h2 { font-size: 1.1rem; }
+.board-group { display: flex; flex-direction: column; gap: 2px; }
+.board-group + .board-group { margin-top: 8px; }
+.board-group h3 { font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em; }
+.board-group ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.board-group li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.88rem;
+  padding: 2px 6px;
+  border-radius: 7px;
+  counter-increment: place;
+}
+.board-group li::before { content: counter(place) '.'; width: 1.4em; color: var(--muted); font-weight: 800; flex: none; }
+.board-group ol { counter-reset: place; }
+.board-group li .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.board-group li .val { font-variant-numeric: tabular-nums; font-weight: 800; }
+.board-group li.me { background: var(--blue-soft); }
+.scores-empty { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+.solved-scores { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 6px; text-align: left; }
+.solved-scores li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 10px;
+  padding: 6px 10px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+}
+.solved-scores .lab { font-weight: 800; font-size: 0.85rem; }
+.solved-scores .val { font-family: var(--font-display); font-weight: 700; font-variant-numeric: tabular-nums; }
+.solved-scores .badge { grid-column: 1 / -1; font-size: 0.74rem; font-weight: 800; color: var(--muted); }
+.solved-scores .badge.board { color: var(--blue); }
+.solved-scores .badge.record { color: #8a6a00; background: #fff6cc; border-radius: 6px; padding: 0 6px; width: fit-content; }
+
+/* ---------- player name ---------- */
+.player-chip { max-width: 11em; font-size: 0.9rem; padding: 5px 12px; }
+.player-chip span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.gate {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(29, 36, 64, 0.6);
+}
+.gate-card {
+  width: min(100%, 380px);
+  background: var(--panel);
+  border: 3px solid var(--ink);
+  border-radius: 18px;
+  box-shadow: 0 6px 0 var(--ink);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.gate-card h2 { font-size: 1.6rem; }
+.gate-card p { margin: 0; font-weight: 700; }
+.gate-card input {
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 10px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 10px;
+  background: #f8faff;
+  color: var(--ink);
+}
+.gate-error { color: var(--danger); font-size: 0.9rem; }
+.gate-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+
 .toggle { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
 .toggle input { width: 18px; height: 18px; accent-color: var(--blue); }
 .keys { margin: 0; display: grid; gap: 4px; font-size: 0.8rem; color: var(--muted); }
@@ -455,7 +533,7 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .logo, .solved-card { animation: none; }
+  .logo, .solved-card, .gate-card { animation: none; }
   .btn, .toast { transition: none; }
 }
 
@@ -472,11 +550,14 @@ kbd {
           </svg>
           <div class="brand-text">
             <h1>Modern TIM</h1>
-            <span>Machine lab</span>
+            <span>Machine lab · v0.2a</span>
           </div>
         </div>
         <nav id="levels" class="levels" aria-label="Levels"></nav>
         <div class="controls">
+          <button id="player-chip" class="btn player-chip" type="button" title="Change player">
+            <span id="player-name">Player</span>
+          </button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
           <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
@@ -521,6 +602,7 @@ kbd {
                 <div class="solved-card">
                   <h2>Solved!</h2>
                   <p id="solved-learned" class="solved-learned"></p>
+                  <ul id="solved-scores" class="solved-scores" aria-label="Your scores" hidden></ul>
                   <div class="solved-actions">
                     <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
                     <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
@@ -541,6 +623,11 @@ kbd {
               <p id="sci-try"></p>
             </div>
           </div>
+          <div id="scores-card" class="sci-card scores">
+            <span class="eyebrow">High scores</span>
+            <h2 id="scores-level"></h2>
+            <div id="scores-body"></div>
+          </div>
           <div id="part-info" class="part-info"></div>
           <label class="toggle"><input type="checkbox" id="show-paths" checked /> Show ball paths</label>
           <dl class="keys">
@@ -556,6 +643,20 @@ kbd {
           </dl>
         </aside>
       </main>
+    </div>
+
+    <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
+      <form id="gate-form" class="gate-card" novalidate>
+        <h2 id="gate-title">Welcome to Modern TIM!</h2>
+        <p id="gate-text"></p>
+        <label class="sr-only" for="gate-name">Your name</label>
+        <input id="gate-name" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" placeholder="Your name" />
+        <p id="gate-error" class="gate-error" role="alert" hidden></p>
+        <div class="gate-actions">
+          <button id="gate-cancel" class="btn" type="button" hidden>Cancel</button>
+          <button id="gate-ok" class="btn btn-go" type="submit">Let’s build ▶</button>
+        </div>
+      </form>
     </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
@@ -1575,6 +1676,160 @@ function solutionToParts(level, nextId) {
 return { LEVELS, levelToParts, solutionToParts };
 })();
 
+// ---- game/profile.ts ----
+const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores } = (() => {
+const NAME_KEY = 'modern-tim:player';
+const SCORES_KEY = 'modern-tim:scores';
+const MAX_NAME = 16;
+const BOARD_SIZE = 5;
+const PX_PER_METER = 100;
+const CATEGORIES = [
+    'shortest',
+    'longest',
+    'spare'
+];
+const CATEGORY_INFO = {
+    shortest: {
+        label: 'Shortest path',
+        blurb: 'The ball went straight to the goal.',
+        lowerIsBetter: true
+    },
+    longest: {
+        label: 'Longest path',
+        blurb: 'The ball took the scenic route.',
+        lowerIsBetter: false
+    },
+    spare: {
+        label: 'Most spare tools',
+        blurb: 'Parts you did not need.',
+        lowerIsBetter: false
+    }
+};
+function browserStore() {
+    try {
+        return window.localStorage;
+    } catch  {
+        return null;
+    }
+}
+function sanitizeName(raw) {
+    return String(raw ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME).trim();
+}
+const emptyBoard = ()=>({
+        shortest: [],
+        longest: [],
+        spare: []
+    });
+function pathMeters(px) {
+    return Math.round(px / PX_PER_METER * 100) / 100;
+}
+function formatValue(category, value) {
+    if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
+    return `${value.toFixed(1)} m`;
+}
+const sameName = (a, b)=>a.toLowerCase() === b.toLowerCase();
+function better(category, a, b) {
+    return CATEGORY_INFO[category].lowerIsBetter ? a < b : a > b;
+}
+function sortBoard(category, list) {
+    const dir = CATEGORY_INFO[category].lowerIsBetter ? 1 : -1;
+    list.sort((x, y)=>dir * (x.value - y.value) || x.at - y.at);
+}
+function recordRun(scores, levelId, rawName, run, now = Date.now()) {
+    const name = sanitizeName(rawName);
+    const board = scores[levelId] ??= emptyBoard();
+    const values = {
+        shortest: run.pathMeters,
+        longest: run.pathMeters,
+        spare: run.spare
+    };
+    return CATEGORIES.map((category)=>{
+        const value = values[category];
+        const list = board[category];
+        const eligible = Number.isFinite(value) && value > 0;
+        const existing = list.find((e)=>sameName(e.name, name));
+        let improved = false;
+        if (eligible && name) {
+            if (!existing) {
+                list.push({
+                    name,
+                    value,
+                    at: now
+                });
+                improved = true;
+            } else if (better(category, value, existing.value)) {
+                existing.value = value;
+                existing.at = now;
+                existing.name = name;
+                improved = true;
+            }
+            sortBoard(category, list);
+            if (list.length > BOARD_SIZE) list.length = BOARD_SIZE;
+        }
+        const place = list.findIndex((e)=>sameName(e.name, name));
+        const rank = place >= 0 ? place + 1 : null;
+        return {
+            category,
+            value,
+            rank,
+            improved: improved && rank !== null,
+            record: improved && rank === 1
+        };
+    });
+}
+function loadPlayer(store = browserStore()) {
+    try {
+        return sanitizeName(store?.getItem(NAME_KEY) ?? '');
+    } catch  {
+        return '';
+    }
+}
+function savePlayer(name, store = browserStore()) {
+    try {
+        store?.setItem(NAME_KEY, sanitizeName(name));
+    } catch  {}
+}
+function loadScores(store = browserStore()) {
+    const out = {};
+    try {
+        const raw = JSON.parse(store?.getItem(SCORES_KEY) ?? '{}');
+        if (!raw || typeof raw !== 'object') return out;
+        for (const [levelId, b] of Object.entries(raw)){
+            const board = emptyBoard();
+            for (const category of CATEGORIES){
+                const rows = Array.isArray(b?.[category]) ? b[category] : [];
+                const seen = new Set();
+                for (const row of rows){
+                    const e = row;
+                    const name = sanitizeName(typeof e?.name === 'string' ? e.name : '');
+                    const value = typeof e?.value === 'number' ? e.value : NaN;
+                    if (!name || !Number.isFinite(value) || value < 0 || value > 100000 || seen.has(name.toLowerCase())) continue;
+                    seen.add(name.toLowerCase());
+                    board[category].push({
+                        name,
+                        value,
+                        at: Number.isFinite(e?.at) ? e.at : 0
+                    });
+                }
+                sortBoard(category, board[category]);
+                board[category].length = Math.min(board[category].length, BOARD_SIZE);
+            }
+            out[levelId] = board;
+        }
+    } catch  {
+        return {};
+    }
+    return out;
+}
+function saveScores(scores, store = browserStore()) {
+    try {
+        store?.setItem(SCORES_KEY, JSON.stringify(scores));
+    } catch  {}
+}
+
+return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, loadScores, saveScores };
+})();
+
 // ---- game/draw.ts ----
 const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
 
@@ -1972,6 +2227,7 @@ class Simulation {
         'ball'
     ];
     solved = false;
+    solvedInfo = null;
     onSolved = null;
     steps = 0;
     trails = new Map();
@@ -1986,6 +2242,7 @@ class Simulation {
     conveyorContacts = [];
     springContacts = [];
     springCooldown = new Map();
+    paths = new Map();
     constructor(){
         this.engine.gravity.x = 0;
         this.engine.gravity.y = 1;
@@ -2008,8 +2265,10 @@ class Simulation {
         this.springContacts = [];
         this.springCooldown.clear();
         this.trails.clear();
+        this.paths.clear();
         this.running = play;
         this.solved = false;
+        this.solvedInfo = null;
         this.steps = 0;
         this.gearTrain = computeGearTrain(parts);
         Composite.add(world, this.boundaries());
@@ -2045,11 +2304,30 @@ class Simulation {
                 });
             }
         }
+        for (const body of Composite.allBodies(world)){
+            if (body.label === 'ball' || body.label === 'heavyBall') {
+                this.paths.set(body.id, {
+                    x: body.position.x,
+                    y: body.position.y,
+                    length: 0
+                });
+            }
+        }
     }
     step() {
         this.steps++;
         Engine.update(this.engine, STEP_MS);
+        this.trackPaths();
         if (this.steps % TRAIL_EVERY === 0) this.recordTrails();
+    }
+    trackPaths() {
+        for (const [id, path] of this.paths){
+            const body = this.engine.world.bodies.find((b)=>b.id === id);
+            if (!body) continue;
+            path.length += Math.hypot(body.position.x - path.x, body.position.y - path.y);
+            path.x = body.position.x;
+            path.y = body.position.y;
+        }
     }
     bodiesOf(id) {
         return this.built.get(id) ?? [];
@@ -2214,7 +2492,11 @@ class Simulation {
             const other = a.label === 'goalSensor' ? b.parent : b.label === 'goalSensor' ? a.parent : null;
             if (other && this.goalTargets.includes(other.label)) {
                 this.solved = true;
-                this.onSolved?.();
+                this.solvedInfo = {
+                    label: other.label,
+                    pathPx: this.paths.get(other.id)?.length ?? 0
+                };
+                this.onSolved?.(this.solvedInfo);
                 return;
             }
         }
@@ -2226,6 +2508,7 @@ return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
 
 // ---- game/ui.ts ----
 const { UI } = (() => {
+
 
 
 function $(id) {
@@ -2248,8 +2531,12 @@ class UI {
     partButtons = new Map();
     toastTimer = 0;
     selectedTool = null;
+    gateEl = $('gate');
+    gateInput = $('gate-name');
+    currentName = '';
     constructor(handlers){
         this.handlers = handlers;
+        this.setupGate();
         this.runBtn.addEventListener('click', ()=>handlers.onToggleRun());
         $('btn-reset').addEventListener('click', ()=>handlers.onReset());
         this.undoBtn.addEventListener('click', ()=>handlers.onUndo());
@@ -2385,6 +2672,116 @@ class UI {
     showSolved(show) {
         this.solvedEl.hidden = !show;
     }
+    setupGate() {
+        const error = $('gate-error');
+        const clearError = ()=>error.hidden = true;
+        this.gateInput.addEventListener('input', clearError);
+        $('gate-form').addEventListener('submit', (e)=>{
+            e.preventDefault();
+            const name = sanitizeName(this.gateInput.value);
+            if (!name) {
+                error.textContent = 'Enter a name to continue.';
+                error.hidden = false;
+                this.gateInput.focus();
+                return;
+            }
+            this.handlers.onNameChosen(name);
+        });
+        $('gate-cancel').addEventListener('click', ()=>this.closeGate());
+        this.gateEl.addEventListener('keydown', (e)=>{
+            if (e.key === 'Escape' && !$('gate-cancel').hidden) this.closeGate();
+            e.stopPropagation();
+        });
+        $('player-chip').addEventListener('click', ()=>this.openGate());
+    }
+    setPlayer(name) {
+        this.currentName = name;
+        $('player-name').textContent = name || 'Player';
+    }
+    openGate() {
+        const changing = this.currentName !== '';
+        $('gate-title').textContent = changing ? 'Change player' : 'Welcome to Modern TIM!';
+        $('gate-text').textContent = changing ? 'Who is playing now? Scores go under this name.' : 'What is your name? It goes on the high score board.';
+        $('gate-cancel').hidden = !changing;
+        $('gate-error').hidden = true;
+        this.gateInput.value = this.currentName;
+        this.gateEl.hidden = false;
+        $('app').setAttribute('inert', '');
+        window.setTimeout(()=>{
+            this.gateInput.focus();
+            this.gateInput.select();
+        }, 0);
+    }
+    closeGate() {
+        this.gateEl.hidden = true;
+        $('app').removeAttribute('inert');
+    }
+    setScores(level, board, player) {
+        $('scores-level').textContent = level.hasGoal ? level.name : 'Sandbox';
+        const body = $('scores-body');
+        body.innerHTML = '';
+        if (!board) {
+            const p = document.createElement('p');
+            p.className = 'scores-empty';
+            p.textContent = 'The sandbox has no goal, so there are no scores here. Build anything you like.';
+            body.appendChild(p);
+            return;
+        }
+        for (const category of CATEGORIES){
+            const info = CATEGORY_INFO[category];
+            const section = document.createElement('section');
+            section.className = 'board-group';
+            const h = document.createElement('h3');
+            h.textContent = info.label;
+            h.title = info.blurb;
+            section.appendChild(h);
+            const rows = board[category].slice(0, 3);
+            if (!rows.length) {
+                const p = document.createElement('p');
+                p.className = 'scores-empty';
+                p.textContent = 'No score yet. Be the first!';
+                section.appendChild(p);
+            } else {
+                const ol = document.createElement('ol');
+                rows.forEach((entry)=>{
+                    const li = document.createElement('li');
+                    if (entry.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+                    const who = document.createElement('span');
+                    who.className = 'who';
+                    who.textContent = entry.name;
+                    const val = document.createElement('span');
+                    val.className = 'val';
+                    val.textContent = formatValue(category, entry.value);
+                    li.append(who, val);
+                    ol.appendChild(li);
+                });
+                section.appendChild(ol);
+            }
+            body.appendChild(section);
+        }
+    }
+    setSolvedScores(rows) {
+        const list = $('solved-scores');
+        list.innerHTML = '';
+        for (const row of rows){
+            const li = document.createElement('li');
+            const label = document.createElement('span');
+            label.className = 'lab';
+            label.textContent = row.label;
+            const value = document.createElement('span');
+            value.className = 'val';
+            value.textContent = row.value;
+            li.append(label, value);
+            if (row.note) {
+                const badge = document.createElement('span');
+                badge.className = `badge ${row.kind}`;
+                badge.textContent = row.note;
+                li.appendChild(badge);
+            }
+            list.appendChild(li);
+        }
+        list.hidden = rows.length === 0;
+    }
 }
 
 return { UI };
@@ -2392,6 +2789,7 @@ return { UI };
 
 // ---- main.ts ----
 (() => {
+
 
 
 
@@ -2423,6 +2821,8 @@ let undoStack = [];
 let lastTrails = [];
 let showPaths = true;
 let solvedLevels = loadSolved();
+let player = loadPlayer();
+const allScores = loadScores();
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const view = {
@@ -2482,17 +2882,67 @@ const ui = new UI({
     onTogglePaths: (show)=>showPaths = show,
     onZoomIn: ()=>zoomStep(1.25),
     onZoomOut: ()=>zoomStep(1 / 1.25),
-    onZoomReset: ()=>resetZoom()
+    onZoomReset: ()=>resetZoom(),
+    onNameChosen: (name)=>{
+        const first = player === '';
+        player = name;
+        savePlayer(name);
+        ui.setPlayer(name);
+        ui.closeGate();
+        refreshScores();
+        ui.toast(first ? `Hi, ${name}! Let's build a machine.` : `Now playing as ${name}.`);
+    }
 });
-sim.onSolved = ()=>{
+sim.onSolved = (info)=>{
     solvedLevels.add(level.id);
     saveSolved();
     ui.setLevels(LEVELS, levelIndex, solvedLevels);
     ui.setStatus('Solved!', 'solved');
+    const run = {
+        pathMeters: pathMeters(info.pathPx),
+        spare: spareTools()
+    };
+    const results = player ? recordRun(allScores, level.id, player, run) : [];
+    if (results.length) {
+        saveScores(allScores);
+        refreshScores();
+    }
+    ui.setSolvedScores(describeRun(run, results));
     window.setTimeout(()=>{
         if (playing && sim.solved) ui.showSolved(true);
     }, 700);
 };
+function spareTools() {
+    let total = 0;
+    for (const left of Object.values(remaining()))if (typeof left === 'number') total += left;
+    return total;
+}
+function describeRun(run, results) {
+    return results.map((r)=>{
+        let note = '';
+        let kind = 'plain';
+        if (r.record) {
+            note = 'New record!';
+            kind = 'record';
+        } else if (r.improved && r.rank !== null) {
+            note = `New personal best, #${r.rank} on the board`;
+            kind = 'board';
+        } else if (r.rank !== null) {
+            note = `Your best is #${r.rank} on the board`;
+        } else if (r.category === 'spare' && run.spare === 0) {
+            note = 'Try solving it with a part to spare';
+        }
+        return {
+            label: CATEGORY_INFO[r.category].label,
+            value: formatValue(r.category, r.value),
+            note,
+            kind
+        };
+    });
+}
+function refreshScores() {
+    ui.setScores(level, level.hasGoal ? allScores[level.id] ?? emptyBoard() : null, player);
+}
 const snap = (v)=>Math.round(v / GRID) * GRID;
 const clamp = (v, lo, hi)=>Math.max(lo, Math.min(hi, v));
 const clone = (list)=>list.map((p)=>({
@@ -2650,6 +3100,8 @@ function loadLevel(index, restore) {
     persistSandbox();
     ui.setLevels(LEVELS, levelIndex, solvedLevels);
     ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
+    ui.setSolvedScores([]);
+    refreshScores();
     ui.setPalette(remaining());
     ui.setRunning(false);
     ui.showSolved(false);
@@ -3015,7 +3467,8 @@ canvas.addEventListener('contextmenu', (e)=>{
 });
 window.addEventListener('keydown', (e)=>{
     const target = e.target;
-    if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
+    if (target && (target.tagName === 'TEXTAREA' || target.type === 'text')) return;
+    if (target && /^(INPUT|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
     if (e.code === 'Space') {
         e.preventDefault();
         if (playing) stop();
@@ -3213,6 +3666,9 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 loadLevel(0, true);
+ui.setPlayer(player);
+if (player) ui.toast(`Welcome back, ${player}!`);
+else ui.openGate();
 window.tim = {
     sim,
     levels: LEVELS,
@@ -3223,6 +3679,10 @@ window.tim = {
         return tool;
     },
     view,
+    get player () {
+        return player;
+    },
+    scores: allScores,
     loadLevel: (i)=>loadLevel(i, false),
     addSolution: ()=>{
         parts.push(...solutionToParts(level, nextId));

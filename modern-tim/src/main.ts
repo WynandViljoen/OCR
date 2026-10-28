@@ -13,7 +13,20 @@ import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts'
 import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './game/world';
 import { snapGear } from './game/mechanics';
 import { drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
-import { UI, type Remaining } from './game/ui';
+import { UI, type Remaining, type SolvedRow } from './game/ui';
+import {
+  CATEGORY_INFO,
+  emptyBoard,
+  formatValue,
+  loadPlayer,
+  loadScores,
+  pathMeters,
+  recordRun,
+  saveScores,
+  savePlayer,
+  type AllScores,
+  type RunResult,
+} from './game/profile';
 
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12; // 15 degrees
@@ -46,6 +59,9 @@ let undoStack: PlacedPart[][] = [];
 let lastTrails: Trail[] = [];
 let showPaths = true;
 let solvedLevels = loadSolved();
+/** Who is playing (asked on the first visit, then remembered) and everyone's best runs on this device. */
+let player = loadPlayer();
+const allScores: AllScores = loadScores();
 
 // Camera: `z` is the zoom factor, (cx, cy) the world point at the top-left of the view.
 const MIN_ZOOM = 1;
@@ -111,17 +127,67 @@ const ui = new UI({
   onZoomIn: () => zoomStep(1.25),
   onZoomOut: () => zoomStep(1 / 1.25),
   onZoomReset: () => resetZoom(),
+  onNameChosen: (name) => {
+    const first = player === '';
+    player = name;
+    savePlayer(name);
+    ui.setPlayer(name);
+    ui.closeGate();
+    refreshScores();
+    ui.toast(first ? `Hi, ${name}! Let's build a machine.` : `Now playing as ${name}.`);
+  },
 });
 
-sim.onSolved = () => {
+sim.onSolved = (info) => {
   solvedLevels.add(level.id);
   saveSolved();
   ui.setLevels(LEVELS, levelIndex, solvedLevels);
   ui.setStatus('Solved!', 'solved');
+
+  // Score this run: how far the ball went, and how many parts were not needed.
+  const run = { pathMeters: pathMeters(info.pathPx), spare: spareTools() };
+  const results = player ? recordRun(allScores, level.id, player, run) : [];
+  if (results.length) {
+    saveScores(allScores);
+    refreshScores();
+  }
+  ui.setSolvedScores(describeRun(run, results));
+
   window.setTimeout(() => {
     if (playing && sim.solved) ui.showSolved(true);
   }, 700);
 };
+
+/** Parts from this level's inventory that the player did not use (the sandbox has no inventory limit). */
+function spareTools(): number {
+  let total = 0;
+  for (const left of Object.values(remaining())) if (typeof left === 'number') total += left;
+  return total;
+}
+
+/** The lines shown on the Solved card, one per score category. */
+function describeRun(run: { pathMeters: number; spare: number }, results: RunResult[]): SolvedRow[] {
+  return results.map((r) => {
+    let note = '';
+    let kind: SolvedRow['kind'] = 'plain';
+    if (r.record) {
+      note = 'New record!';
+      kind = 'record';
+    } else if (r.improved && r.rank !== null) {
+      note = `New personal best, #${r.rank} on the board`;
+      kind = 'board';
+    } else if (r.rank !== null) {
+      note = `Your best is #${r.rank} on the board`;
+    } else if (r.category === 'spare' && run.spare === 0) {
+      note = 'Try solving it with a part to spare';
+    }
+    return { label: CATEGORY_INFO[r.category].label, value: formatValue(r.category, r.value), note, kind };
+  });
+}
+
+function refreshScores() {
+  ui.setScores(level, level.hasGoal ? (allScores[level.id] ?? emptyBoard()) : null, player);
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -305,6 +371,8 @@ function loadLevel(index: number, restore: boolean) {
 
   ui.setLevels(LEVELS, levelIndex, solvedLevels);
   ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
+  ui.setSolvedScores([]);
+  refreshScores();
   ui.setPalette(remaining());
   ui.setRunning(false);
   ui.showSolved(false);
@@ -687,7 +755,9 @@ canvas.addEventListener('contextmenu', (e) => {
 
 window.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement | null;
-  if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
+  // Typing in a text box (the name dialog) never triggers shortcuts, Space included.
+  if (target && (target.tagName === 'TEXTAREA' || (target as HTMLInputElement).type === 'text')) return;
+  if (target && /^(INPUT|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
 
   if (e.code === 'Space') {
     e.preventDefault();
@@ -868,6 +938,11 @@ requestAnimationFrame(frame);
 
 loadLevel(0, true);
 
+// First visit: ask for a name. Returning visit: it was stored, so just say hello.
+ui.setPlayer(player);
+if (player) ui.toast(`Welcome back, ${player}!`);
+else ui.openGate();
+
 // Small hook for automated tests and for curious engineers in the console.
 (window as unknown as { tim: unknown }).tim = {
   sim,
@@ -879,6 +954,10 @@ loadLevel(0, true);
     return tool;
   },
   view,
+  get player() {
+    return player;
+  },
+  scores: allScores,
   loadLevel: (i: number) => loadLevel(i, false),
   addSolution: () => {
     parts.push(...solutionToParts(level, nextId));

@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.2a
+- First-time players are asked for their name; it is remembered in the browser. The name chip in the top bar changes player.
+- High scores per level: Shortest path, Longest path (distance the winning ball travelled, in metres) and Most spare tools (unused inventory parts). Top 5 per category, one row per name.
+- The Solved card shows how the run ranked. Scores are stored in each browser (localStorage), not shared between devices.
+- Physics and levels are unchanged. The ball's path is only measured, never altered.
+
 ## Modern TIM 0.2
 - The website is now Modern TIM, a physics puzzle game for STEM kids (replaces Snap OCR).
 - Root `index.html` is the single-file build, so the server's cron copy step is unchanged.
