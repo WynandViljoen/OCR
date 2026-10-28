@@ -37,7 +37,7 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 
 ### Name and high scores
 - The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
-- Every level has three boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
+- Every level has five boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) **Fastest solve** and **Slowest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
 - Scores live in localStorage (`modern-tim:player`, `modern-tim:scores`), so they are per browser and device. A shared online board would need a small server script.
 
 ### Controls
@@ -105,6 +105,7 @@ src/game/mechanics.ts    gear-train maths (meshing, speeds, snapping), hit-testi
 src/game/world.ts        Simulation: Matter engine, conveyors, springs, pivots, gears, goal
 src/game/draw.ts         custom canvas drawing for parts, thumbnails, arrows, paper
 src/game/levels.ts       level data and science text
+src/game/version.ts      the on-screen version number (bump each release)
 src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)

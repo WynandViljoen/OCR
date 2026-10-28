@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.2b
+- Game version now shows on screen: a badge in the bottom-right corner, and in the header (one `VERSION` constant in `modern-tim/src/game/version.ts`).
+- Two new high-score boards for every puzzle: Fastest solve and Slowest solve (seconds from Start to the goal, simulated time, top 5 each).
+- Scores saved by 0.2a still load. The Solved card scrolls if the screen is short.
+
 ## Modern TIM 0.2a
 - First-time players are asked for their name; it is remembered in the browser. The name chip in the top bar changes player.
 - High scores per level: Shortest path, Longest path (distance the winning ball travelled, in metres) and Most spare tools (unused inventory parts). Top 5 per category, one row per name.
