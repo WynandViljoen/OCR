@@ -28,7 +28,7 @@ const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
 const MAX_EVENTS_PER_HOUR = 240;
-const EVENTS = ['visit', 'name', 'level', 'play', 'solve'];
+const EVENTS = ['visit', 'name', 'level', 'play', 'solve', 'hint'];
 
 date_default_timezone_set('UTC');
 

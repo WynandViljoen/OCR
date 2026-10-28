@@ -6,7 +6,10 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
-## Current features (v0.2g)
+## Current features (v0.2h)
+- v0.2h: pulley `lift`/`liftSpeed`/`travel` props (world.ts `lifts`, `stepLifts()` runs before `stepRopes()`, rope anchors follow the pulley body); `PALETTE_GROUPS` in parts.ts + grouped palette/search in ui.ts (7+ parts); `src/game/selftest.ts` (used by check-levels and the Test all levels dialog); `Level.hints` + ghost of `solution`; `sound.ts` (WebAudio, `modern-tim:muted`), `confetti.ts`, `Simulation.onImpact`; phone CSS at the end of styles.css. Tracker event `hint` added (admin.php EVENTS). Still to do: pulley and paddle-gear levels (need real-physics verification).
+
+## Earlier (v0.2g)
 - v0.2g: `../admin.php` (tracking API `?api=track` + dashboard) and `src/game/tracker.ts` (device id in localStorage `modern-tim:device` + cookie `tim_device`, events visit/name/level/play/solve). Data in `tim-data/`. Password is a bcrypt hash in `ADMIN_HASH`. Tested locally with `php -S`; not tested on the real host.
 
 ## Earlier (v0.2f)

@@ -41,6 +41,8 @@ export interface Level {
   fixed: LevelPart[];
   inventory: Partial<Record<PartType, number>> | null;
   solution?: LevelPart[];
+  /** Hint 1 nudges, hint 2 names the parts; hint 3 (the ghost of the solution) comes from `solution`. */
+  hints?: [string, string];
   science: Science;
 }
 
@@ -56,6 +58,10 @@ function basketWithFunnel(cx: number): LevelPart[] {
 export const LEVELS: Level[] = [
   {
     id: 'ramps',
+    hints: [
+      "Gravity pulls straight down. What could turn that fall into a sideways roll?",
+      "Use a plank as a ramp under the ball, tilted down towards the basket.",
+    ],
     name: 'Ramps',
     goal: 'Get the ball into the basket.',
     hasGoal: true,
@@ -71,6 +77,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'conveyor',
+    hints: [
+      "The ball cannot roll off its shelf by itself. What could carry it?",
+      "Place the conveyors so they carry the ball off the shelf. Check the arrows; F flips the direction.",
+    ],
     name: 'Conveyors',
     goal: 'The ball is stuck on a shelf. Move it into the basket.',
     hasGoal: true,
@@ -93,6 +103,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'springs',
+    hints: [
+      "Something has to push the ball up and over the wall.",
+      "Put the spring on the floor where the ball lands, tilted a little towards the far side of the wall.",
+    ],
     name: 'Springs',
     goal: 'A wall is in the way. Bounce the ball over it.',
     hasGoal: true,
@@ -112,6 +126,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'levers',
+    hints: [
+      "A seesaw is a lever: weight on one end lifts the other end.",
+      "Drop the heavy ball onto the high end of the seesaw so the other end flings the blue ball.",
+    ],
     name: 'Levers',
     goal: 'Launch the blue ball into the basket using the seesaw.',
     hasGoal: true,
@@ -131,6 +149,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'dominoes',
+    hints: [
+      "One thing hitting the next makes a chain reaction.",
+      "Stand the dominoes in a row between the stuck ball and the far ball, close enough to touch when they fall.",
+    ],
     name: 'Dominoes',
     goal: 'The ball gets stuck in the gap. Knock the far ball into the basket.',
     hasGoal: true,
@@ -158,6 +180,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'gears',
+    hints: [
+      "The motor turns one way, and every meshed gear flips the direction.",
+      "Link gears from the motor to the paddle gear. Count the gears to predict the paddle's direction; a crossed string flips it.",
+    ],
     name: 'Gears',
     goal: 'Connect the motor to the paddle gear so it bats the ball to the RIGHT.',
     hasGoal: true,
@@ -182,6 +208,10 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'machine',
+    hints: [
+      "Break it into steps: up the hill, over the wall, into the basket.",
+      "Two conveyors carry the ball up the hill, then a spring on the floor flings it over the wall.",
+    ],
     name: 'Big machine',
     goal: 'Use everything you learned: get the ball up the hill, over the wall, and into the basket.',
     hasGoal: true,

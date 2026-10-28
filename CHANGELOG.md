@@ -1,5 +1,15 @@
 # Changelog
 
+## Modern TIM 0.2h
+- **Pulley motor**: a Pulley now has a "Pulley motor" slider in the Tinker lab (Off / Lift up / Lower down), plus lift speed and rail length. When you press Start it slides along a dotted blue rail (arrow shows the way) and a rope over it drags the weights along. Off by default, so old builds behave the same.
+- **Tool categories** in the sandbox: Balls, Ramps and walls, Moving things, Dominoes and critters, Gears and strings, Pulleys and weights, Goals. Click a heading to fold it (remembered), or use the new "Find a part" box. Levels with few parts keep the flat list.
+- **Test all levels** button (under the parts): runs every recorded solution and checks that no level solves itself, on a separate simulation, and lists the results. `npm run check-levels` now shares the same code (`src/game/selftest.ts`).
+- **Hints**: 💡 Hint button (or H). Hint 1 nudges, hint 2 names the parts, hint 3 draws a faint orange ghost of one solution on the board. Sandbox has none. Hint use is logged for the admin dashboard.
+- **Sound and confetti**: small synthesised sounds (place, start, bounces and thuds, success) and a confetti burst on solving. The 🔊 button mutes (remembered); reduced-motion users get no confetti.
+- **Phones and tablets**: bigger touch targets, one-row header, scrolling level chips, wrapped goal bar, safe-area padding.
+- Not done yet: new levels for pulleys and the spinning paddle gear. I could not check their physics here, so use "Test all levels" once they exist.
+- Not verified here: the pulley motor in real Matter, and the sounds on a real device. Please run `npm run check-levels` and try a lifting pulley in the sandbox.
+
 ## Modern TIM 0.2g
 - New root file `admin.php`: the player tracking API plus a password-protected admin dashboard. Pages: **Players** (name, device id, browser/OS, visits, plays, solves, online dot), **Levels** (opened / Start pressed / solved, fastest solve) and **Log** (filter by name, level, event or device). Auto-refresh and JSON export included.
 - Every browser now gets a **device id** from the server: random and signed, so it cannot be edited or invented (a changed id is replaced). It is kept in localStorage, a cookie and an HttpOnly cookie. A player can still lose it by clearing site data or switching browser; no website can prevent that.

@@ -230,6 +230,32 @@ export function drawDecoration(ctx: CanvasRenderingContext2D, body: Matter.Body,
       ctx.arc(0, 0, 3, 0, Math.PI * 2);
       ctx.fillStyle = INK;
       ctx.fill();
+      // Motor: show the rail the pulley rides on, and which way it goes.
+      const lift = Math.sign(propValue('pulley', part?.props, 'lift'));
+      if (lift) {
+        const travel = propValue('pulley', part?.props, 'travel');
+        const homeY = (part?.y ?? y) - y;
+        const endY = homeY - lift * travel;
+        ctx.save();
+        ctx.setLineDash([4, 5]);
+        ctx.strokeStyle = '#2f6fed';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, homeY);
+        ctx.lineTo(0, endY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        const tip = endY;
+        const dirY = lift > 0 ? 1 : -1; // arrowhead points from the tip back toward home
+        ctx.fillStyle = '#2f6fed';
+        ctx.beginPath();
+        ctx.moveTo(0, tip);
+        ctx.lineTo(-7, tip + dirY * 11);
+        ctx.lineTo(7, tip + dirY * 11);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
       break;
     }
     case 'domino': {

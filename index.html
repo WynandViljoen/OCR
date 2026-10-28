@@ -561,6 +561,56 @@ kbd {
 .mode-controls button { border: 0; background: transparent; height: 36px; padding: 0 12px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--ink); }
 .mode-controls button.on { background: var(--ink); color: #fff; }
 
+/* Tool categories (sandbox) */
+.palette-search { width: 100%; margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line, #d9dce6); background: var(--card, #fff); color: inherit; font: inherit; }
+.palette.grouped { display: block; }
+.palette-group { margin-bottom: 8px; border: 1px solid var(--line, #d9dce6); border-radius: 12px; overflow: hidden; }
+.group-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border: 0; background: rgba(120, 130, 160, 0.1); color: inherit; font: 700 13px/1.2 inherit; font-family: inherit; cursor: pointer; text-align: left; }
+.group-head > span:first-child { flex: 1; }
+.group-count { opacity: 0.6; font-weight: 600; }
+.chev { transition: transform 0.15s; }
+.palette-group.closed .chev { transform: rotate(-90deg); }
+.palette-group.closed .group-grid { display: none; }
+.group-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 6px; }
+.palette-empty { opacity: 0.7; margin: 8px 2px; }
+
+/* Hints, tester, confetti, sound */
+.hint-btn { margin-left: auto; margin-right: 8px; }
+.hint-btn:disabled { opacity: 0.4; }
+.hint-box { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: min(560px, calc(100vw - 24px)); background: #fff7e0; color: #3a2d00; border: 2px solid #f6a21a; border-radius: 14px; padding: 10px 14px; font-weight: 700; box-shadow: 0 6px 20px rgba(0,0,0,.18); z-index: 30; }
+.confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 60; display: none; }
+.tray-test { width: 100%; margin: 10px 0 0; }
+.tester-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+.tester-list li { font-weight: 700; }
+.tester-list li.bad { color: var(--danger, #d63f3f); }
+
+/* ---------- phones and tablets ---------- */
+@media (pointer: coarse) {
+  .btn, .tab, .group-head { min-height: 44px; }
+  .part-toolbar button { min-width: 44px; min-height: 44px; }
+  .mode-controls button, .zoom-controls button { height: 44px; min-width: 44px; }
+  .part-btn { min-height: 68px; }
+  .prop-row input[type='range'] { height: 30px; }
+  .palette-search { min-height: 44px; font-size: 16px; }
+  .hint-box { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 860px) {
+  .levels { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .levels > * { flex: none; }
+  .palette.grouped .group-grid { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); }
+  .goal-bar { flex-wrap: wrap; row-gap: 6px; }
+  .goal-text { flex: 1 1 100%; order: 3; }
+  .hint-btn { margin-left: 0; }
+  .tray-hint { display: none; }
+  .gate-card { width: calc(100vw - 24px); max-width: 440px; }
+}
+@media (max-width: 480px) {
+  .controls { gap: 5px; flex-wrap: nowrap; justify-content: flex-end; }
+  .controls .btn { padding-inline: 8px; font-size: 0.82rem; }
+  .brand-text { display: none; }
+  .player-chip { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
+}
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -582,6 +632,7 @@ kbd {
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
           <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
@@ -591,7 +642,9 @@ kbd {
       <main class="layout">
         <aside class="tray" aria-label="Parts">
           <h2 class="panel-title">Parts</h2>
+          <input id="palette-search" class="palette-search" type="search" placeholder="Find a part…" aria-label="Find a part" hidden>
           <div id="palette" class="palette"></div>
+          <button id="run-selftest" class="btn tray-test" type="button" title="Run every level's recorded solution and check that nothing solves itself">🧪 Test all levels</button>
           <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Drag a box over empty board to select several and move them together. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
@@ -599,6 +652,7 @@ kbd {
           <div class="goal-bar">
             <span class="goal-tag">Goal</span>
             <span id="goal-text" class="goal-text"></span>
+            <button id="hint-btn" class="btn hint-btn" type="button" title="Stuck? Get a hint (H)">💡 Hint</button>
             <span id="status" class="status" data-kind="edit">Building</span>
           </div>
           <div id="stage-area" class="stage-area">
@@ -695,6 +749,16 @@ kbd {
         </div>
       </form>
     </div>
+    <div id="tester" class="gate" role="dialog" aria-modal="true" aria-labelledby="tester-title" hidden>
+      <div class="gate-card">
+        <h2 id="tester-title">Level test</h2>
+        <p id="tester-sub">Running every level's solution…</p>
+        <ul id="tester-list" class="tester-list"></ul>
+        <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
+      </div>
+    </div>
+    <div id="hint-box" class="hint-box" hidden></div>
+    <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
 
@@ -992,6 +1056,81 @@ const pulleyFrictionSpec = {
         ]
     ]
 };
+const liftSpec = {
+    key: 'lift',
+    label: 'Pulley motor',
+    icon: '⬆️',
+    min: -1,
+    max: 1,
+    step: 1,
+    def: 0,
+    show: (v)=>v > 0 ? 'Lift up' : v < 0 ? 'Lower down' : 'Off',
+    science: 'A winch or crane moves a pulley up and down. When the pulley rises, the rope pulls the weights up with it.',
+    feel: [
+        [
+            -1,
+            'The pulley slides down on its rail when you press Start.'
+        ],
+        [
+            0,
+            'The pulley stays where you put it.'
+        ],
+        [
+            1,
+            'The pulley slides up on its rail and drags the rope and weights with it.'
+        ]
+    ]
+};
+const liftSpeedSpec = {
+    key: 'liftSpeed',
+    label: 'Lift speed',
+    icon: '🏗️',
+    min: 0.2,
+    max: 2,
+    step: 0.2,
+    def: 0.8,
+    show: (v)=>`${Math.round(v * 60)} px per second`,
+    science: 'Speed is how far something moves in a certain time.',
+    feel: [
+        [
+            0.2,
+            'Slow and steady.'
+        ],
+        [
+            0.8,
+            'A calm, steady lift.'
+        ],
+        [
+            1.6,
+            'Fast! Heavy things may swing or fall behind.'
+        ]
+    ]
+};
+const liftTravelSpec = {
+    key: 'travel',
+    label: 'Rail length',
+    icon: '📏',
+    min: 40,
+    max: 300,
+    step: 20,
+    def: 120,
+    show: (v)=>`${v} px`,
+    science: 'The rail is how far the pulley can travel before it stops.',
+    feel: [
+        [
+            40,
+            'A short hop.'
+        ],
+        [
+            120,
+            'A medium ride.'
+        ],
+        [
+            220,
+            'A long ride all the way across.'
+        ]
+    ]
+};
 const strandsSpec = {
     key: 'strands',
     label: 'Rope strands on the load',
@@ -1074,6 +1213,9 @@ const PROP_SPECS = {
         gripSpec(0.5)
     ],
     pulley: [
+        liftSpec,
+        liftSpeedSpec,
+        liftTravelSpec,
         pulleyFrictionSpec
     ],
     rope: [
@@ -1103,7 +1245,7 @@ return { PROP_SPECS, nominalMass, propValue, partProp, feelOf };
 })();
 
 // ---- game/parts.ts ----
-const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, isGear } = (() => {
+const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, PALETTE_GROUPS, isGear } = (() => {
 
 
 const { Bodies, Body } = Matter;
@@ -1689,11 +1831,81 @@ const PALETTE_ORDER = [
     'rope',
     'string'
 ];
+const PALETTE_GROUPS = [
+    {
+        id: 'balls',
+        label: 'Balls',
+        icon: '⚽',
+        types: [
+            'ball',
+            'heavyBall'
+        ]
+    },
+    {
+        id: 'ramps',
+        label: 'Ramps and walls',
+        icon: '📐',
+        types: [
+            'plank',
+            'wall'
+        ]
+    },
+    {
+        id: 'moving',
+        label: 'Moving things',
+        icon: '🏃',
+        types: [
+            'conveyor',
+            'spring',
+            'seesaw',
+            'wheel'
+        ]
+    },
+    {
+        id: 'triggers',
+        label: 'Dominoes and critters',
+        icon: '🎲',
+        types: [
+            'domino',
+            'mouse'
+        ]
+    },
+    {
+        id: 'gears',
+        label: 'Gears and strings',
+        icon: '⚙️',
+        types: [
+            'motorGear',
+            'gear',
+            'bigGear',
+            'paddleGear',
+            'string'
+        ]
+    },
+    {
+        id: 'pulleys',
+        label: 'Pulleys and weights',
+        icon: '🏗️',
+        types: [
+            'crate',
+            'pulley',
+            'rope'
+        ]
+    },
+    {
+        id: 'goals',
+        label: 'Goals',
+        icon: '🧺',
+        types: [
+            'basket'
+        ]
+    }
+];
 function isGear(type) {
     return !!PART_DEFS[type].gear;
 }
 
-return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, isGear };
+return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, PALETTE_GROUPS, isGear };
 })();
 
 // ---- game/mechanics.ts ----
@@ -1983,6 +2195,10 @@ function basketWithFunnel(cx) {
 const LEVELS = [
     {
         id: 'ramps',
+        hints: [
+            "Gravity pulls straight down. What could turn that fall into a sideways roll?",
+            "Use a plank as a ramp under the ball, tilted down towards the basket."
+        ],
         name: 'Ramps',
         goal: 'Get the ball into the basket.',
         hasGoal: true,
@@ -2014,6 +2230,10 @@ const LEVELS = [
     },
     {
         id: 'conveyor',
+        hints: [
+            "The ball cannot roll off its shelf by itself. What could carry it?",
+            "Place the conveyors so they carry the ball off the shelf. Check the arrows; F flips the direction."
+        ],
         name: 'Conveyors',
         goal: 'The ball is stuck on a shelf. Move it into the basket.',
         hasGoal: true,
@@ -2056,6 +2276,10 @@ const LEVELS = [
     },
     {
         id: 'springs',
+        hints: [
+            "Something has to push the ball up and over the wall.",
+            "Put the spring on the floor where the ball lands, tilted a little towards the far side of the wall."
+        ],
         name: 'Springs',
         goal: 'A wall is in the way. Bounce the ball over it.',
         hasGoal: true,
@@ -2096,6 +2320,10 @@ const LEVELS = [
     },
     {
         id: 'levers',
+        hints: [
+            "A seesaw is a lever: weight on one end lifts the other end.",
+            "Drop the heavy ball onto the high end of the seesaw so the other end flings the blue ball."
+        ],
         name: 'Levers',
         goal: 'Launch the blue ball into the basket using the seesaw.',
         hasGoal: true,
@@ -2134,6 +2362,10 @@ const LEVELS = [
     },
     {
         id: 'dominoes',
+        hints: [
+            "One thing hitting the next makes a chain reaction.",
+            "Stand the dominoes in a row between the stuck ball and the far ball, close enough to touch when they fall."
+        ],
         name: 'Dominoes',
         goal: 'The ball gets stuck in the gap. Knock the far ball into the basket.',
         hasGoal: true,
@@ -2205,6 +2437,10 @@ const LEVELS = [
     },
     {
         id: 'gears',
+        hints: [
+            "The motor turns one way, and every meshed gear flips the direction.",
+            "Link gears from the motor to the paddle gear. Count the gears to predict the paddle's direction; a crossed string flips it."
+        ],
         name: 'Gears',
         goal: 'Connect the motor to the paddle gear so it bats the ball to the RIGHT.',
         hasGoal: true,
@@ -2259,6 +2495,10 @@ const LEVELS = [
     },
     {
         id: 'machine',
+        hints: [
+            "Break it into steps: up the hill, over the wall, into the basket.",
+            "Two conveyors carry the ball up the hill, then a spring on the floor flings it over the wall."
+        ],
         name: 'Big machine',
         goal: 'Use everything you learned: get the ball up the hill, over the wall, and into the basket.',
         hasGoal: true,
@@ -2373,7 +2613,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2g';
+const VERSION = '0.2h';
 
 return { VERSION };
 })();
@@ -3015,6 +3255,154 @@ function track(ev, name, level = '', d = {}) {
 return { TRACK_ENDPOINT, DEVICE_KEY, deviceId, track };
 })();
 
+// ---- game/sound.ts ----
+const { isMuted, setMuted, playSound } = (() => {
+const MUTE_KEY = 'modern-tim:muted';
+let ctx = null;
+let muted = false;
+let lastBounce = 0;
+try {
+    muted = window.localStorage.getItem(MUTE_KEY) === '1';
+} catch  {}
+function isMuted() {
+    return muted;
+}
+function setMuted(v) {
+    muted = v;
+    try {
+        window.localStorage.setItem(MUTE_KEY, v ? '1' : '0');
+    } catch  {}
+}
+function audio() {
+    if (muted) return null;
+    try {
+        if (!ctx) {
+            const Ctor = window.AudioContext || window.webkitAudioContext;
+            if (!Ctor) return null;
+            ctx = new Ctor();
+        }
+        if (ctx.state === 'suspended') void ctx.resume();
+        return ctx;
+    } catch  {
+        return null;
+    }
+}
+function tone(c, freq, start, dur, vol, type = 'sine', slideTo) {
+    const o = c.createOscillator();
+    const g = c.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freq, start);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, start + dur);
+    g.gain.setValueAtTime(0.0001, start);
+    g.gain.exponentialRampToValueAtTime(vol, start + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+    o.connect(g).connect(c.destination);
+    o.start(start);
+    o.stop(start + dur + 0.02);
+}
+function playSound(kind, strength = 0.5) {
+    const c = audio();
+    if (!c) return;
+    const t = c.currentTime;
+    const s = Math.max(0.1, Math.min(1, strength));
+    switch(kind){
+        case 'bounce':
+            if (t - lastBounce < 0.06) return;
+            lastBounce = t;
+            tone(c, 300 + 300 * s, t, 0.12, 0.05 + 0.1 * s, 'sine', 160);
+            break;
+        case 'thud':
+            if (t - lastBounce < 0.06) return;
+            lastBounce = t;
+            tone(c, 110, t, 0.14, 0.06 + 0.12 * s, 'triangle', 60);
+            break;
+        case 'place':
+            tone(c, 520, t, 0.07, 0.07, 'square', 380);
+            break;
+        case 'click':
+            tone(c, 800, t, 0.03, 0.04, 'square');
+            break;
+        case 'start':
+            tone(c, 330, t, 0.1, 0.07, 'triangle');
+            tone(c, 440, t + 0.09, 0.14, 0.07, 'triangle');
+            break;
+        case 'success':
+            [
+                523,
+                659,
+                784,
+                1047
+            ].forEach((f, i)=>tone(c, f, t + i * 0.11, 0.25, 0.09, 'triangle'));
+            break;
+    }
+}
+
+return { isMuted, setMuted, playSound };
+})();
+
+// ---- game/confetti.ts ----
+const { burst } = (() => {
+function burst(canvas, count = 140) {
+    if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = window.innerWidth * dpr;
+    canvas.height = window.innerHeight * dpr;
+    const c = canvas.getContext('2d');
+    if (!c) return;
+    const colors = [
+        '#2f6fed',
+        '#f6a21a',
+        '#1a9d5b',
+        '#e63946',
+        '#8a5cf6',
+        '#14b8c4'
+    ];
+    const pieces = [];
+    for(let i = 0; i < count; i++){
+        const side = i % 2 ? 1 : -1;
+        pieces.push({
+            x: canvas.width / 2 + side * canvas.width * 0.12 * Math.random(),
+            y: canvas.height * 0.55,
+            vx: (Math.random() * 7 + 2) * side * dpr * (Math.random() > 0.5 ? 1 : 0.4),
+            vy: -(Math.random() * 13 + 7) * dpr,
+            r: Math.random() * Math.PI,
+            spin: (Math.random() - 0.5) * 0.4,
+            color: colors[i % colors.length],
+            w: (5 + Math.random() * 6) * dpr,
+            h: (3 + Math.random() * 4) * dpr
+        });
+    }
+    canvas.style.display = 'block';
+    const start = performance.now();
+    const tick = (now)=>{
+        const t = now - start;
+        c.clearRect(0, 0, canvas.width, canvas.height);
+        for (const p of pieces){
+            p.vy += 0.35 * dpr;
+            p.vx *= 0.99;
+            p.x += p.vx;
+            p.y += p.vy;
+            p.r += p.spin;
+            c.save();
+            c.globalAlpha = Math.max(0, 1 - t / 2600);
+            c.translate(p.x, p.y);
+            c.rotate(p.r);
+            c.fillStyle = p.color;
+            c.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            c.restore();
+        }
+        if (t < 2600) requestAnimationFrame(tick);
+        else {
+            c.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.style.display = 'none';
+        }
+    };
+    requestAnimationFrame(tick);
+}
+
+return { burst };
+})();
+
 // ---- game/draw.ts ----
 const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
 
@@ -3237,6 +3625,34 @@ function drawDecoration(ctx, body, state) {
                 ctx.arc(0, 0, 3, 0, Math.PI * 2);
                 ctx.fillStyle = INK;
                 ctx.fill();
+                const lift = Math.sign(propValue('pulley', part?.props, 'lift'));
+                if (lift) {
+                    const travel = propValue('pulley', part?.props, 'travel');
+                    const homeY = (part?.y ?? y) - y;
+                    const endY = homeY - lift * travel;
+                    ctx.save();
+                    ctx.setLineDash([
+                        4,
+                        5
+                    ]);
+                    ctx.strokeStyle = '#2f6fed';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(0, homeY);
+                    ctx.lineTo(0, endY);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    const tip = endY;
+                    const dirY = lift > 0 ? 1 : -1;
+                    ctx.fillStyle = '#2f6fed';
+                    ctx.beginPath();
+                    ctx.moveTo(0, tip);
+                    ctx.lineTo(-7, tip + dirY * 11);
+                    ctx.lineTo(7, tip + dirY * 11);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+                }
                 break;
             }
         case 'domino':
@@ -3648,6 +4064,7 @@ class Simulation {
     solved = false;
     solvedInfo = null;
     onSolved = null;
+    onImpact = null;
     steps = 0;
     trails = new Map();
     gearTrain = {
@@ -3661,6 +4078,7 @@ class Simulation {
     pivots = [];
     flywheels = [];
     ropes = [];
+    lifts = [];
     conveyorContacts = [];
     springContacts = [];
     springCooldown = new Map();
@@ -3673,6 +4091,14 @@ class Simulation {
         Events.on(this.engine, 'collisionStart', (e)=>{
             this.recordContacts(e);
             this.detectGoal(e);
+            if (this.onImpact && this.running) {
+                for (const pair of e.pairs){
+                    const dx = pair.bodyA.velocity.x - pair.bodyB.velocity.x;
+                    const dy = pair.bodyA.velocity.y - pair.bodyB.velocity.y;
+                    const speed = Math.hypot(dx, dy);
+                    if (speed > 2 && !pair.bodyA.isSensor && !pair.bodyB.isSensor) this.onImpact(speed, pair.bodyA.label, pair.bodyB.label);
+                }
+            }
         });
         Events.on(this.engine, 'collisionActive', (e)=>this.recordContacts(e));
     }
@@ -3685,6 +4111,7 @@ class Simulation {
         this.pivots = [];
         this.flywheels = [];
         this.ropes = [];
+        this.lifts = [];
         this.conveyorContacts = [];
         this.springContacts = [];
         this.springCooldown.clear();
@@ -3771,9 +4198,27 @@ class Simulation {
                     b,
                     pa,
                     pb,
+                    pulley: this.built.get(p.link.via)?.[0] ?? a,
+                    aOnLeft,
                     strands,
                     length: ropeLength(a.position, b.position, pa, pb, strands),
                     friction: propValue('pulley', pulley.props, 'friction')
+                });
+            }
+        }
+        if (play) {
+            for (const p of parts){
+                if (p.type !== 'pulley') continue;
+                const dir = Math.sign(propValue('pulley', p.props, 'lift'));
+                const body = this.built.get(p.id)?.[0];
+                if (!dir || !body) continue;
+                this.lifts.push({
+                    body,
+                    x: p.x,
+                    y0: p.y,
+                    dir: -dir,
+                    speed: propValue('pulley', p.props, 'liftSpeed'),
+                    travel: propValue('pulley', p.props, 'travel')
                 });
             }
         }
@@ -3922,8 +4367,24 @@ class Simulation {
             for (const m of fw.members)Body.setAngle(m.pivot.body, m.pivot.angle0 + m.factor * fw.theta, false);
         }
     }
+    stepLifts() {
+        for (const l of this.lifts){
+            const d = Math.min(l.travel, l.speed * this.steps);
+            const y = Math.max(PULLEY_RADIUS + 4, Math.min(WORLD_H - 40, l.y0 + l.dir * d));
+            Body.setPosition(l.body, {
+                x: l.x,
+                y
+            }, false);
+        }
+    }
     stepRopes() {
         for (const r of this.ropes){
+            const px = r.pulley.position.x;
+            const py = r.pulley.position.y;
+            r.pa.x = px + (r.aOnLeft ? -PULLEY_RADIUS : PULLEY_RADIUS);
+            r.pa.y = py;
+            r.pb.x = px + (r.aOnLeft ? PULLEY_RADIUS : -PULLEY_RADIUS);
+            r.pb.y = py;
             const va = Body.getVelocity(r.a);
             const vb = Body.getVelocity(r.b);
             const res = solveRope({
@@ -3960,6 +4421,7 @@ class Simulation {
     }
     afterStep() {
         if (!this.running) return;
+        this.stepLifts();
         this.stepRopes();
         this.stepFlywheels();
         for (const pv of this.pivots){
@@ -4037,6 +4499,65 @@ class Simulation {
 }
 
 return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
+})();
+
+// ---- game/selftest.ts ----
+const { testLevel, testAllLevels } = (() => {
+
+
+const MAX_STEPS = 60 * 30;
+function run(level, withSolution) {
+    let id = 1;
+    const nextId = ()=>id++;
+    const parts = [
+        ...levelToParts(level, nextId),
+        ...withSolution ? solutionToParts(level, nextId) : []
+    ];
+    const sim = new Simulation();
+    sim.goalEnabled = true;
+    sim.goalTargets = level.goalTargets ?? [
+        'ball'
+    ];
+    sim.load(parts, true);
+    let steps = 0;
+    while(!sim.solved && steps < MAX_STEPS){
+        sim.step();
+        steps++;
+    }
+    return {
+        solved: sim.solved,
+        seconds: steps / 60
+    };
+}
+function testLevel(level) {
+    if (!level.hasGoal || !level.solution) {
+        return {
+            id: level.id,
+            name: level.name,
+            skipped: true,
+            solutionSolves: false,
+            seconds: 0,
+            solvesAlone: false,
+            ok: true
+        };
+    }
+    const good = run(level, true);
+    const empty = run(level, false);
+    return {
+        id: level.id,
+        name: level.name,
+        skipped: false,
+        solutionSolves: good.solved,
+        seconds: good.seconds,
+        solvesAlone: empty.solved,
+        ok: good.solved && !empty.solved
+    };
+}
+function testAllLevels() {
+    return LEVELS.map(testLevel);
+}
+
+return { testLevel, testAllLevels };
 })();
 
 // ---- game/ui.ts ----
@@ -4118,11 +4639,32 @@ class UI {
         $('solved-learned').textContent = level.science.learned;
         this.nextBtn.hidden = !hasNext;
     }
+    lastRemaining = {};
+    searchWired = false;
+    closedGroups() {
+        try {
+            return new Set(JSON.parse(window.localStorage.getItem('modern-tim:groups') || '[]'));
+        } catch  {
+            return new Set();
+        }
+    }
     setPalette(remaining) {
         this.paletteEl.innerHTML = '';
         this.partButtons.clear();
-        for (const type of PALETTE_ORDER){
-            if (!(type in remaining)) continue;
+        this.lastRemaining = remaining;
+        const types = PALETTE_ORDER.filter((t)=>t in remaining);
+        const grouped = types.length > 7;
+        const search = document.getElementById('palette-search');
+        if (search) {
+            search.hidden = !grouped;
+            if (!this.searchWired) {
+                this.searchWired = true;
+                search.addEventListener('input', ()=>this.setPalette(this.lastRemaining));
+            }
+            if (!grouped) search.value = '';
+        }
+        const q = grouped && search ? search.value.trim().toLowerCase() : '';
+        const makeButton = (type, into)=>{
             const def = PART_DEFS[type];
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -4135,9 +4677,45 @@ class UI {
             });
             btn.addEventListener('click', ()=>this.handlers.onPaletteClick(type));
             btn.addEventListener('pointerenter', ()=>this.showPartInfo(type));
-            this.paletteEl.appendChild(btn);
+            into.appendChild(btn);
             this.partButtons.set(type, btn);
             drawThumbnail(btn.querySelector('canvas'), type);
+        };
+        if (!grouped) {
+            this.paletteEl.classList.remove('grouped');
+            for (const type of types)makeButton(type, this.paletteEl);
+        } else {
+            this.paletteEl.classList.add('grouped');
+            const closed = this.closedGroups();
+            for (const g of PALETTE_GROUPS){
+                const inGroup = g.types.filter((t)=>types.includes(t) && (!q || PART_DEFS[t].label.toLowerCase().includes(q) || g.label.toLowerCase().includes(q)));
+                if (!inGroup.length) continue;
+                const open = q ? true : !closed.has(g.id);
+                const box = document.createElement('section');
+                box.className = 'palette-group' + (open ? '' : ' closed');
+                const head = document.createElement('button');
+                head.type = 'button';
+                head.className = 'group-head';
+                head.setAttribute('aria-expanded', String(open));
+                head.innerHTML = `<span>${g.icon} ${g.label}</span><span class="group-count">${inGroup.length}</span><span class="chev" aria-hidden="true">▾</span>`;
+                const grid = document.createElement('div');
+                grid.className = 'group-grid';
+                head.addEventListener('click', ()=>{
+                    const now = new Set(this.closedGroups());
+                    if (box.classList.contains('closed')) now.delete(g.id);
+                    else now.add(g.id);
+                    try {
+                        window.localStorage.setItem('modern-tim:groups', JSON.stringify([
+                            ...now
+                        ]));
+                    } catch  {}
+                    this.setPalette(this.lastRemaining);
+                });
+                box.append(head, grid);
+                this.paletteEl.appendChild(box);
+                for (const type of inGroup)makeButton(type, grid);
+            }
+            if (!this.paletteEl.children.length) this.paletteEl.innerHTML = '<p class="palette-empty">No part matches that.</p>';
         }
         this.updateCounts(remaining);
     }
@@ -4466,6 +5044,9 @@ return { UI };
 
 
 
+
+
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -4595,6 +5176,8 @@ sim.onSolved = (info)=>{
     track('solve', player, level.id, {
         seconds: run.seconds
     });
+    playSound('success');
+    burst(document.getElementById('confetti'));
     if (player && level.hasGoal) {
         const id = level.id;
         const name = player;
@@ -4959,6 +5542,7 @@ function loadLevel(index, restore) {
     levelIndex = index;
     level = LEVELS[index];
     if (booted) track('level', player, level.id);
+    resetHints();
     idCounter = 1;
     parts = levelToParts(level, nextId);
     if (level.id === 'sandbox' && restore) parts.push(...restoreSandbox());
@@ -4988,9 +5572,44 @@ function loadLevel(index, restore) {
     ui.showPartInfo(first ?? null);
     refreshUI();
 }
+let hintStep = 0;
+let hintGhost = null;
+const hintBox = document.getElementById('hint-box');
+const hintBtn = document.getElementById('hint-btn');
+function hideHintGhost() {
+    hintGhost = null;
+}
+function resetHints() {
+    hintStep = 0;
+    hintGhost = null;
+    hintBox.hidden = true;
+    hintBtn.textContent = '💡 Hint';
+    hintBtn.disabled = !level.hints;
+}
+function showHint() {
+    if (playing) return;
+    if (!level.hints) {
+        ui.toast('The sandbox has no puzzle, so no hints. Build anything!');
+        return;
+    }
+    hintStep = Math.min(3, hintStep + 1);
+    const text = hintStep === 1 ? level.hints[0] : hintStep === 2 ? level.hints[1] : 'The faint orange outline shows one way to build it. Drag your own parts to match it.';
+    if (hintStep === 3 && level.solution) {
+        hintGhost = solutionToParts(level, ()=>-1).flatMap((p)=>PART_DEFS[p.type].build(p, false));
+    }
+    hintBox.textContent = `💡 Hint ${hintStep} of 3: ${text}`;
+    hintBox.hidden = false;
+    hintBtn.textContent = hintStep < 3 ? `💡 More hint (${hintStep}/3)` : '💡 Hint (3/3)';
+    track('hint', player, level.id, {
+        step: hintStep
+    });
+}
+hintBtn.addEventListener('click', showHint);
 function start() {
     if (playing) return;
     playing = true;
+    hideHintGhost();
+    playSound('start');
     track('play', player, level.id);
     tool = null;
     clearSelection();
@@ -5295,6 +5914,7 @@ function placeAt(type, x, y) {
     pushUndo();
     parts.push(part);
     selectedId = part.id;
+    playSound('place');
     ui.showPartInfo(type);
     changed();
 }
@@ -5673,6 +6293,10 @@ window.addEventListener('keydown', (e)=>{
         refreshUI();
         return;
     }
+    if (e.key === 'h' || e.key === 'H') {
+        showHint();
+        return;
+    }
     if (e.code === 'Space') {
         e.preventDefault();
         if (playing) stop();
@@ -5846,6 +6470,21 @@ function render() {
     drawBodies(ctx, sensors, state);
     drawBodies(ctx, solids, state);
     for (const b of solids)drawDecoration(ctx, b, state);
+    if (hintGhost && !playing) {
+        ctx.save();
+        ctx.globalAlpha = 0.4;
+        drawBodies(ctx, hintGhost, state);
+        ctx.globalAlpha = 1;
+        ctx.lineWidth = 2 / view.z;
+        ctx.setLineDash([
+            6 / view.z,
+            5 / view.z
+        ]);
+        ctx.strokeStyle = '#f6a21a';
+        traceBodies(ctx, hintGhost);
+        ctx.stroke();
+        ctx.restore();
+    }
     for (const s of parts)if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
     for (const r of parts){
         if (r.type !== 'rope' || !r.link) continue;
@@ -5855,13 +6494,18 @@ function render() {
         const ba = sim.bodiesOf(r.link.a)[0];
         const bb = sim.bodiesOf(r.link.b)[0];
         if (!pa || !pb || !pv || !ba || !bb) continue;
+        const bp = sim.bodiesOf(pv.id)[0];
         drawRope(ctx, {
             x: ba.position.x,
             top: ba.bounds.min.y
         }, {
             x: bb.position.x,
             top: bb.bounds.min.y
-        }, pv, pa.x <= pb.x, propValue('rope', r.props, 'strands'), !playing && r.id === selectedId);
+        }, bp ? {
+            ...pv,
+            x: bp.position.x,
+            y: bp.position.y
+        } : pv, pa.x <= pb.x, propValue('rope', r.props, 'strands'), !playing && r.id === selectedId);
     }
     if (!playing) {
         drawGearLinks();
@@ -6007,6 +6651,48 @@ function frame(now) {
     requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+sim.onImpact = (speed, a, b)=>{
+    if (!playing) return;
+    playSound(a === 'ball' || b === 'ball' || a === 'heavyBall' || b === 'heavyBall' ? 'bounce' : 'thud', speed / 12);
+};
+const soundBtn = document.getElementById('btn-sound');
+const paintSound = ()=>{
+    soundBtn.textContent = isMuted() ? '🔇' : '🔊';
+    soundBtn.setAttribute('aria-pressed', String(isMuted()));
+};
+paintSound();
+soundBtn.addEventListener('click', ()=>{
+    setMuted(!isMuted());
+    paintSound();
+    playSound('click');
+});
+const testerEl = document.getElementById('tester');
+const testerList = document.getElementById('tester-list');
+const testerSub = document.getElementById('tester-sub');
+testerEl.addEventListener('keydown', (e)=>e.stopPropagation());
+document.getElementById('tester-close')?.addEventListener('click', ()=>{
+    testerEl.hidden = true;
+});
+document.getElementById('run-selftest')?.addEventListener('click', ()=>{
+    testerEl.hidden = false;
+    testerList.innerHTML = '';
+    testerSub.textContent = 'Running every level…';
+    window.setTimeout(()=>{
+        try {
+            const results = testAllLevels().filter((r)=>!r.skipped);
+            for (const r of results){
+                const li = document.createElement('li');
+                li.className = r.ok ? 'ok' : 'bad';
+                li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
+                testerList.appendChild(li);
+            }
+            const bad = results.filter((r)=>!r.ok).length;
+            testerSub.textContent = bad ? `${bad} of ${results.length} levels need attention.` : `All ${results.length} levels pass.`;
+        } catch (err) {
+            testerSub.textContent = 'The test could not run: ' + String(err);
+        }
+    }, 60);
+});
 let booted = false;
 loadLevel(0, true);
 booted = true;

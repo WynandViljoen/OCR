@@ -18,6 +18,9 @@ import { findFreeSpot, overlapsAny } from './game/space';
 import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track } from './game/tracker';
+import { isMuted, playSound, setMuted } from './game/sound';
+import { testAllLevels } from './game/selftest';
+import { burst } from './game/confetti';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
@@ -173,6 +176,8 @@ sim.onSolved = (info) => {
   }
   ui.setSolvedScores(describeRun(run, results, null));
   track('solve', player, level.id, { seconds: run.seconds });
+  playSound('success');
+  burst(document.getElementById('confetti') as HTMLCanvasElement);
 
   // Send it to the community board. If that fails, keep it and try again next visit.
   if (player && level.hasGoal) {
@@ -562,6 +567,7 @@ function loadLevel(index: number, restore: boolean) {
   levelIndex = index;
   level = LEVELS[index];
   if (booted) track('level', player, level.id);
+  resetHints();
   idCounter = 1;
   parts = levelToParts(level, nextId);
   if (level.id === 'sandbox' && restore) parts.push(...restoreSandbox());
@@ -594,9 +600,48 @@ function loadLevel(index: number, restore: boolean) {
   refreshUI();
 }
 
+// --- Hints: 1 nudges, 2 names the parts, 3 shows a ghost of the solution ---------------------------
+let hintStep = 0;
+let hintGhost: ReturnType<(typeof PART_DEFS)['ball']['build']> | null = null;
+const hintBox = document.getElementById('hint-box') as HTMLElement;
+const hintBtn = document.getElementById('hint-btn') as HTMLButtonElement;
+
+function hideHintGhost() {
+  hintGhost = null;
+}
+
+function resetHints() {
+  hintStep = 0;
+  hintGhost = null;
+  hintBox.hidden = true;
+  hintBtn.textContent = '💡 Hint';
+  hintBtn.disabled = !level.hints;
+}
+
+function showHint() {
+  if (playing) return;
+  if (!level.hints) {
+    ui.toast('The sandbox has no puzzle, so no hints. Build anything!');
+    return;
+  }
+  hintStep = Math.min(3, hintStep + 1);
+  const text =
+    hintStep === 1 ? level.hints[0] : hintStep === 2 ? level.hints[1] : 'The faint orange outline shows one way to build it. Drag your own parts to match it.';
+  if (hintStep === 3 && level.solution) {
+    hintGhost = solutionToParts(level, () => -1).flatMap((p) => PART_DEFS[p.type].build(p, false));
+  }
+  hintBox.textContent = `💡 Hint ${hintStep} of 3: ${text}`;
+  hintBox.hidden = false;
+  hintBtn.textContent = hintStep < 3 ? `💡 More hint (${hintStep}/3)` : '💡 Hint (3/3)';
+  track('hint', player, level.id, { step: hintStep });
+}
+hintBtn.addEventListener('click', showHint);
+
 function start() {
   if (playing) return;
   playing = true;
+  hideHintGhost();
+  playSound('start');
   track('play', player, level.id);
   tool = null;
   clearSelection();
@@ -885,6 +930,7 @@ function placeAt(type: PartType, x: number, y: number) {
   pushUndo();
   parts.push(part);
   selectedId = part.id;
+  playSound('place');
   ui.showPartInfo(type);
   changed();
 }
@@ -1245,6 +1291,10 @@ window.addEventListener('keydown', (e) => {
     return;
   }
 
+  if (e.key === 'h' || e.key === 'H') {
+    showHint();
+    return;
+  }
   if (e.code === 'Space') {
     e.preventDefault();
     if (playing) stop();
@@ -1368,6 +1418,18 @@ function render() {
   drawBodies(ctx, sensors, state);
   drawBodies(ctx, solids, state);
   for (const b of solids) drawDecoration(ctx, b, state);
+  if (hintGhost && !playing) {
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    drawBodies(ctx, hintGhost, state);
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2 / view.z;
+    ctx.setLineDash([6 / view.z, 5 / view.z]);
+    ctx.strokeStyle = '#f6a21a';
+    traceBodies(ctx, hintGhost);
+    ctx.stroke();
+    ctx.restore();
+  }
   for (const s of parts) if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
   for (const r of parts) {
     if (r.type !== 'rope' || !r.link) continue;
@@ -1377,11 +1439,12 @@ function render() {
     const ba = sim.bodiesOf(r.link.a)[0];
     const bb = sim.bodiesOf(r.link.b)[0];
     if (!pa || !pb || !pv || !ba || !bb) continue;
+    const bp = sim.bodiesOf(pv.id)[0];
     drawRope(
       ctx,
       { x: ba.position.x, top: ba.bounds.min.y },
       { x: bb.position.x, top: bb.bounds.min.y },
-      pv,
+      bp ? { ...pv, x: bp.position.x, y: bp.position.y } : pv,
       pa.x <= pb.x,
       propValue('rope', r.props, 'strands'),
       !playing && r.id === selectedId,
@@ -1526,6 +1589,53 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+
+sim.onImpact = (speed, a, b) => {
+  if (!playing) return;
+  playSound(a === 'ball' || b === 'ball' || a === 'heavyBall' || b === 'heavyBall' ? 'bounce' : 'thud', speed / 12);
+};
+
+// Sound button.
+const soundBtn = document.getElementById('btn-sound') as HTMLButtonElement;
+const paintSound = () => {
+  soundBtn.textContent = isMuted() ? '🔇' : '🔊';
+  soundBtn.setAttribute('aria-pressed', String(isMuted()));
+};
+paintSound();
+soundBtn.addEventListener('click', () => {
+  setMuted(!isMuted());
+  paintSound();
+  playSound('click');
+});
+
+// "Test all levels": runs every recorded solution on a separate simulation.
+const testerEl = document.getElementById('tester') as HTMLElement;
+const testerList = document.getElementById('tester-list') as HTMLElement;
+const testerSub = document.getElementById('tester-sub') as HTMLElement;
+testerEl.addEventListener('keydown', (e) => e.stopPropagation());
+document.getElementById('tester-close')?.addEventListener('click', () => {
+  testerEl.hidden = true;
+});
+document.getElementById('run-selftest')?.addEventListener('click', () => {
+  testerEl.hidden = false;
+  testerList.innerHTML = '';
+  testerSub.textContent = 'Running every level…';
+  window.setTimeout(() => {
+    try {
+      const results = testAllLevels().filter((r) => !r.skipped);
+      for (const r of results) {
+        const li = document.createElement('li');
+        li.className = r.ok ? 'ok' : 'bad';
+        li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
+        testerList.appendChild(li);
+      }
+      const bad = results.filter((r) => !r.ok).length;
+      testerSub.textContent = bad ? `${bad} of ${results.length} levels need attention.` : `All ${results.length} levels pass.`;
+    } catch (err) {
+      testerSub.textContent = 'The test could not run: ' + String(err);
+    }
+  }, 60);
+});
 
 let booted = false;
 loadLevel(0, true);

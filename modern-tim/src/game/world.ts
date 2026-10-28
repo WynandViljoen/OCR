@@ -67,6 +67,9 @@ interface RopeInfo {
   /** Where the rope leaves the pulley rim on each side. */
   pa: { x: number; y: number };
   pb: { x: number; y: number };
+  /** The pulley body and which side weight `a` hangs on, so a moving pulley moves the rim anchors. */
+  pulley: Matter.Body;
+  aOnLeft: boolean;
   strands: number;
   length: number;
   friction: number;
@@ -103,6 +106,8 @@ export class Simulation {
   solved = false;
   solvedInfo: SolveInfo | null = null;
   onSolved: ((info: SolveInfo) => void) | null = null;
+  /** Called for a noticeable hit; `speed` is the closing speed in px per step. Used for sound effects. */
+  onImpact: ((speed: number, a: string, b: string) => void) | null = null;
   steps = 0;
   /** Motion paths of balls during the current run. */
   trails = new Map<number, Trail>();
@@ -115,6 +120,8 @@ export class Simulation {
   private flywheels: Flywheel[] = [];
   /** Ropes over pulleys (see stepRopes). */
   private ropes: RopeInfo[] = [];
+  /** Pulleys on a rail: they slide up or down once the simulation runs. */
+  private lifts: { body: Matter.Body; x: number; y0: number; dir: number; speed: number; travel: number }[] = [];
   private conveyorContacts: [Matter.Body, Matter.Body][] = [];
   private springContacts: [Matter.Body, Matter.Body][] = [];
   private springCooldown = new Map<string, number>();
@@ -129,6 +136,14 @@ export class Simulation {
     Events.on(this.engine, 'collisionStart', (e: Matter.IEventCollision<Matter.Engine>) => {
       this.recordContacts(e);
       this.detectGoal(e);
+      if (this.onImpact && this.running) {
+        for (const pair of e.pairs) {
+          const dx = pair.bodyA.velocity.x - pair.bodyB.velocity.x;
+          const dy = pair.bodyA.velocity.y - pair.bodyB.velocity.y;
+          const speed = Math.hypot(dx, dy);
+          if (speed > 2 && !pair.bodyA.isSensor && !pair.bodyB.isSensor) this.onImpact(speed, pair.bodyA.label, pair.bodyB.label);
+        }
+      }
     });
     Events.on(this.engine, 'collisionActive', (e: Matter.IEventCollision<Matter.Engine>) => this.recordContacts(e));
   }
@@ -143,6 +158,7 @@ export class Simulation {
     this.pivots = [];
     this.flywheels = [];
     this.ropes = [];
+    this.lifts = [];
     this.conveyorContacts = [];
     this.springContacts = [];
     this.springCooldown.clear();
@@ -207,9 +223,29 @@ export class Simulation {
           b,
           pa,
           pb,
+          pulley: this.built.get(p.link.via)?.[0] ?? a,
+          aOnLeft,
           strands,
           length: ropeLength(a.position, b.position, pa, pb, strands),
           friction: propValue('pulley', pulley.props, 'friction'),
+        });
+      }
+    }
+
+    // Pulleys with a motor slide along a vertical rail.
+    if (play) {
+      for (const p of parts) {
+        if (p.type !== 'pulley') continue;
+        const dir = Math.sign(propValue('pulley', p.props, 'lift'));
+        const body = this.built.get(p.id)?.[0];
+        if (!dir || !body) continue;
+        this.lifts.push({
+          body,
+          x: p.x,
+          y0: p.y,
+          dir: -dir, // "Lift up" means the y value gets smaller
+          speed: propValue('pulley', p.props, 'liftSpeed'),
+          travel: propValue('pulley', p.props, 'travel'),
         });
       }
     }
@@ -363,8 +399,22 @@ export class Simulation {
   }
 
   /** Ropes pull the weights along, so the heavier side drops and lifts the lighter one. */
+  private stepLifts() {
+    for (const l of this.lifts) {
+      const d = Math.min(l.travel, l.speed * this.steps);
+      const y = Math.max(PULLEY_RADIUS + 4, Math.min(WORLD_H - 40, l.y0 + l.dir * d));
+      Body.setPosition(l.body, { x: l.x, y }, false);
+    }
+  }
+
   private stepRopes() {
     for (const r of this.ropes) {
+      const px = r.pulley.position.x;
+      const py = r.pulley.position.y;
+      r.pa.x = px + (r.aOnLeft ? -PULLEY_RADIUS : PULLEY_RADIUS);
+      r.pa.y = py;
+      r.pb.x = px + (r.aOnLeft ? PULLEY_RADIUS : -PULLEY_RADIUS);
+      r.pb.y = py;
       const va = Body.getVelocity(r.a);
       const vb = Body.getVelocity(r.b);
       const res = solveRope(
@@ -386,6 +436,7 @@ export class Simulation {
 
   private afterStep() {
     if (!this.running) return;
+    this.stepLifts();
     this.stepRopes();
 
     this.stepFlywheels();

@@ -14,7 +14,7 @@ export const DEVICE_KEY = 'modern-tim:device';
 const COOKIE = 'tim_device';
 const TIMEOUT_MS = 6000;
 
-export type TrackEvent = 'visit' | 'name' | 'level' | 'play' | 'solve';
+export type TrackEvent = 'visit' | 'name' | 'level' | 'play' | 'solve' | 'hint';
 
 function readStore(): string {
   try {

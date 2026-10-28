@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Modern TIM</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -32,6 +32,7 @@
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
           <button id="btn-run" class="btn btn-go" type="button" title="Start / stop (Space)"><span class="btn-icon">▶</span> Start</button>
@@ -41,7 +42,9 @@
       <main class="layout">
         <aside class="tray" aria-label="Parts">
           <h2 class="panel-title">Parts</h2>
+          <input id="palette-search" class="palette-search" type="search" placeholder="Find a part…" aria-label="Find a part" hidden>
           <div id="palette" class="palette"></div>
+          <button id="run-selftest" class="btn tray-test" type="button" title="Run every level's recorded solution and check that nothing solves itself">🧪 Test all levels</button>
           <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Drag a box over empty board to select several and move them together. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
@@ -49,6 +52,7 @@
           <div class="goal-bar">
             <span class="goal-tag">Goal</span>
             <span id="goal-text" class="goal-text"></span>
+            <button id="hint-btn" class="btn hint-btn" type="button" title="Stuck? Get a hint (H)">💡 Hint</button>
             <span id="status" class="status" data-kind="edit">Building</span>
           </div>
           <div id="stage-area" class="stage-area">
@@ -145,6 +149,16 @@
         </div>
       </form>
     </div>
+    <div id="tester" class="gate" role="dialog" aria-modal="true" aria-labelledby="tester-title" hidden>
+      <div class="gate-card">
+        <h2 id="tester-title">Level test</h2>
+        <p id="tester-sub">Running every level's solution…</p>
+        <ul id="tester-list" class="tester-list"></ul>
+        <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
+      </div>
+    </div>
+    <div id="hint-box" class="hint-box" hidden></div>
+    <canvas id="confetti" class="confetti" aria-hidden="true"></canvas>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

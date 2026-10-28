@@ -3,7 +3,7 @@
  * toolbar and the "Solved!" card. It only touches the DOM shell in index.html
  * and reports user intent through `UIHandlers`; game state lives in main.ts.
  */
-import { PALETTE_ORDER, PART_DEFS, type PartType } from './parts';
+import { PALETTE_GROUPS, PALETTE_ORDER, PART_DEFS, type PartType } from './parts';
 import { feelOf, type PropSpec } from './props';
 import type { Level } from './levels';
 import { drawThumbnail } from './draw';
@@ -153,11 +153,34 @@ export class UI {
   }
 
   /** Rebuild the palette. Only part types listed in `remaining` appear. */
+  private lastRemaining: Remaining = {};
+  private searchWired = false;
+  private closedGroups(): Set<string> {
+    try {
+      return new Set(JSON.parse(window.localStorage.getItem('modern-tim:groups') || '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  }
+
   setPalette(remaining: Remaining) {
     this.paletteEl.innerHTML = '';
     this.partButtons.clear();
-    for (const type of PALETTE_ORDER) {
-      if (!(type in remaining)) continue;
+    this.lastRemaining = remaining;
+    const types = PALETTE_ORDER.filter((t) => t in remaining);
+    // A long list (the sandbox) is sorted into collapsible categories with a search box.
+    const grouped = types.length > 7;
+    const search = document.getElementById('palette-search') as HTMLInputElement | null;
+    if (search) {
+      search.hidden = !grouped;
+      if (!this.searchWired) {
+        this.searchWired = true;
+        search.addEventListener('input', () => this.setPalette(this.lastRemaining));
+      }
+      if (!grouped) search.value = '';
+    }
+    const q = grouped && search ? search.value.trim().toLowerCase() : '';
+    const makeButton = (type: PartType, into: HTMLElement) => {
       const def = PART_DEFS[type];
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -170,9 +193,45 @@ export class UI {
       });
       btn.addEventListener('click', () => this.handlers.onPaletteClick(type));
       btn.addEventListener('pointerenter', () => this.showPartInfo(type));
-      this.paletteEl.appendChild(btn);
+      into.appendChild(btn);
       this.partButtons.set(type, btn);
       drawThumbnail(btn.querySelector('canvas')!, type);
+    };
+    if (!grouped) {
+      this.paletteEl.classList.remove('grouped');
+      for (const type of types) makeButton(type, this.paletteEl);
+    } else {
+      this.paletteEl.classList.add('grouped');
+      const closed = this.closedGroups();
+      for (const g of PALETTE_GROUPS) {
+        const inGroup = g.types.filter((t) => types.includes(t) && (!q || PART_DEFS[t].label.toLowerCase().includes(q) || g.label.toLowerCase().includes(q)));
+        if (!inGroup.length) continue;
+        const open = q ? true : !closed.has(g.id);
+        const box = document.createElement('section');
+        box.className = 'palette-group' + (open ? '' : ' closed');
+        const head = document.createElement('button');
+        head.type = 'button';
+        head.className = 'group-head';
+        head.setAttribute('aria-expanded', String(open));
+        head.innerHTML = `<span>${g.icon} ${g.label}</span><span class="group-count">${inGroup.length}</span><span class="chev" aria-hidden="true">▾</span>`;
+        const grid = document.createElement('div');
+        grid.className = 'group-grid';
+        head.addEventListener('click', () => {
+          const now = new Set(this.closedGroups());
+          if (box.classList.contains('closed')) now.delete(g.id);
+          else now.add(g.id);
+          try {
+            window.localStorage.setItem('modern-tim:groups', JSON.stringify([...now]));
+          } catch {
+            /* ignore */
+          }
+          this.setPalette(this.lastRemaining);
+        });
+        box.append(head, grid);
+        this.paletteEl.appendChild(box);
+        for (const type of inGroup) makeButton(type, grid);
+      }
+      if (!this.paletteEl.children.length) this.paletteEl.innerHTML = '<p class="palette-empty">No part matches that.</p>';
     }
     this.updateCounts(remaining);
   }

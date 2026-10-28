@@ -204,6 +204,57 @@ const pulleyFrictionSpec: PropSpec = {
   ],
 };
 
+const liftSpec: PropSpec = {
+  key: 'lift',
+  label: 'Pulley motor',
+  icon: '⬆️',
+  min: -1,
+  max: 1,
+  step: 1,
+  def: 0,
+  show: (v) => (v > 0 ? 'Lift up' : v < 0 ? 'Lower down' : 'Off'),
+  science: 'A winch or crane moves a pulley up and down. When the pulley rises, the rope pulls the weights up with it.',
+  feel: [
+    [-1, 'The pulley slides down on its rail when you press Start.'],
+    [0, 'The pulley stays where you put it.'],
+    [1, 'The pulley slides up on its rail and drags the rope and weights with it.'],
+  ],
+};
+
+const liftSpeedSpec: PropSpec = {
+  key: 'liftSpeed',
+  label: 'Lift speed',
+  icon: '🏗️',
+  min: 0.2,
+  max: 2,
+  step: 0.2,
+  def: 0.8,
+  show: (v) => `${Math.round(v * 60)} px per second`,
+  science: 'Speed is how far something moves in a certain time.',
+  feel: [
+    [0.2, 'Slow and steady.'],
+    [0.8, 'A calm, steady lift.'],
+    [1.6, 'Fast! Heavy things may swing or fall behind.'],
+  ],
+};
+
+const liftTravelSpec: PropSpec = {
+  key: 'travel',
+  label: 'Rail length',
+  icon: '📏',
+  min: 40,
+  max: 300,
+  step: 20,
+  def: 120,
+  show: (v) => `${v} px`,
+  science: 'The rail is how far the pulley can travel before it stops.',
+  feel: [
+    [40, 'A short hop.'],
+    [120, 'A medium ride.'],
+    [220, 'A long ride all the way across.'],
+  ],
+};
+
 const strandsSpec: PropSpec = {
   key: 'strands',
   label: 'Rope strands on the load',
@@ -236,7 +287,7 @@ export const PROP_SPECS: Partial<Record<PartType, PropSpec[]>> = {
   motorGear: [motorSpeedSpec],
   string: [pulleySpec],
   crate: [crateWeightSpec, gripSpec(0.5)],
-  pulley: [pulleyFrictionSpec],
+  pulley: [liftSpec, liftSpeedSpec, liftTravelSpec, pulleyFrictionSpec],
   rope: [strandsSpec],
 };
 

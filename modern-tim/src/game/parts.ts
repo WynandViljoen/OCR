@@ -649,6 +649,17 @@ export const PALETTE_ORDER: PartType[] = [
   'string',
 ];
 
+/** Tool categories for a long palette (sandbox). Every type in PALETTE_ORDER should appear once. */
+export const PALETTE_GROUPS: { id: string; label: string; icon: string; types: PartType[] }[] = [
+  { id: 'balls', label: 'Balls', icon: '⚽', types: ['ball', 'heavyBall'] },
+  { id: 'ramps', label: 'Ramps and walls', icon: '📐', types: ['plank', 'wall'] },
+  { id: 'moving', label: 'Moving things', icon: '🏃', types: ['conveyor', 'spring', 'seesaw', 'wheel'] },
+  { id: 'triggers', label: 'Dominoes and critters', icon: '🎲', types: ['domino', 'mouse'] },
+  { id: 'gears', label: 'Gears and strings', icon: '⚙️', types: ['motorGear', 'gear', 'bigGear', 'paddleGear', 'string'] },
+  { id: 'pulleys', label: 'Pulleys and weights', icon: '🏗️', types: ['crate', 'pulley', 'rope'] },
+  { id: 'goals', label: 'Goals', icon: '🧺', types: ['basket'] },
+];
+
 export function isGear(type: PartType) {
   return !!PART_DEFS[type].gear;
 }
