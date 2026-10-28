@@ -30,7 +30,7 @@ Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Eac
 - Zoom up to 300%: mouse wheel / trackpad pinch / two-finger pinch / + − 0 keys / zoom buttons.
   Drag the background to pan. Shift+wheel rotates.
 - Player name gate on first visit (stored as `modern-tim:player`); name chip in the top bar changes player.
-- High scores per level (`modern-tim:scores`): shortest path, longest path, fastest solve, slowest solve, most spare tools; version badge from `src/game/version.ts`; top 5 each,
+- High scores per level (`modern-tim:scores`): shortest path, fastest solve, most spare tools (longest/slowest removed in 0.2m; old saved keys are ignored); version badge from `src/game/version.ts`; top 5 each,
   one row per name, local to the browser. Logic in `src/game/profile.ts`; `Simulation` only measures the
   winning ball's path (`SolveInfo`), it does not change physics. Sandbox has no scores.
 - Community scores: `../scores.php` (repo root) + `src/game/community.ts`. The Cron/.cpanel.yml copy step only copied

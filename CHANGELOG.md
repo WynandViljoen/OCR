@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.2m
+
+- High scores: removed the Longest path and Slowest solve boards. Each level now has Shortest path, Fastest solve and Most spare tools. Old saved scores that contain the removed boards still load (the extra boards are ignored). Copy the updated `scores.php` to the server.
+
 ## Modern TIM 0.2l
 - **Zoom out**: the − button and key now go 80%, 60%, 50%, 40% (wheel and pinch go smoothly down to 40%). Zoomed out, the whole playfield sits centred on a grey margin. The + button steps back up through the same stops. Parts, selection and placing work at every zoom.
 

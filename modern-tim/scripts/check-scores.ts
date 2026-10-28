@@ -49,7 +49,7 @@ check('metres and labels', () => {
 check('first run takes first place in every category', () => {
   const s: AllScores = {};
   const r = recordRun(s, 'ramps', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
-  assert.deepEqual(r.map((x) => [x.category, x.rank, x.record]), [['shortest', 1, true], ['longest', 1, true], ['fastest', 1, true], ['slowest', 1, true], ['spare', 1, true]]);
+  assert.deepEqual(r.map((x) => [x.category, x.rank, x.record]), [['shortest', 1, true], ['fastest', 1, true], ['spare', 1, true]]);
 });
 
 check('zero spare tools is not a score', () => {
@@ -59,15 +59,13 @@ check('zero spare tools is not a score', () => {
   assert.equal(s.ramps.spare.length, 0);
 });
 
-check('shortest wants less, longest and spare want more', () => {
+check('shortest wants less, spare wants more', () => {
   const s: AllScores = {};
   recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 9, spare: 1 }, 1);
   const r = recordRun(s, 'L', 'Ben', { pathMeters: 3, seconds: 9, spare: 2 }, 2);
   assert.equal(result(r, 'shortest').rank, 1);
-  assert.equal(result(r, 'longest').rank, 2);
   assert.equal(result(r, 'spare').rank, 1);
   assert.deepEqual(s.L.shortest.map((e) => e.name), ['Ben', 'Ana']);
-  assert.deepEqual(s.L.longest.map((e) => e.name), ['Ana', 'Ben']);
 });
 
 check('one row per player (case-insensitive), only strictly better runs replace it', () => {
@@ -103,8 +101,8 @@ check(`boards keep the top ${BOARD_SIZE}`, () => {
   const late = recordRun(s, 'L', 'Zed', { pathMeters: 50, seconds: 9, spare: 1 }, 99);
   assert.equal(result(late, 'shortest').rank, null);
   assert.equal(result(late, 'shortest').improved, false);
-  assert.equal(result(late, 'longest').rank, 1);
-});
+  assert.equal(result(late, 'spare').rank, 1);
+  assert.equal(result(late, 'spare').rank, null);
 
 check('levels have separate boards', () => {
   const s: AllScores = {};
@@ -137,12 +135,14 @@ check('damaged or edited storage is ignored safely', () => {
         { name: 'ok', value: 9, at: 2 },
         null,
       ],
-      longest: 'nope',
+      fastest: 'nope',
+      longest: [{ name: 'Old', value: 9, at: 1 }],
     },
   };
   const loaded = loadScores(fakeStore({ 'modern-tim:scores': JSON.stringify(bad) }));
   assert.deepEqual(loaded.L.shortest.map((e) => e.name), ['Ok']);
-  assert.deepEqual(loaded.L.longest, []);
+  assert.deepEqual(loaded.L.fastest, []);
+  assert.equal((loaded.L as Record<string, unknown>).longest, undefined);
 });
 
 check('works with no storage at all (private browsing)', () => {
@@ -152,14 +152,12 @@ check('works with no storage at all (private browsing)', () => {
   saveScores({}, null);
 });
 
-check('fastest wants less time, slowest wants more', () => {
+check('fastest wants less time', () => {
   const s: AllScores = {};
   recordRun(s, 'L', 'Ana', { pathMeters: 5, seconds: 10, spare: 1 }, 1);
   const r = recordRun(s, 'L', 'Ben', { pathMeters: 5, seconds: 4, spare: 1 }, 2);
   assert.equal(result(r, 'fastest').rank, 1);
-  assert.equal(result(r, 'slowest').rank, 2);
   assert.deepEqual(s.L.fastest.map((e) => e.name), ['Ben', 'Ana']);
-  assert.deepEqual(s.L.slowest.map((e) => e.name), ['Ana', 'Ben']);
   assert.equal(formatValue('fastest', 4.25), '4.3 s');
   assert.equal(stepsToSeconds(90), 1.5);
 });

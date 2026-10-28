@@ -58,7 +58,7 @@ Names are not passwords: anyone can type any name, and the server only rejects i
 
 ### Name and high scores
 - The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
-- Every level has five boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) **Fastest solve** and **Slowest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
+- Every level has three boards (top 5 each, one row per name): **Shortest path** (how far the winning ball travelled, in metres, 100 px = 1 m), **Fastest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
 - Scores live in localStorage (`modern-tim:player`, `modern-tim:scores`), so they are per browser and device. A shared online board would need a small server script.
 
 ### Controls

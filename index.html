@@ -2827,7 +2827,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2l';
+const VERSION = '0.2m';
 
 return { VERSION };
 })();
@@ -3136,9 +3136,7 @@ const BOARD_SIZE = 5;
 const PX_PER_METER = 100;
 const CATEGORIES = [
     'shortest',
-    'longest',
     'fastest',
-    'slowest',
     'spare'
 ];
 const CATEGORY_INFO = {
@@ -3147,20 +3145,10 @@ const CATEGORY_INFO = {
         blurb: 'The ball went straight to the goal.',
         lowerIsBetter: true
     },
-    longest: {
-        label: 'Longest path',
-        blurb: 'The ball took the scenic route.',
-        lowerIsBetter: false
-    },
     fastest: {
         label: 'Fastest solve',
         blurb: 'Start to goal in the least time.',
         lowerIsBetter: true
-    },
-    slowest: {
-        label: 'Slowest solve',
-        blurb: 'The long, patient machine.',
-        lowerIsBetter: false
     },
     spare: {
         label: 'Most spare tools',
@@ -3180,9 +3168,7 @@ function sanitizeName(raw) {
 }
 const emptyBoard = ()=>({
         shortest: [],
-        longest: [],
         fastest: [],
-        slowest: [],
         spare: []
     });
 function stepsToSeconds(steps) {
@@ -3192,7 +3178,7 @@ function pathMeters(px) {
     return Math.round(px / PX_PER_METER * 100) / 100;
 }
 function formatValue(category, value) {
-    if (category === 'fastest' || category === 'slowest') return `${value.toFixed(1)} s`;
+    if (category === 'fastest') return `${value.toFixed(1)} s`;
     if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
     return `${value.toFixed(1)} m`;
 }
@@ -3209,9 +3195,7 @@ function recordRun(scores, levelId, rawName, run, now = Date.now()) {
     const board = scores[levelId] ??= emptyBoard();
     const values = {
         shortest: run.pathMeters,
-        longest: run.pathMeters,
         fastest: run.seconds,
-        slowest: run.seconds,
         spare: run.spare
     };
     return CATEGORIES.map((category)=>{

@@ -4,7 +4,7 @@
  *
  * Every solved run is measured three ways:
  *   - shortest : how far the winning ball travelled (lower is better)
- *   - longest  : the same distance, but a scenic route wins (higher is better)
+ *   - fastest  : seconds from Start to the goal (lower is better)
  *   - spare    : parts from the inventory left unused (higher is better)
  *
  * Each level keeps a top-5 board per category, one row per player name
@@ -18,8 +18,8 @@ export const BOARD_SIZE = 5;
 /** The playfield is 1000 px wide; scores are shown in metres at 100 px per metre. */
 export const PX_PER_METER = 100;
 
-export type Category = 'shortest' | 'longest' | 'fastest' | 'slowest' | 'spare';
-export const CATEGORIES: Category[] = ['shortest', 'longest', 'fastest', 'slowest', 'spare'];
+export type Category = 'shortest' | 'fastest' | 'spare';
+export const CATEGORIES: Category[] = ['shortest', 'fastest', 'spare'];
 
 export interface CategoryInfo {
   label: string;
@@ -29,9 +29,7 @@ export interface CategoryInfo {
 
 export const CATEGORY_INFO: Record<Category, CategoryInfo> = {
   shortest: { label: 'Shortest path', blurb: 'The ball went straight to the goal.', lowerIsBetter: true },
-  longest: { label: 'Longest path', blurb: 'The ball took the scenic route.', lowerIsBetter: false },
   fastest: { label: 'Fastest solve', blurb: 'Start to goal in the least time.', lowerIsBetter: true },
-  slowest: { label: 'Slowest solve', blurb: 'The long, patient machine.', lowerIsBetter: false },
   spare: { label: 'Most spare tools', blurb: 'Parts you did not need.', lowerIsBetter: false },
 };
 
@@ -86,7 +84,7 @@ export function sanitizeName(raw: string): string {
     .trim();
 }
 
-export const emptyBoard = (): Board => ({ shortest: [], longest: [], fastest: [], slowest: [], spare: [] });
+export const emptyBoard = (): Board => ({ shortest: [], fastest: [], spare: [] });
 
 /** Simulation steps (60 per second) to seconds, two decimals. */
 export function stepsToSeconds(steps: number): number {
@@ -99,7 +97,7 @@ export function pathMeters(px: number): number {
 }
 
 export function formatValue(category: Category, value: number): string {
-  if (category === 'fastest' || category === 'slowest') return `${value.toFixed(1)} s`;
+  if (category === 'fastest') return `${value.toFixed(1)} s`;
   if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
   return `${value.toFixed(1)} m`;
 }
@@ -124,9 +122,7 @@ export function recordRun(scores: AllScores, levelId: string, rawName: string, r
   const board = (scores[levelId] ??= emptyBoard());
   const values: Record<Category, number> = {
     shortest: run.pathMeters,
-    longest: run.pathMeters,
     fastest: run.seconds,
-    slowest: run.seconds,
     spare: run.spare,
   };
 

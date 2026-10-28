@@ -21,7 +21,7 @@ header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
 const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys', 'machine'];
-const CATEGORIES = ['shortest', 'longest', 'fastest', 'slowest', 'spare'];
+const CATEGORIES = ['shortest', 'fastest', 'spare'];
 const LOWER_IS_BETTER = ['shortest' => true, 'fastest' => true];
 const BOARD_SIZE = 5;
 const MAX_NAME = 16;
@@ -41,7 +41,7 @@ function cleanName(string $raw): string {
 }
 
 function emptyBoard(): array {
-    return ['shortest' => [], 'longest' => [], 'fastest' => [], 'slowest' => [], 'spare' => []];
+    return ['shortest' => [], 'fastest' => [], 'spare' => []];
 }
 
 function sameName(string $a, string $b): bool {
@@ -150,7 +150,7 @@ $spare = (int)$spare;
 // Plausible limits for this game: a level is 10 m wide and solves within 30 s.
 if ($path <= 0 || $path > 500 || $seconds <= 0 || $seconds > 120 || $spare < 0 || $spare > 30) fail(400, 'Those numbers do not look right.');
 
-$values = ['shortest' => $path, 'longest' => $path, 'fastest' => $seconds, 'slowest' => $seconds, 'spare' => (float)$spare];
+$values = ['shortest' => $path, 'fastest' => $seconds, 'spare' => (float)$spare];
 
 $handle = @fopen(DATA_FILE, 'c+');
 if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here.');
