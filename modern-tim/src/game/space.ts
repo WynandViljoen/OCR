@@ -67,6 +67,10 @@ export function footprint(p: SpacePart): Shape[] {
       return [rect(p.x, p.y, p.w ?? 150, p.h ?? 18, p.angle)];
     case 'domino':
       return [rect(p.x, p.y, 12, 70, p.angle)];
+    case 'crate':
+      return [rect(p.x, p.y, 40, 40, p.angle)];
+    case 'pulley':
+      return [{ kind: 'circle', x: p.x, y: p.y, r: 24 }];
     case 'mouse':
       return [rect(p.x, p.y, 36, 24, 0)];
     case 'basket':

@@ -38,7 +38,10 @@ export type PartType =
   | 'bigGear'
   | 'paddleGear'
   | 'mouse'
-  | 'string';
+  | 'string'
+  | 'crate'
+  | 'pulley'
+  | 'rope';
 
 /** A part as stored in a level or in the player's layout. Angle is radians. */
 export interface PlacedPart {
@@ -59,7 +62,7 @@ export interface PlacedPart {
   /** Tinkered values (bounciness, grip, weight, speed...) by key; missing keys use the part's default (see props.ts). */
   props?: Record<string, number>;
   /** A string: the two gears it joins (by part id). Its position is worked out from them. */
-  link?: { a: number; b: number };
+  link?: { a: number; b: number; via?: number };
   /** Worked out from `link` every time the machine is rebuilt (never edit by hand). */
   belt?: Belt;
 }
@@ -136,7 +139,14 @@ export const COLORS = {
   gear: '#f5c400',
   mouse: '#c7ccd8',
   string: '#8a5a33',
+  crate: '#b9772f',
+  pulley: '#6c7a96',
+  rope: '#a9783f',
 };
+
+/** Pulley wheel radius and crate side, in px. */
+export const PULLEY_RADIUS = 24;
+export const CRATE_SIZE = 40;
 
 const solid = { category: CAT_SOLID, mask: 0xffffffff, group: 0 };
 const gearFilter = { category: CAT_SOLID, mask: 0xffffffff, group: GROUP_GEARS };
@@ -521,6 +531,76 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     ],
   },
 
+  crate: {
+    type: 'crate',
+    label: 'Crate',
+    blurb: 'A heavy box with a weight on it. Tie it to a rope to lift or drop things.',
+    color: COLORS.crate,
+    rotatable: true,
+    flippable: false,
+    hasPower: false,
+    motion: 'dynamic',
+    build: ({ x, y, angle, props }, play) => [
+      Bodies.rectangle(x, y, CRATE_SIZE, CRATE_SIZE, {
+        label: 'crate',
+        angle,
+        isStatic: !play,
+        chamfer: { radius: 2 },
+        density: propValue('crate', props, 'weight'),
+        friction: propValue('crate', props, 'grip'),
+        frictionAir: 0.0005,
+        restitution: 0.1,
+        collisionFilter: solid,
+        render: look(COLORS.crate),
+      }),
+    ],
+  },
+
+  pulley: {
+    type: 'pulley',
+    label: 'Pulley',
+    blurb: 'A wheel fixed in place. A rope over it turns a pull down into a lift up.',
+    color: COLORS.pulley,
+    rotatable: false,
+    flippable: false,
+    hasPower: false,
+    motion: 'static',
+    build: ({ x, y }) => [
+      Bodies.circle(x, y, PULLEY_RADIUS, {
+        label: 'pulley',
+        isStatic: true,
+        friction: 0.1,
+        restitution: 0.1,
+        collisionFilter: solid,
+        render: look(COLORS.pulley),
+      }),
+    ],
+  },
+
+  rope: {
+    type: 'rope',
+    label: 'Rope',
+    blurb: 'Click a weight, then a pulley, then a second weight. The rope goes over the pulley, so the heavier weight drops and lifts the other.',
+    color: COLORS.rope,
+    rotatable: false,
+    flippable: false,
+    hasPower: false,
+    motion: 'static',
+    anchored: true,
+    // Only a clickable strip along the rope; it never collides with anything.
+    // main.ts keeps x, y, angle and w up to date from the parts it joins.
+    build: ({ x, y, angle, w }) => [
+      Bodies.rectangle(x, y, Math.max(w ?? 40, 10), 14, {
+        label: 'rope',
+        angle,
+        isStatic: true,
+        isSensor: true,
+        collisionFilter: { category: CAT_SENSOR, mask: 0, group: 0 },
+        render: { visible: false },
+      }),
+    ],
+  },
+
   string: {
     type: 'string',
     label: 'String',
@@ -563,6 +643,9 @@ export const PALETTE_ORDER: PartType[] = [
   'paddleGear',
   'basket',
   'mouse',
+  'crate',
+  'pulley',
+  'rope',
   'string',
 ];
 

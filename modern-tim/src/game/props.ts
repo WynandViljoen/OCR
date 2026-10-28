@@ -169,6 +169,59 @@ const pulleySpec: PropSpec = {
   ],
 };
 
+const crateWeightSpec: PropSpec = {
+  key: 'weight',
+  label: 'Weight',
+  icon: '⚖️',
+  min: 0.001,
+  max: 0.012,
+  step: 0.001,
+  def: 0.004,
+  show: (v) => `${Math.round(v * 1250)} kg`,
+  science: 'Mass: how much stuff there is. On a pulley, the heavier side drops and lifts the lighter side.',
+  feel: [
+    [0, 'A light box, like a box of books.'],
+    [0.003, 'A medium crate.'],
+    [0.007, 'A heavy crate!'],
+    [0.01, 'A huge, heavy crate, like a box of bricks.'],
+  ],
+};
+
+const pulleyFrictionSpec: PropSpec = {
+  key: 'friction',
+  label: 'Pulley friction',
+  icon: '🛞',
+  min: 0,
+  max: 0.15,
+  step: 0.01,
+  def: 0,
+  show: pct,
+  science: 'Friction in a pulley wastes some of the push. Real pulleys always lose a little.',
+  feel: [
+    [0, 'Perfect pulley: the rope glides.'],
+    [0.02, 'A little rubbing slows the rope.'],
+    [0.07, 'Sticky pulley! Things barely move.'],
+  ],
+};
+
+const strandsSpec: PropSpec = {
+  key: 'strands',
+  label: 'Rope strands on the load',
+  icon: '🪢',
+  min: 1,
+  max: 4,
+  step: 1,
+  def: 1,
+  show: (v) => `${v} strand${v === 1 ? '' : 's'}`,
+  science: 'A block and tackle: with N strands you pull with only 1/N of the force, but you must pull N times as far.',
+  feel: [
+    [1, 'One strand: pull as hard as the load weighs. No gain.'],
+    [2, 'Two strands: lifts a load twice as heavy, but it moves half as far.'],
+    [3, 'Three strands: lifts a load three times as heavy.'],
+    [4, 'Four strands: a little effort lifts a big load!'],
+  ],
+};
+
 export const PROP_SPECS: Partial<Record<PartType, PropSpec[]>> = {
   ball: [bounceSpec(0.45), weightSpec(0.002), gripSpec(0.02)],
   heavyBall: [bounceSpec(0.05), weightSpec(0.012), gripSpec(0.05)],
@@ -182,7 +235,16 @@ export const PROP_SPECS: Partial<Record<PartType, PropSpec[]>> = {
   mouse: [bounceSpec(0.2), weightSpec(0.002), gripSpec(0.6)],
   motorGear: [motorSpeedSpec],
   string: [pulleySpec],
+  crate: [crateWeightSpec, gripSpec(0.5)],
+  pulley: [pulleyFrictionSpec],
+  rope: [strandsSpec],
 };
+
+/** Nominal mass of a rope-able weight (density x area), for the "who wins?" hint. */
+export function nominalMass(type: PartType, props: Record<string, number> | undefined): number {
+  const area = type === 'crate' ? 1600 : type === 'heavyBall' ? Math.PI * 18 * 18 : Math.PI * 14 * 14;
+  return area * propValue(type, props, 'weight');
+}
 
 /** The value of one tinkerable number: the player's choice, else the part's default. */
 export function propValue(type: PartType, props: Record<string, number> | undefined, key: string): number {

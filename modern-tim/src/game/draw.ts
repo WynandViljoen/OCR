@@ -4,7 +4,7 @@
  * and in the palette thumbnails.
  */
 import type Matter from 'matter-js';
-import { COLORS, PART_DEFS, type PartType, type PlacedPart } from './parts';
+import { COLORS, CRATE_SIZE, PART_DEFS, PULLEY_RADIUS, type PartType, type PlacedPart } from './parts';
 import type { GearTrain } from './mechanics';
 import { propValue } from './props';
 
@@ -174,6 +174,64 @@ export function drawDecoration(ctx: CanvasRenderingContext2D, body: Matter.Body,
       }
       break;
     }
+    case 'crate': {
+      // Wooden planks and a weight label.
+      ctx.translate(x, y);
+      ctx.rotate(body.angle);
+      const h = CRATE_SIZE / 2;
+      ctx.strokeStyle = 'rgba(29,36,64,0.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(-h + 3, -h + 3);
+      ctx.lineTo(h - 3, h - 3);
+      ctx.moveTo(h - 3, -h + 3);
+      ctx.lineTo(-h + 3, h - 3);
+      ctx.stroke();
+      const kg = Math.round(propValue('crate', part?.props, 'weight') * 1250);
+      ctx.rotate(-body.angle);
+      ctx.fillStyle = '#fff4d6';
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-14, -7, 28, 14, 4);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = INK;
+      ctx.font = '800 10px Nunito, system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${kg}kg`, 0, 1);
+      break;
+    }
+    case 'pulley': {
+      // A wheel with a groove, spokes and a hook to hang it from.
+      ctx.translate(x, y);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, -PULLEY_RADIUS);
+      ctx.lineTo(0, -PULLEY_RADIUS - 14);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, -PULLEY_RADIUS - 17, 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, PULLEY_RADIUS - 5, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let i = 0; i < 3; i++) {
+        const a = (i * Math.PI) / 3;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (PULLEY_RADIUS - 5), Math.sin(a) * (PULLEY_RADIUS - 5));
+        ctx.lineTo(-Math.cos(a) * (PULLEY_RADIUS - 5), -Math.sin(a) * (PULLEY_RADIUS - 5));
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, 3, 0, Math.PI * 2);
+      ctx.fillStyle = INK;
+      ctx.fill();
+      break;
+    }
     case 'domino': {
       ctx.translate(x, y);
       ctx.rotate(body.angle);
@@ -267,6 +325,64 @@ function drawGearMarks(ctx: CanvasRenderingContext2D, body: Matter.Body, part: P
     if (jammed) drawJam(ctx, x, y);
     else if (speed) drawSpinArrow(ctx, x, y, spec.radius + 14, speed > 0 ? 1 : -1, spec.motor ? COLORS.motor : COLORS.goal);
   }
+}
+
+/**
+ * A rope from weight A up to a pulley, over it, and down to weight B. `top` is where the rope
+ * ties on (the top of each weight). With several strands the load side is drawn as several lines.
+ */
+export function drawRope(
+  ctx: CanvasRenderingContext2D,
+  a: { x: number; top: number },
+  b: { x: number; top: number },
+  pulley: { x: number; y: number },
+  aOnLeft: boolean,
+  strands: number,
+  selected = false,
+) {
+  const left = { x: pulley.x - PULLEY_RADIUS, y: pulley.y };
+  const right = { x: pulley.x + PULLEY_RADIUS, y: pulley.y };
+  const pa = aOnLeft ? left : right;
+  const pb = aOnLeft ? right : left;
+  const trace = () => {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.top);
+    ctx.lineTo(pa.x, pa.y);
+    ctx.arc(pulley.x, pulley.y, PULLEY_RADIUS, aOnLeft ? Math.PI : 0, aOnLeft ? Math.PI * 2 : Math.PI, !aOnLeft);
+    ctx.lineTo(b.x, b.top);
+    for (let i = 1; i < strands; i++) {
+      // Extra strands share the load: fan them out along the top of the weight.
+      const off = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 7;
+      ctx.moveTo(pb.x, pb.y);
+      ctx.lineTo(b.x + off, b.top);
+    }
+  };
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  if (selected) {
+    ctx.strokeStyle = 'rgba(47,125,246,0.45)';
+    ctx.lineWidth = 10;
+    trace();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = COLORS.rope;
+  ctx.lineWidth = 3.5;
+  trace();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,236,200,0.8)';
+  ctx.lineWidth = 1.2;
+  ctx.setLineDash([4, 5]);
+  trace();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  for (const t of [a, b]) {
+    ctx.beginPath();
+    ctx.arc(t.x, t.top, 3, 0, Math.PI * 2);
+    ctx.fillStyle = INK;
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 /**
@@ -443,6 +559,10 @@ export function drawThumbnail(canvas: HTMLCanvasElement, type: PartType) {
   ctx.scale(scale, scale);
   ctx.translate(-(minX + maxX) / 2, -(minY + maxY) / 2);
   const state: DrawState = { steps: 0, playing: false, train: null };
+  if (type === 'rope') {
+    drawRope(ctx, { x: -26, top: 14 }, { x: 26, top: 4 }, { x: 0, y: -8 }, true, 1);
+    return;
+  }
   if (type === 'string') {
     drawBelt(ctx, { ...fake, belt: { ax: -22, ay: 0, ar: 9, bx: 22, by: 0, br: 9, crossed: false } }, state);
     return;

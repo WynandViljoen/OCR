@@ -542,3 +542,7 @@ kbd {
 .prop-feel { font-size: 0.84rem; font-weight: 700; }
 .prop-sci { font-size: 0.74rem; color: var(--muted); }
 .prop-fact { margin-top: 8px !important; font-size: 0.84rem; font-weight: 700; background: #fff6cc; border-radius: 8px; padding: 4px 8px; }
+
+.mode-controls { position: absolute; left: 10px; bottom: 10px; display: flex; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; z-index: 4; }
+.mode-controls button { border: 0; background: transparent; height: 36px; padding: 0 12px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--ink); }
+.mode-controls button.on { background: var(--ink); color: #fff; }

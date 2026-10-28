@@ -40,7 +40,13 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
   Both gears turn the same way; F crosses it so they turn opposite ways; the "Second pulley size" slider changes the speed ratio (bigger = slower).
   A string that disagrees with a meshing pair jams the gears. Strings follow their gears when you move them and vanish if a gear is deleted.
 - **Tinker lab**: select a part to get its sliders (numbers and defaults live in `src/game/props.ts`; a default is exactly the old physics value).
+  `npm run check-ropes` tests the pulley and block-and-tackle maths.
   `npm run check-belts` tests the belt maths and that every default sits on its slider.
+
+### Select, move and pulleys
+- **Select / Pan** switch under the board: in Select mode drag on empty space to draw a box; Shift+click toggles parts, Ctrl+A selects all; drag any selected part to move the group; Delete, arrows and Esc work on the group. Middle mouse button always pans.
+- **Paddle gear** is a real gear: balls hitting it spin it, and meshed or strung gears follow.
+- **Pulley system**: Crate (weight), Pulley, Rope. Rope tool: click a weight, then a pulley, then a second weight. "Rope strands" on the load makes a block and tackle (N strands = 1/N force, N times the distance).
 
 ### Solid space
 Parts cannot overlap. Drop, drag, rotate or nudge one into another and it slides to the nearest free grid spot; with no room within reach it stays put. The rules live in `src/game/space.ts` (pure geometry), checked by `npm run check-space`.
@@ -128,6 +134,7 @@ src/game/profile.ts      player name and high-score rules and storage (no DOM, n
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)
 scripts/check-belts.ts  string / gear-train / slider maths (npm run check-belts)
+scripts/check-ropes.ts  rope / pulley maths (npm run check-ropes)
 scripts/check-space.ts  solid-space check (npm run check-space)
 scripts/check-community.ts  community client check (npm run check-community)
 scripts/check-scores.ts  high-score rules check (npm run check-scores)

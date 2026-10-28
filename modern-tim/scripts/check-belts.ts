@@ -85,4 +85,26 @@ check('an untouched part reads its default; a tinkered one reads the player valu
   assert.equal(partProp({ type: 'spring' }, 'power'), 2);
 });
 
+check('a train with no motor can still be pushed: gears share one speed by ratio', () => {
+  const t = computeGearTrain([gear(1, 'gear', 0), gear(2, 'bigGear', 96), gear(3, 'gear', 400), string(4, 2, 3)]); // 32 + 64 mesh; string 2-3
+  assert.equal(t.free.length, 1);
+  assert.equal(t.speeds.size, 0);
+  const f = new Map(t.free[0].map((m) => [m.id, m.factor]));
+  near(f.get(1), 1);
+  near(f.get(2), -0.5);
+  near(f.get(3), -0.5);
+});
+
+check('a motor-driven train is not free, and separate trains are separate', () => {
+  const t = computeGearTrain([gear(1, 'motorGear', 0), gear(2, 'gear', 72), gear(3, 'gear', 600), gear(4, 'gear', 664)]);
+  assert.equal(t.free.length, 1);
+  assert.deepEqual(t.free[0].map((m) => m.id).sort(), [3, 4]);
+});
+
+check('a motorless train that contradicts itself is locked, not free', () => {
+  const t = computeGearTrain([gear(1, 'gear', 0), gear(2, 'gear', 64), string(3, 1, 2)]);
+  assert.equal(t.free.length, 0);
+  assert.ok(t.jammed.has(1) && t.jammed.has(2));
+});
+
 console.log(`\n${passed} checks passed`);

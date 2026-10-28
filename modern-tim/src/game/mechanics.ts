@@ -29,6 +29,11 @@ export interface GearTrain {
   links: GearLink[];
   /** Gears that receive two different speeds (a locked-up train). */
   jammed: Set<number>;
+  /**
+   * Trains with no motor. Nothing drives them, but a ball landing on a paddle sets the
+   * whole train turning: each member turns at `factor` times the speed of the train.
+   */
+  free: { id: number; factor: number }[][];
 }
 
 function radiusOf(p: PlacedPart) {
@@ -94,11 +99,45 @@ export function computeGearTrain(parts: PlacedPart[]): GearTrain {
       }
     }
   }
+  // Trains that no motor reaches: they can still be pushed (by a ball on a paddle). Work out how
+  // each gear turns relative to the first one; if the string and the teeth disagree they are locked.
+  const free: { id: number; factor: number }[][] = [];
+  for (const root of gears) {
+    if (speeds.has(root.id) || jammed.has(root.id)) continue;
+    const factors = new Map<number, number>([[root.id, 1]]);
+    const queue2: PlacedPart[] = [root];
+    let locked = false;
+    while (queue2.length) {
+      const g = queue2.shift()!;
+      const f = factors.get(g.id)!;
+      for (const { part: n, factor } of neighbours.get(g.id)!) {
+        const next = f * factor;
+        const known = factors.get(n.id);
+        if (known === undefined) {
+          factors.set(n.id, next);
+          queue2.push(n);
+        } else if (Math.abs(known - next) > 1e-6) {
+          locked = true;
+        }
+      }
+    }
+    if (locked) {
+      for (const id of factors.keys()) {
+        jammed.add(id);
+        speeds.set(id, 0);
+      }
+    } else {
+      for (const id of factors.keys()) speeds.set(id, NaN); // marks "visited" below, removed again
+      free.push([...factors].map(([id, factor]) => ({ id, factor })));
+    }
+  }
+  for (const [id, v] of [...speeds]) if (Number.isNaN(v)) speeds.delete(id);
+
   // A jammed train can't turn at all (just like real gears).
   if (jammed.size) {
     for (const id of jammed) speeds.set(id, 0);
   }
-  return { speeds, links, jammed };
+  return { speeds, links, jammed, free };
 }
 
 /**

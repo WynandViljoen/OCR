@@ -557,6 +557,10 @@ kbd {
 .prop-sci { font-size: 0.74rem; color: var(--muted); }
 .prop-fact { margin-top: 8px !important; font-size: 0.84rem; font-weight: 700; background: #fff6cc; border-radius: 8px; padding: 4px 8px; }
 
+.mode-controls { position: absolute; left: 10px; bottom: 10px; display: flex; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; z-index: 4; }
+.mode-controls button { border: 0; background: transparent; height: 36px; padding: 0 12px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--ink); }
+.mode-controls button.on { background: var(--ink); color: #fff; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -588,7 +592,7 @@ kbd {
         <aside class="tray" aria-label="Parts">
           <h2 class="panel-title">Parts</h2>
           <div id="palette" class="palette"></div>
-          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
+          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Drag a box over empty board to select several and move them together. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
         <section class="stage">
@@ -611,6 +615,10 @@ kbd {
                   <button type="button" data-power="3" title="Strong (3)">3</button>
                 </span>
                 <button id="tb-delete" type="button" class="tb-delete" title="Remove (Delete)" aria-label="Remove part">✕</button>
+              </div>
+              <div id="mode-controls" class="mode-controls" role="group" aria-label="Mouse mode">
+                <button id="mode-select" class="on" type="button" title="Drag a box over the empty board to select parts (Ctrl+A selects all)">▭ Select</button>
+                <button id="mode-pan" type="button" title="Drag the board around when zoomed in (the middle mouse button also does this)">✋ Pan</button>
               </div>
               <div id="zoom-controls" class="zoom-controls" role="group" aria-label="Zoom">
                 <button id="zoom-out" type="button" title="Zoom out (−)" aria-label="Zoom out" disabled>−</button>
@@ -691,7 +699,7 @@ kbd {
 <script>
 
 // ---- game/props.ts ----
-const { PROP_SPECS, propValue, partProp, feelOf } = (() => {
+const { PROP_SPECS, nominalMass, propValue, partProp, feelOf } = (() => {
 const pct = (v)=>`${Math.round(v * 100)}%`;
 const bounceSpec = (def)=>({
         key: 'bounce',
@@ -930,6 +938,89 @@ const pulleySpec = {
         ]
     ]
 };
+const crateWeightSpec = {
+    key: 'weight',
+    label: 'Weight',
+    icon: '⚖️',
+    min: 0.001,
+    max: 0.012,
+    step: 0.001,
+    def: 0.004,
+    show: (v)=>`${Math.round(v * 1250)} kg`,
+    science: 'Mass: how much stuff there is. On a pulley, the heavier side drops and lifts the lighter side.',
+    feel: [
+        [
+            0,
+            'A light box, like a box of books.'
+        ],
+        [
+            0.003,
+            'A medium crate.'
+        ],
+        [
+            0.007,
+            'A heavy crate!'
+        ],
+        [
+            0.01,
+            'A huge, heavy crate, like a box of bricks.'
+        ]
+    ]
+};
+const pulleyFrictionSpec = {
+    key: 'friction',
+    label: 'Pulley friction',
+    icon: '🛞',
+    min: 0,
+    max: 0.15,
+    step: 0.01,
+    def: 0,
+    show: pct,
+    science: 'Friction in a pulley wastes some of the push. Real pulleys always lose a little.',
+    feel: [
+        [
+            0,
+            'Perfect pulley: the rope glides.'
+        ],
+        [
+            0.02,
+            'A little rubbing slows the rope.'
+        ],
+        [
+            0.07,
+            'Sticky pulley! Things barely move.'
+        ]
+    ]
+};
+const strandsSpec = {
+    key: 'strands',
+    label: 'Rope strands on the load',
+    icon: '🪢',
+    min: 1,
+    max: 4,
+    step: 1,
+    def: 1,
+    show: (v)=>`${v} strand${v === 1 ? '' : 's'}`,
+    science: 'A block and tackle: with N strands you pull with only 1/N of the force, but you must pull N times as far.',
+    feel: [
+        [
+            1,
+            'One strand: pull as hard as the load weighs. No gain.'
+        ],
+        [
+            2,
+            'Two strands: lifts a load twice as heavy, but it moves half as far.'
+        ],
+        [
+            3,
+            'Three strands: lifts a load three times as heavy.'
+        ],
+        [
+            4,
+            'Four strands: a little effort lifts a big load!'
+        ]
+    ]
+};
 const PROP_SPECS = {
     ball: [
         bounceSpec(0.45),
@@ -977,8 +1068,22 @@ const PROP_SPECS = {
     ],
     string: [
         pulleySpec
+    ],
+    crate: [
+        crateWeightSpec,
+        gripSpec(0.5)
+    ],
+    pulley: [
+        pulleyFrictionSpec
+    ],
+    rope: [
+        strandsSpec
     ]
 };
+function nominalMass(type, props) {
+    const area = type === 'crate' ? 1600 : type === 'heavyBall' ? Math.PI * 18 * 18 : Math.PI * 14 * 14;
+    return area * propValue(type, props, 'weight');
+}
 function propValue(type, props, key) {
     const fromPlayer = props?.[key];
     if (typeof fromPlayer === 'number' && Number.isFinite(fromPlayer)) return fromPlayer;
@@ -994,11 +1099,11 @@ function feelOf(spec, v) {
     return text;
 }
 
-return { PROP_SPECS, propValue, partProp, feelOf };
+return { PROP_SPECS, nominalMass, propValue, partProp, feelOf };
 })();
 
 // ---- game/parts.ts ----
-const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, toWorld, PART_DEFS, PALETTE_ORDER, isGear } = (() => {
+const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, isGear } = (() => {
 
 
 const { Bodies, Body } = Matter;
@@ -1030,8 +1135,13 @@ const COLORS = {
     motor: '#ff7a1a',
     gear: '#f5c400',
     mouse: '#c7ccd8',
-    string: '#8a5a33'
+    string: '#8a5a33',
+    crate: '#b9772f',
+    pulley: '#6c7a96',
+    rope: '#a9783f'
 };
+const PULLEY_RADIUS = 24;
+const CRATE_SIZE = 40;
 const solid = {
     category: CAT_SOLID,
     mask: 0xffffffff,
@@ -1457,6 +1567,79 @@ const PART_DEFS = {
                 })
             ]
     },
+    crate: {
+        type: 'crate',
+        label: 'Crate',
+        blurb: 'A heavy box with a weight on it. Tie it to a rope to lift or drop things.',
+        color: COLORS.crate,
+        rotatable: true,
+        flippable: false,
+        hasPower: false,
+        motion: 'dynamic',
+        build: ({ x, y, angle, props }, play)=>[
+                Bodies.rectangle(x, y, CRATE_SIZE, CRATE_SIZE, {
+                    label: 'crate',
+                    angle,
+                    isStatic: !play,
+                    chamfer: {
+                        radius: 2
+                    },
+                    density: propValue('crate', props, 'weight'),
+                    friction: propValue('crate', props, 'grip'),
+                    frictionAir: 0.0005,
+                    restitution: 0.1,
+                    collisionFilter: solid,
+                    render: look(COLORS.crate)
+                })
+            ]
+    },
+    pulley: {
+        type: 'pulley',
+        label: 'Pulley',
+        blurb: 'A wheel fixed in place. A rope over it turns a pull down into a lift up.',
+        color: COLORS.pulley,
+        rotatable: false,
+        flippable: false,
+        hasPower: false,
+        motion: 'static',
+        build: ({ x, y })=>[
+                Bodies.circle(x, y, PULLEY_RADIUS, {
+                    label: 'pulley',
+                    isStatic: true,
+                    friction: 0.1,
+                    restitution: 0.1,
+                    collisionFilter: solid,
+                    render: look(COLORS.pulley)
+                })
+            ]
+    },
+    rope: {
+        type: 'rope',
+        label: 'Rope',
+        blurb: 'Click a weight, then a pulley, then a second weight. The rope goes over the pulley, so the heavier weight drops and lifts the other.',
+        color: COLORS.rope,
+        rotatable: false,
+        flippable: false,
+        hasPower: false,
+        motion: 'static',
+        anchored: true,
+        build: ({ x, y, angle, w })=>[
+                Bodies.rectangle(x, y, Math.max(w ?? 40, 10), 14, {
+                    label: 'rope',
+                    angle,
+                    isStatic: true,
+                    isSensor: true,
+                    collisionFilter: {
+                        category: CAT_SENSOR,
+                        mask: 0,
+                        group: 0
+                    },
+                    render: {
+                        visible: false
+                    }
+                })
+            ]
+    },
     string: {
         type: 'string',
         label: 'String',
@@ -1501,13 +1684,16 @@ const PALETTE_ORDER = [
     'paddleGear',
     'basket',
     'mouse',
+    'crate',
+    'pulley',
+    'rope',
     'string'
 ];
 function isGear(type) {
     return !!PART_DEFS[type].gear;
 }
 
-return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, toWorld, PART_DEFS, PALETTE_ORDER, isGear };
+return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, PULLEY_RADIUS, CRATE_SIZE, toWorld, PART_DEFS, PALETTE_ORDER, isGear };
 })();
 
 // ---- game/mechanics.ts ----
@@ -1588,13 +1774,59 @@ function computeGearTrain(parts) {
             }
         }
     }
+    const free = [];
+    for (const root of gears){
+        if (speeds.has(root.id) || jammed.has(root.id)) continue;
+        const factors = new Map([
+            [
+                root.id,
+                1
+            ]
+        ]);
+        const queue2 = [
+            root
+        ];
+        let locked = false;
+        while(queue2.length){
+            const g = queue2.shift();
+            const f = factors.get(g.id);
+            for (const { part: n, factor } of neighbours.get(g.id)){
+                const next = f * factor;
+                const known = factors.get(n.id);
+                if (known === undefined) {
+                    factors.set(n.id, next);
+                    queue2.push(n);
+                } else if (Math.abs(known - next) > 1e-6) {
+                    locked = true;
+                }
+            }
+        }
+        if (locked) {
+            for (const id of factors.keys()){
+                jammed.add(id);
+                speeds.set(id, 0);
+            }
+        } else {
+            for (const id of factors.keys())speeds.set(id, NaN);
+            free.push([
+                ...factors
+            ].map(([id, factor])=>({
+                    id,
+                    factor
+                })));
+        }
+    }
+    for (const [id, v] of [
+        ...speeds
+    ])if (Number.isNaN(v)) speeds.delete(id);
     if (jammed.size) {
         for (const id of jammed)speeds.set(id, 0);
     }
     return {
         speeds,
         links,
-        jammed
+        jammed,
+        free
     };
 }
 function snapGear(p, parts) {
@@ -1648,6 +1880,77 @@ function pointPolygonDistance(px, py, verts) {
 }
 
 return { MESH_TOLERANCE, SNAP_DISTANCE, HUB_RADIUS, computeGearTrain, snapGear, pointPolygonDistance };
+})();
+
+// ---- game/rope.ts ----
+const { ropeLength, solveRope } = (() => {
+function ropeLength(a, b, pa, pb, strands) {
+    return Math.hypot(a.x - pa.x, a.y - pa.y) + strands * Math.hypot(b.x - pb.x, b.y - pb.y);
+}
+const SLACK = 0.5;
+function solveRope(a, b, pa, pb, strands, length, friction = 0) {
+    const out = {
+        a: {
+            vx: a.vx,
+            vy: a.vy
+        },
+        b: {
+            vx: b.vx,
+            vy: b.vy
+        },
+        moveA: {
+            x: 0,
+            y: 0
+        },
+        moveB: {
+            x: 0,
+            y: 0
+        },
+        tight: false
+    };
+    const la = Math.hypot(a.x - pa.x, a.y - pa.y);
+    const lb = Math.hypot(b.x - pb.x, b.y - pb.y);
+    if (la < 1e-6 || lb < 1e-6 || !(a.mass > 0) || !(b.mass > 0)) return out;
+    const nax = (a.x - pa.x) / la;
+    const nay = (a.y - pa.y) / la;
+    const nbx = (b.x - pb.x) / lb;
+    const nby = (b.y - pb.y) / lb;
+    const stretch = la + strands * lb - length;
+    if (stretch < -SLACK) return out;
+    out.tight = true;
+    const invA = 1 / a.mass;
+    const invB = 1 / b.mass;
+    const k = invA + strands * strands * invB;
+    const jv = nax * a.vx + nay * a.vy + strands * (nbx * b.vx + nby * b.vy);
+    if (jv > 0) {
+        const lambda = -jv / k;
+        out.a.vx += nax * lambda * invA;
+        out.a.vy += nay * lambda * invA;
+        out.b.vx += nbx * strands * lambda * invB;
+        out.b.vy += nby * strands * lambda * invB;
+    }
+    if (stretch > 0) {
+        const fix = stretch / k * 0.8;
+        out.moveA = {
+            x: -nax * fix * invA,
+            y: -nay * fix * invA
+        };
+        out.moveB = {
+            x: -nbx * strands * fix * invB,
+            y: -nby * strands * fix * invB
+        };
+    }
+    if (friction > 0) {
+        const keep = 1 - friction;
+        out.a.vx *= keep;
+        out.a.vy *= keep;
+        out.b.vx *= keep;
+        out.b.vy *= keep;
+    }
+    return out;
+}
+
+return { ropeLength, solveRope };
 })();
 
 // ---- game/levels.ts ----
@@ -2070,7 +2373,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2e';
+const VERSION = '0.2f';
 
 return { VERSION };
 })();
@@ -2154,6 +2457,19 @@ function footprint(p) {
         case 'domino':
             return [
                 rect(p.x, p.y, 12, 70, p.angle)
+            ];
+        case 'crate':
+            return [
+                rect(p.x, p.y, 40, 40, p.angle)
+            ];
+        case 'pulley':
+            return [
+                {
+                    kind: 'circle',
+                    x: p.x,
+                    y: p.y,
+                    r: 24
+                }
             ];
         case 'mouse':
             return [
@@ -2637,7 +2953,7 @@ return { ENDPOINT, PENDING_KEY, fetchCommunity, submitRun, loadPending, savePend
 })();
 
 // ---- game/draw.ts ----
-const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
 
 
 const INK = COLORS.ink;
@@ -2802,6 +3118,64 @@ function drawDecoration(ctx, body, state) {
                 }
                 break;
             }
+        case 'crate':
+            {
+                ctx.translate(x, y);
+                ctx.rotate(body.angle);
+                const h = CRATE_SIZE / 2;
+                ctx.strokeStyle = 'rgba(29,36,64,0.45)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-h + 3, -h + 3);
+                ctx.lineTo(h - 3, h - 3);
+                ctx.moveTo(h - 3, -h + 3);
+                ctx.lineTo(-h + 3, h - 3);
+                ctx.stroke();
+                const kg = Math.round(propValue('crate', part?.props, 'weight') * 1250);
+                ctx.rotate(-body.angle);
+                ctx.fillStyle = '#fff4d6';
+                ctx.strokeStyle = INK;
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.roundRect(-14, -7, 28, 14, 4);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = INK;
+                ctx.font = '800 10px Nunito, system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${kg}kg`, 0, 1);
+                break;
+            }
+        case 'pulley':
+            {
+                ctx.translate(x, y);
+                ctx.strokeStyle = INK;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, -PULLEY_RADIUS);
+                ctx.lineTo(0, -PULLEY_RADIUS - 14);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(0, -PULLEY_RADIUS - 17, 4, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(0, 0, PULLEY_RADIUS - 5, 0, Math.PI * 2);
+                ctx.stroke();
+                for(let i = 0; i < 3; i++){
+                    const a = i * Math.PI / 3;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.cos(a) * (PULLEY_RADIUS - 5), Math.sin(a) * (PULLEY_RADIUS - 5));
+                    ctx.lineTo(-Math.cos(a) * (PULLEY_RADIUS - 5), -Math.sin(a) * (PULLEY_RADIUS - 5));
+                    ctx.stroke();
+                }
+                ctx.beginPath();
+                ctx.arc(0, 0, 3, 0, Math.PI * 2);
+                ctx.fillStyle = INK;
+                ctx.fill();
+                break;
+            }
         case 'domino':
             {
                 ctx.translate(x, y);
@@ -2895,6 +3269,62 @@ function drawGearMarks(ctx, body, part, state) {
         if (jammed) drawJam(ctx, x, y);
         else if (speed) drawSpinArrow(ctx, x, y, spec.radius + 14, speed > 0 ? 1 : -1, spec.motor ? COLORS.motor : COLORS.goal);
     }
+}
+function drawRope(ctx, a, b, pulley, aOnLeft, strands, selected = false) {
+    const left = {
+        x: pulley.x - PULLEY_RADIUS,
+        y: pulley.y
+    };
+    const right = {
+        x: pulley.x + PULLEY_RADIUS,
+        y: pulley.y
+    };
+    const pa = aOnLeft ? left : right;
+    const pb = aOnLeft ? right : left;
+    const trace = ()=>{
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.top);
+        ctx.lineTo(pa.x, pa.y);
+        ctx.arc(pulley.x, pulley.y, PULLEY_RADIUS, aOnLeft ? Math.PI : 0, aOnLeft ? Math.PI * 2 : Math.PI, !aOnLeft);
+        ctx.lineTo(b.x, b.top);
+        for(let i = 1; i < strands; i++){
+            const off = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 7;
+            ctx.moveTo(pb.x, pb.y);
+            ctx.lineTo(b.x + off, b.top);
+        }
+    };
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (selected) {
+        ctx.strokeStyle = 'rgba(47,125,246,0.45)';
+        ctx.lineWidth = 10;
+        trace();
+        ctx.stroke();
+    }
+    ctx.strokeStyle = COLORS.rope;
+    ctx.lineWidth = 3.5;
+    trace();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,236,200,0.8)';
+    ctx.lineWidth = 1.2;
+    ctx.setLineDash([
+        4,
+        5
+    ]);
+    trace();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const t of [
+        a,
+        b
+    ]){
+        ctx.beginPath();
+        ctx.arc(t.x, t.top, 3, 0, Math.PI * 2);
+        ctx.fillStyle = INK;
+        ctx.fill();
+    }
+    ctx.restore();
 }
 function drawBelt(ctx, part, state, selected = false) {
     const belt = part.belt;
@@ -3089,6 +3519,19 @@ function drawThumbnail(canvas, type) {
         playing: false,
         train: null
     };
+    if (type === 'rope') {
+        drawRope(ctx, {
+            x: -26,
+            top: 14
+        }, {
+            x: 26,
+            top: 4
+        }, {
+            x: 0,
+            y: -8
+        }, true, 1);
+        return;
+    }
     if (type === 'string') {
         drawBelt(ctx, {
             ...fake,
@@ -3109,11 +3552,12 @@ function drawThumbnail(canvas, type) {
     for (const b of bodies)drawDecoration(ctx, b, state);
 }
 
-return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
+return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
 })();
 
 // ---- game/world.ts ----
 const { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
+
 
 
 
@@ -3126,6 +3570,7 @@ const STEP_MS = 1000 / 60;
 const TRAIL_EVERY = 2;
 const TRAIL_MAX = 900;
 const SPRING_COOLDOWN_STEPS = 12;
+const FLYWHEEL_DRAG = 0.004;
 class Simulation {
     engine = Engine.create({
         enableSleeping: false,
@@ -3145,11 +3590,14 @@ class Simulation {
     gearTrain = {
         speeds: new Map(),
         links: [],
-        jammed: new Set()
+        jammed: new Set(),
+        free: []
     };
     built = new Map();
     partsById = new Map();
     pivots = [];
+    flywheels = [];
+    ropes = [];
     conveyorContacts = [];
     springContacts = [];
     springCooldown = new Map();
@@ -3172,6 +3620,8 @@ class Simulation {
         this.built.clear();
         this.partsById.clear();
         this.pivots = [];
+        this.flywheels = [];
+        this.ropes = [];
         this.conveyorContacts = [];
         this.springContacts = [];
         this.springCooldown.clear();
@@ -3205,6 +3655,7 @@ class Simulation {
                 const c = Math.cos(-body.angle);
                 const s = Math.sin(-body.angle);
                 this.pivots.push({
+                    id: p.id,
                     body,
                     x: p.x,
                     y: p.y,
@@ -3212,6 +3663,54 @@ class Simulation {
                     oy: dx * s + dy * c,
                     speed,
                     angle0: body.angle
+                });
+            }
+        }
+        if (play) {
+            for (const group of this.gearTrain.free){
+                const members = group.flatMap(({ id, factor })=>{
+                    const pivot = this.pivots.find((pv)=>pv.id === id);
+                    return pivot ? [
+                        {
+                            pivot,
+                            factor
+                        }
+                    ] : [];
+                });
+                if (members.length) this.flywheels.push({
+                    members,
+                    omega: 0,
+                    theta: 0
+                });
+            }
+        }
+        if (play) {
+            for (const p of parts){
+                if (p.type !== 'rope' || !p.link || p.link.via === undefined) continue;
+                const a = this.built.get(p.link.a)?.[0];
+                const b = this.built.get(p.link.b)?.[0];
+                const pulley = this.partsById.get(p.link.via);
+                if (!a || !b || !pulley || a === b) continue;
+                const left = {
+                    x: pulley.x - PULLEY_RADIUS,
+                    y: pulley.y
+                };
+                const right = {
+                    x: pulley.x + PULLEY_RADIUS,
+                    y: pulley.y
+                };
+                const aOnLeft = a.position.x <= b.position.x;
+                const pa = aOnLeft ? left : right;
+                const pb = aOnLeft ? right : left;
+                const strands = propValue('rope', p.props, 'strands');
+                this.ropes.push({
+                    a,
+                    b,
+                    pa,
+                    pb,
+                    strands,
+                    length: ropeLength(a.position, b.position, pa, pb, strands),
+                    friction: propValue('pulley', pulley.props, 'friction')
                 });
             }
         }
@@ -3339,9 +3838,67 @@ class Simulation {
         for (const pv of this.pivots){
             if (pv.speed !== undefined) Body.setAngularVelocity(pv.body, pv.speed);
         }
+        for (const fw of this.flywheels){
+            for (const m of fw.members)Body.setAngularVelocity(m.pivot.body, m.factor * fw.omega);
+        }
+    }
+    stepFlywheels() {
+        for (const fw of this.flywheels){
+            let push = 0;
+            let stiffness = 0;
+            for (const m of fw.members){
+                const inertia = m.pivot.body.inertia;
+                push += inertia * m.factor * Body.getAngularVelocity(m.pivot.body);
+                stiffness += inertia * m.factor * m.factor;
+            }
+            let omega = stiffness > 0 && Number.isFinite(stiffness) ? push / stiffness : 0;
+            omega *= 1 - FLYWHEEL_DRAG;
+            if (Math.abs(omega) < 1e-4) omega = 0;
+            fw.omega = omega;
+            fw.theta += omega;
+            for (const m of fw.members)Body.setAngle(m.pivot.body, m.pivot.angle0 + m.factor * fw.theta, false);
+        }
+    }
+    stepRopes() {
+        for (const r of this.ropes){
+            const va = Body.getVelocity(r.a);
+            const vb = Body.getVelocity(r.b);
+            const res = solveRope({
+                x: r.a.position.x,
+                y: r.a.position.y,
+                vx: va.x,
+                vy: va.y,
+                mass: r.a.mass
+            }, {
+                x: r.b.position.x,
+                y: r.b.position.y,
+                vx: vb.x,
+                vy: vb.y,
+                mass: r.b.mass
+            }, r.pa, r.pb, r.strands, r.length, r.friction);
+            if (!res.tight) continue;
+            if (res.moveA.x || res.moveA.y) Body.setPosition(r.a, {
+                x: r.a.position.x + res.moveA.x,
+                y: r.a.position.y + res.moveA.y
+            }, false);
+            if (res.moveB.x || res.moveB.y) Body.setPosition(r.b, {
+                x: r.b.position.x + res.moveB.x,
+                y: r.b.position.y + res.moveB.y
+            }, false);
+            Body.setVelocity(r.a, {
+                x: res.a.vx,
+                y: res.a.vy
+            });
+            Body.setVelocity(r.b, {
+                x: res.b.vx,
+                y: res.b.vy
+            });
+        }
     }
     afterStep() {
         if (!this.running) return;
+        this.stepRopes();
+        this.stepFlywheels();
         for (const pv of this.pivots){
             if (pv.speed !== undefined) {
                 Body.setAngle(pv.body, pv.angle0 + pv.speed * this.steps, false);
@@ -3860,6 +4417,10 @@ let playing = false;
 let tool = null;
 let toolAngle = 0;
 let selectedId = null;
+let multi = new Set();
+let selectMode = 'select';
+let marquee = null;
+let groupDrag = null;
 let hover = null;
 let hoverId;
 let drag = null;
@@ -4096,11 +4657,18 @@ function restoreSandbox() {
                 belt: undefined
             };
         });
-        for (const p of fresh)if (p.link) p.link = {
-            a: ids.get(p.link.a) ?? -1,
-            b: ids.get(p.link.b) ?? -1
-        };
-        return fresh.filter((p)=>p.type !== 'string' || p.link && p.link.a > 0 && p.link.b > 0);
+        for (const p of fresh){
+            if (p.link) p.link = {
+                a: ids.get(p.link.a) ?? -1,
+                b: ids.get(p.link.b) ?? -1,
+                via: p.link.via === undefined ? undefined : ids.get(p.link.via) ?? -1
+            };
+        }
+        return fresh.filter((p)=>{
+            if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
+            if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
+            return true;
+        });
     } catch  {
         return [];
     }
@@ -4118,6 +4686,67 @@ function remaining() {
     return out;
 }
 const selectedPart = ()=>parts.find((p)=>p.id === selectedId);
+function clearSelection() {
+    selectedId = null;
+    multi.clear();
+}
+function setSelection(ids) {
+    if (ids.length <= 1) {
+        multi.clear();
+        selectedId = ids[0] ?? null;
+    } else {
+        selectedId = null;
+        multi = new Set(ids);
+    }
+}
+const currentSelection = ()=>selectedId !== null ? [
+        selectedId
+    ] : [
+        ...multi
+    ];
+const movable = (p)=>!p.locked && !PART_DEFS[p.type].anchored;
+function boundsOf(id) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const b of sim.bodiesOf(id)){
+        x0 = Math.min(x0, b.bounds.min.x);
+        y0 = Math.min(y0, b.bounds.min.y);
+        x1 = Math.max(x1, b.bounds.max.x);
+        y1 = Math.max(y1, b.bounds.max.y);
+    }
+    return {
+        x0,
+        y0,
+        x1,
+        y1
+    };
+}
+function groupFits(ids, origins, dx, dy) {
+    const others = parts.filter((q)=>!ids.has(q.id));
+    for (const id of ids){
+        const q = parts.find((r)=>r.id === id);
+        const o = origins.get(id);
+        if (!q || !o) return false;
+        const nx = o.x + dx;
+        const ny = o.y + dy;
+        if (nx < 10 || nx > WORLD_W - 10 || ny < 10 || ny > FLOOR_TOP - 10) return false;
+        if (overlapsAny({
+            ...q,
+            x: nx,
+            y: ny
+        }, others)) return false;
+    }
+    return true;
+}
+function moveGroup(ids, origins, dx, dy) {
+    for (const id of ids){
+        const q = parts.find((r)=>r.id === id);
+        const o = origins.get(id);
+        if (q && o) {
+            q.x = o.x + dx;
+            q.y = o.y + dy;
+        }
+    }
+}
 function worldPoint(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
     return {
@@ -4175,8 +4804,30 @@ function syncStrings() {
         s.w = Math.max(10, d - ar - br);
     }
 }
+const ropeable = (type)=>type === 'crate' || type === 'ball' || type === 'heavyBall';
+function syncRopes() {
+    const find = (id)=>parts.find((q)=>q.id === id);
+    parts = parts.filter((p)=>{
+        if (p.type !== 'rope') return true;
+        const l = p.link;
+        const a = find(l?.a);
+        const b = find(l?.b);
+        const via = find(l?.via);
+        return !!l && !!a && !!b && !!via && a !== b && ropeable(a.type) && ropeable(b.type) && via.type === 'pulley';
+    });
+    for (const r of parts){
+        if (r.type !== 'rope' || !r.link) continue;
+        const a = find(r.link.a);
+        const via = find(r.link.via);
+        r.x = (a.x + via.x) / 2;
+        r.y = (a.y + via.y) / 2;
+        r.angle = Math.atan2(via.y - a.y, via.x - a.x);
+        r.w = Math.max(10, Math.hypot(via.x - a.x, via.y - a.y) - 20);
+    }
+}
 function rebuild() {
     syncStrings();
+    syncRopes();
     sim.goalEnabled = level.hasGoal;
     sim.goalTargets = level.goalTargets ?? [
         'ball'
@@ -4195,6 +4846,7 @@ function changed() {
 }
 function refreshUI() {
     if (tool !== 'string') stringFrom = null;
+    if (tool !== 'rope') ropePicks = [];
     ui.showProps(propsModel());
     ui.updateCounts(remaining());
     ui.setSelectedTool(tool);
@@ -4241,7 +4893,7 @@ function loadLevel(index, restore) {
     playing = false;
     tool = null;
     toolAngle = 0;
-    selectedId = null;
+    clearSelection();
     drag = null;
     undoStack = [];
     lastTrails = [];
@@ -4268,7 +4920,7 @@ function start() {
     if (playing) return;
     playing = true;
     tool = null;
-    selectedId = null;
+    clearSelection();
     drag = null;
     paletteDrag = null;
     rebuild();
@@ -4292,6 +4944,58 @@ function stop() {
     refreshUI();
 }
 let stringFrom = null;
+let ropePicks = [];
+function ropeClick(x, y, touch = false) {
+    const stage = ropePicks.length;
+    const wantPulley = stage === 1;
+    const id = sim.partNear(x, y, (touch ? 24 : 12) / view.z, (q)=>wantPulley ? q.type === 'pulley' : ropeable(q.type));
+    if (id === undefined) {
+        ui.toast(stage === 0 ? 'Click a crate or ball to tie the rope to.' : wantPulley ? 'Now click a pulley for the rope to go over.' : 'Now click the second weight.');
+        return;
+    }
+    if (stage === 0) {
+        ropePicks = [
+            id
+        ];
+        ui.toast('Now click a pulley.');
+        return;
+    }
+    if (stage === 1) {
+        ropePicks.push(id);
+        ui.toast('Now click the second weight (the load).');
+        return;
+    }
+    const [a, via] = ropePicks;
+    ropePicks = [];
+    if (id === a) {
+        ui.toast('Rope cancelled: pick a different second weight.');
+        return;
+    }
+    if (remaining().rope === 0) {
+        ui.toast('No ropes left.');
+        return;
+    }
+    pushUndo();
+    const part = {
+        id: nextId(),
+        type: 'rope',
+        x: 0,
+        y: 0,
+        angle: 0,
+        link: {
+            a,
+            via,
+            b: id
+        }
+    };
+    parts.push(part);
+    tool = null;
+    setSelection([
+        part.id
+    ]);
+    ui.showPartInfo('rope');
+    changed();
+}
 function stringClick(x, y, touch = false) {
     const id = sim.partNear(x, y, (touch ? 24 : 14) / view.z, (q)=>isGear(q.type));
     if (id === undefined) {
@@ -4352,6 +5056,17 @@ function propsModel() {
         else if (speed) facts.push(`Turns ${(Math.abs(speed) * 60 / (2 * Math.PI)).toFixed(2)} times a second, ${speed > 0 ? 'clockwise' : 'anticlockwise'}.`);
         else if (!def.gear.motor) facts.push('Not turning. Join it to a motor gear with teeth or a string.');
     }
+    if (sel.type === 'rope' && sel.link) {
+        const effort = parts.find((q)=>q.id === sel.link.a);
+        const load = parts.find((q)=>q.id === sel.link.b);
+        if (effort && load) {
+            const n = propValue('rope', sel.props, 'strands');
+            const e = nominalMass(effort.type, effort.props);
+            const l = nominalMass(load.type, load.props) / n;
+            facts.push(`Effort side pulls with ${Math.round(e * 100) / 100}. The load needs ${Math.round(l * 100) / 100}${n > 1 ? ` (its weight shared by ${n} strands)` : ''}.`);
+            facts.push(Math.abs(e - l) < 0.05 * Math.max(e, l) ? 'Balanced: nothing moves.' : e > l ? 'The effort side wins: the load goes up.' : 'The load side wins: the effort side is hauled up.');
+        }
+    }
     if (sel.type === 'string') facts.push(sel.flip ? 'Crossed: the second gear turns the opposite way.' : 'Straight: both gears turn the same way. Press F to cross it.');
     return {
         id: sel.id,
@@ -4379,7 +5094,7 @@ function selectTool(type) {
     }
     tool = type;
     if (type) {
-        selectedId = null;
+        clearSelection();
         ui.showPartInfo(type);
         if (!PART_DEFS[type].rotatable) toolAngle = 0;
     }
@@ -4427,18 +5142,31 @@ function deleteById(id) {
     if (!part || part.locked) return;
     pushUndo();
     parts = parts.filter((p)=>p.id !== id);
-    if (selectedId === id) selectedId = null;
+    if (selectedId === id) clearSelection();
     changed();
 }
 function deleteSelected() {
-    if (!playing && selectedId !== null) deleteById(selectedId);
+    if (playing) return;
+    if (selectedId !== null) {
+        deleteById(selectedId);
+        return;
+    }
+    const doomed = [
+        ...multi
+    ].filter((id)=>parts.some((p)=>p.id === id && !p.locked));
+    if (!doomed.length) return;
+    pushUndo();
+    parts = parts.filter((p)=>!doomed.includes(p.id));
+    clearSelection();
+    ui.toast(`Removed ${doomed.length} parts.`);
+    changed();
 }
 function undo() {
     if (playing) return;
     const prev = undoStack.pop();
     if (!prev) return;
     parts = prev;
-    selectedId = null;
+    clearSelection();
     changed();
 }
 function positionPart(p, x, y) {
@@ -4469,6 +5197,10 @@ function positionPart(p, x, y) {
 }
 const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 function placeAt(type, x, y) {
+    if (type === 'rope') {
+        ropeClick(x, y);
+        return;
+    }
     if (type === 'string') {
         stringClick(x, y);
         return;
@@ -4500,12 +5232,20 @@ function updateCursor() {
         if (drag) cursor = 'grabbing';
         else if (hoverId !== undefined) cursor = parts.find((p)=>p.id === hoverId)?.locked ? 'not-allowed' : 'grab';
         else if (tool) cursor = 'copy';
-        else if (view.z > 1) cursor = 'grab';
+        else if (selectMode === 'pan' || view.z > 1) cursor = 'grab';
+        else cursor = 'crosshair';
     }
-    if (pan?.moved && view.z > 1) cursor = 'grabbing';
+    if (pan?.moved && !pan.select && view.z > 1) cursor = 'grabbing';
     canvas.style.cursor = cursor;
 }
 function cancelDrag() {
+    if (groupDrag) {
+        if (groupDrag.moved) {
+            parts = groupDrag.before;
+            rebuild();
+        }
+        groupDrag = null;
+    }
     if (!drag) return;
     if (drag.moved) {
         parts = drag.before;
@@ -4513,7 +5253,30 @@ function cancelDrag() {
     }
     drag = null;
 }
+function setSelectMode(mode) {
+    selectMode = mode;
+    document.getElementById('mode-select')?.classList.toggle('on', mode === 'select');
+    document.getElementById('mode-pan')?.classList.toggle('on', mode === 'pan');
+    updateCursor();
+}
+document.getElementById('mode-select')?.addEventListener('click', ()=>setSelectMode('select'));
+document.getElementById('mode-pan')?.addEventListener('click', ()=>setSelectMode('pan'));
 canvas.addEventListener('pointerdown', (e)=>{
+    if (e.button === 1) {
+        e.preventDefault();
+        canvas.setPointerCapture(e.pointerId);
+        pan = {
+            x0: e.clientX,
+            y0: e.clientY,
+            cx0: view.cx,
+            cy0: view.cy,
+            moved: false,
+            lockedHit: false,
+            select: false,
+            shift: false
+        };
+        return;
+    }
     if (e.button !== 0) return;
     e.preventDefault();
     canvas.setPointerCapture(e.pointerId);
@@ -4539,15 +5302,23 @@ canvas.addEventListener('pointerdown', (e)=>{
         if (touches.size > 2) return;
     }
     const p = worldPoint(e.clientX, e.clientY);
-    const startPan = (lockedHit)=>{
+    const startPan = (lockedHit, select = false)=>{
         pan = {
             x0: e.clientX,
             y0: e.clientY,
             cx0: view.cx,
             cy0: view.cy,
             moved: false,
-            lockedHit
+            lockedHit,
+            select,
+            shift: e.shiftKey
         };
+        marquee = select ? {
+            x0: p.x,
+            y0: p.y,
+            x1: p.x,
+            y1: p.y
+        } : null;
     };
     if (playing) {
         startPan(false);
@@ -4555,6 +5326,12 @@ canvas.addEventListener('pointerdown', (e)=>{
         return;
     }
     const touch = e.pointerType === 'touch';
+    if (tool === 'rope') {
+        ropeClick(p.x, p.y, touch);
+        refreshUI();
+        updateCursor();
+        return;
+    }
     if (tool === 'string') {
         stringClick(p.x, p.y, touch);
         refreshUI();
@@ -4563,10 +5340,43 @@ canvas.addEventListener('pointerdown', (e)=>{
     }
     const tolerance = (tool ? touch ? 8 : 3 : touch ? 26 : 16) / view.z;
     const ownId = sim.partNear(p.x, p.y, tolerance, ownParts);
-    if (ownId !== undefined) {
+    if (ownId !== undefined && e.shiftKey && !tool) {
+        const part = parts.find((q)=>q.id === ownId);
+        if (movable(part)) {
+            const now = new Set(currentSelection());
+            if (now.has(ownId)) now.delete(ownId);
+            else now.add(ownId);
+            setSelection([
+                ...now
+            ]);
+            if (now.size > 1) ui.toast(`${now.size} parts selected. Drag one to move them all, Delete to remove.`);
+        }
+    } else if (ownId !== undefined && multi.size > 1 && multi.has(ownId)) {
+        const origins = new Map();
+        for (const id of multi){
+            const q = parts.find((r)=>r.id === id);
+            if (q) origins.set(id, {
+                x: q.x,
+                y: q.y
+            });
+        }
+        groupDrag = {
+            start: {
+                x: p.x,
+                y: p.y
+            },
+            origins,
+            dx: 0,
+            dy: 0,
+            moved: false,
+            before: clone(parts)
+        };
+    } else if (ownId !== undefined) {
         const part = parts.find((q)=>q.id === ownId);
         tool = null;
-        selectedId = part.id;
+        setSelection([
+            part.id
+        ]);
         if (!PART_DEFS[part.type].anchored) drag = {
             id: part.id,
             dx: part.x - p.x,
@@ -4581,7 +5391,7 @@ canvas.addEventListener('pointerdown', (e)=>{
         if (!e.shiftKey || remaining()[t] === 0) tool = null;
     } else {
         const lockedId = sim.partNear(p.x, p.y, tolerance, (q)=>!!q.locked);
-        startPan(lockedId !== undefined);
+        startPan(lockedId !== undefined, selectMode === 'select');
     }
     refreshUI();
     updateCursor();
@@ -4619,7 +5429,12 @@ canvas.addEventListener('pointermove', (e)=>{
         const dx = e.clientX - pan.x0;
         const dy = e.clientY - pan.y0;
         if (!pan.moved && Math.hypot(dx, dy) > 5) pan.moved = true;
-        if (pan.moved && view.z > 1) {
+        if (pan.select) {
+            if (marquee) {
+                marquee.x1 = p.x;
+                marquee.y1 = p.y;
+            }
+        } else if (pan.moved && view.z > 1) {
             const rect = canvas.getBoundingClientRect();
             view.cx = pan.cx0 - dx / rect.width * (WORLD_W / view.z);
             view.cy = pan.cy0 - dy / rect.height * (WORLD_H / view.z);
@@ -4630,7 +5445,19 @@ canvas.addEventListener('pointermove', (e)=>{
         return;
     }
     if (playing) return;
-    if (drag) {
+    if (groupDrag) {
+        const g = groupDrag;
+        const dx = snap(p.x - g.start.x);
+        const dy = snap(p.y - g.start.y);
+        if ((dx !== g.dx || dy !== g.dy) && groupFits(multi, g.origins, dx, dy)) {
+            if (!g.moved) updateToolbarHidden();
+            g.dx = dx;
+            g.dy = dy;
+            g.moved = true;
+            moveGroup(multi, g.origins, dx, dy);
+            rebuild();
+        }
+    } else if (drag) {
         const part = parts.find((q)=>q.id === drag.id);
         if (!part) return;
         const oldX = part.x;
@@ -4655,9 +5482,28 @@ function endPointer(e) {
     if (pan) {
         const p = pan;
         pan = null;
-        if (!p.moved && playing) ui.toast('Press Stop to change your machine.');
+        const box = marquee;
+        marquee = null;
+        if (p.select && p.moved && box && !playing) {
+            const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
+            const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
+            const hit = parts.filter((q)=>{
+                if (!movable(q)) return false;
+                const b = boundsOf(q.id);
+                return b.x1 >= x0 && b.x0 <= x1 && b.y1 >= y0 && b.y0 <= y1;
+            }).map((q)=>q.id);
+            const ids = p.shift ? [
+                ...new Set([
+                    ...currentSelection(),
+                    ...hit
+                ])
+            ] : hit;
+            setSelection(ids);
+            if (ids.length > 1) ui.toast(`${ids.length} parts selected. Drag one to move them all, Delete to remove.`);
+            refreshUI();
+        } else if (!p.moved && playing) ui.toast('Press Stop to change your machine.');
         else if (!p.moved) {
-            selectedId = null;
+            clearSelection();
             if (p.lockedHit) ui.toast('That part belongs to the puzzle, so it stays put.');
             refreshUI();
         }
@@ -4666,6 +5512,16 @@ function endPointer(e) {
     endDrag();
 }
 function endDrag() {
+    if (groupDrag) {
+        if (groupDrag.moved) {
+            pushUndo(groupDrag.before);
+            persistSandbox();
+        }
+        groupDrag = null;
+        refreshUI();
+        updateCursor();
+        return;
+    }
     if (!drag) return;
     if (drag.moved) {
         pushUndo(drag.before);
@@ -4686,7 +5542,7 @@ window.addEventListener('pointermove', (e)=>{
     if (!paletteDrag.active && Math.hypot(e.clientX - paletteDrag.x0, e.clientY - paletteDrag.y0) > 6) {
         paletteDrag.active = true;
         tool = paletteDrag.type;
-        selectedId = null;
+        clearSelection();
         refreshUI();
     }
     if (paletteDrag.active) {
@@ -4703,7 +5559,7 @@ window.addEventListener('pointerup', (e)=>{
     const p = worldPoint(e.clientX, e.clientY);
     if (p.inside && !playing) {
         placeAt(pd.type, p.x, p.y);
-        if (!(pd.type === 'string' && stringFrom !== null)) tool = null;
+        if (!(pd.type === 'string' && stringFrom !== null || pd.type === 'rope' && ropePicks.length > 0)) tool = null;
     }
     refreshUI();
 });
@@ -4736,6 +5592,14 @@ window.addEventListener('keydown', (e)=>{
     const target = e.target;
     if (target && (target.tagName === 'TEXTAREA' || target.type === 'text')) return;
     if (target && /^(INPUT|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !playing) {
+        e.preventDefault();
+        const all = parts.filter(movable).map((q)=>q.id);
+        setSelection(all);
+        if (all.length > 1) ui.toast(`${all.length} parts selected. Drag one to move them all, Delete to remove.`);
+        refreshUI();
+        return;
+    }
     if (e.code === 'Space') {
         e.preventDefault();
         if (playing) stop();
@@ -4760,8 +5624,45 @@ window.addEventListener('keydown', (e)=>{
         resetZoom();
     } else if (e.key === 'Escape') {
         tool = null;
-        selectedId = null;
+        clearSelection();
         refreshUI();
+    } else if (e.key.startsWith('Arrow') && multi.size > 1 && !playing) {
+        e.preventDefault();
+        const d = {
+            ArrowLeft: [
+                -GRID,
+                0
+            ],
+            ArrowRight: [
+                GRID,
+                0
+            ],
+            ArrowUp: [
+                0,
+                -GRID
+            ],
+            ArrowDown: [
+                0,
+                GRID
+            ]
+        }[e.key] ?? [
+            0,
+            0
+        ];
+        const origins = new Map();
+        for (const id of multi){
+            const q = parts.find((r)=>r.id === id);
+            if (q) origins.set(id, {
+                x: q.x,
+                y: q.y
+            });
+        }
+        if (groupFits(multi, origins, d[0], d[1])) {
+            const before = clone(parts);
+            moveGroup(multi, origins, d[0], d[1]);
+            pushUndo(before);
+            changed();
+        }
     } else if (e.key.startsWith('Arrow')) {
         const sel = selectedPart();
         if (!sel || sel.locked || playing || PART_DEFS[sel.type].anchored) return;
@@ -4853,7 +5754,7 @@ function render() {
         else drawTrails(lastTrails, true);
     }
     const ghostBodies = (()=>{
-        if (playing || !tool || tool === 'string' || !hover) return null;
+        if (playing || !tool || tool === 'string' || tool === 'rope' || !hover) return null;
         const def = PART_DEFS[tool];
         const ghost = {
             id: -1,
@@ -4873,8 +5774,49 @@ function render() {
     drawBodies(ctx, solids, state);
     for (const b of solids)drawDecoration(ctx, b, state);
     for (const s of parts)if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
+    for (const r of parts){
+        if (r.type !== 'rope' || !r.link) continue;
+        const pa = parts.find((q)=>q.id === r.link.a);
+        const pb = parts.find((q)=>q.id === r.link.b);
+        const pv = parts.find((q)=>q.id === r.link.via);
+        const ba = sim.bodiesOf(r.link.a)[0];
+        const bb = sim.bodiesOf(r.link.b)[0];
+        if (!pa || !pb || !pv || !ba || !bb) continue;
+        drawRope(ctx, {
+            x: ba.position.x,
+            top: ba.bounds.min.y
+        }, {
+            x: bb.position.x,
+            top: bb.bounds.min.y
+        }, pv, pa.x <= pb.x, propValue('rope', r.props, 'strands'), !playing && r.id === selectedId);
+    }
     if (!playing) {
         drawGearLinks();
+        if (tool === 'rope') {
+            ctx.save();
+            ctx.lineWidth = 4 / view.z;
+            ctx.strokeStyle = '#2f7df6';
+            let tip;
+            for (const id of ropePicks){
+                const g = parts.find((q)=>q.id === id);
+                if (!g) continue;
+                tip = g;
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, 24, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (tip && hover) {
+                ctx.setLineDash([
+                    7 / view.z,
+                    6 / view.z
+                ]);
+                ctx.beginPath();
+                ctx.moveTo(tip.x, tip.y);
+                ctx.lineTo(hover.x, hover.y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
         if (tool === 'string' && hover) {
             const near = sim.partNear(hover.x, hover.y, 14 / view.z, (q)=>isGear(q.type));
             const first = parts.find((q)=>q.id === stringFrom);
@@ -4912,6 +5854,33 @@ function render() {
                 ctx.stroke();
                 ctx.restore();
             }
+        }
+        if (marquee && pan?.select && pan.moved) {
+            ctx.save();
+            ctx.fillStyle = 'rgba(47,125,246,0.12)';
+            ctx.strokeStyle = '#2f7df6';
+            ctx.lineWidth = 2 / view.z;
+            ctx.setLineDash([
+                6 / view.z,
+                5 / view.z
+            ]);
+            const rx = Math.min(marquee.x0, marquee.x1), ry = Math.min(marquee.y0, marquee.y1);
+            ctx.fillRect(rx, ry, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+            ctx.strokeRect(rx, ry, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+            ctx.restore();
+        }
+        for (const id of multi){
+            ctx.save();
+            ctx.lineWidth = 3 / view.z;
+            ctx.setLineDash([
+                7 / view.z,
+                5 / view.z
+            ]);
+            ctx.lineDashOffset = -performance.now() / 40;
+            ctx.strokeStyle = '#2f7df6';
+            traceBodies(ctx, sim.bodiesOf(id));
+            ctx.stroke();
+            ctx.restore();
         }
         if (selectedId !== null) {
             ctx.save();

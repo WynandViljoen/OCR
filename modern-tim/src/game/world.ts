@@ -18,11 +18,13 @@ import {
   CONVEYOR_FORCE,
   CONVEYOR_SPEED,
   PART_DEFS,
+  PULLEY_RADIUS,
   SPRING_SPEEDS,
   type PartType,
   type PlacedPart,
 } from './parts';
 import { propValue } from './props';
+import { ropeLength, solveRope } from './rope';
 import { computeGearTrain, pointPolygonDistance, type GearTrain } from './mechanics';
 
 const { Engine, Composite, Bodies, Body, Events } = Matter;
@@ -51,8 +53,31 @@ export interface SolveInfo {
   steps: number;
 }
 
+/** A motorless gear train. It turns as one: `omega` is the speed of the first gear, in radians per step. */
+interface Flywheel {
+  members: { pivot: PivotInfo; factor: number }[];
+  omega: number;
+  theta: number;
+}
+
+/** A rope running from weight `a` over a pulley to weight `b`. */
+interface RopeInfo {
+  a: Matter.Body;
+  b: Matter.Body;
+  /** Where the rope leaves the pulley rim on each side. */
+  pa: { x: number; y: number };
+  pb: { x: number; y: number };
+  strands: number;
+  length: number;
+  friction: number;
+}
+
+/** How quickly a free-spinning train loses speed (fraction per step), like a little friction in the axles. */
+const FLYWHEEL_DRAG = 0.004;
+
 interface PivotInfo {
   body: Matter.Body;
+  id: number;
   /** The axle (the part's x, y). */
   x: number;
   y: number;
@@ -81,11 +106,15 @@ export class Simulation {
   steps = 0;
   /** Motion paths of balls during the current run. */
   trails = new Map<number, Trail>();
-  gearTrain: GearTrain = { speeds: new Map(), links: [], jammed: new Set() };
+  gearTrain: GearTrain = { speeds: new Map(), links: [], jammed: new Set(), free: [] };
 
   private built = new Map<number, Matter.Body[]>();
   private partsById = new Map<number, PlacedPart>();
   private pivots: PivotInfo[] = [];
+  /** Motorless gear trains that a ball can set turning (see stepFlywheels). */
+  private flywheels: Flywheel[] = [];
+  /** Ropes over pulleys (see stepRopes). */
+  private ropes: RopeInfo[] = [];
   private conveyorContacts: [Matter.Body, Matter.Body][] = [];
   private springContacts: [Matter.Body, Matter.Body][] = [];
   private springCooldown = new Map<string, number>();
@@ -112,6 +141,8 @@ export class Simulation {
     this.built.clear();
     this.partsById.clear();
     this.pivots = [];
+    this.flywheels = [];
+    this.ropes = [];
     this.conveyorContacts = [];
     this.springContacts = [];
     this.springCooldown.clear();
@@ -142,7 +173,44 @@ export class Simulation {
         const dy = body.position.y - p.y;
         const c = Math.cos(-body.angle);
         const s = Math.sin(-body.angle);
-        this.pivots.push({ body, x: p.x, y: p.y, ox: dx * c - dy * s, oy: dx * s + dy * c, speed, angle0: body.angle });
+        this.pivots.push({ id: p.id, body, x: p.x, y: p.y, ox: dx * c - dy * s, oy: dx * s + dy * c, speed, angle0: body.angle });
+      }
+    }
+
+    // Motorless gear trains: let a ball set them turning (and carry that turn along gears and strings).
+    if (play) {
+      for (const group of this.gearTrain.free) {
+        const members = group.flatMap(({ id, factor }) => {
+          const pivot = this.pivots.find((pv) => pv.id === id);
+          return pivot ? [{ pivot, factor }] : [];
+        });
+        if (members.length) this.flywheels.push({ members, omega: 0, theta: 0 });
+      }
+    }
+
+    // Ropes over pulleys: the rope is exactly as long as the gap the player built.
+    if (play) {
+      for (const p of parts) {
+        if (p.type !== 'rope' || !p.link || p.link.via === undefined) continue;
+        const a = this.built.get(p.link.a)?.[0];
+        const b = this.built.get(p.link.b)?.[0];
+        const pulley = this.partsById.get(p.link.via);
+        if (!a || !b || !pulley || a === b) continue;
+        const left = { x: pulley.x - PULLEY_RADIUS, y: pulley.y };
+        const right = { x: pulley.x + PULLEY_RADIUS, y: pulley.y };
+        const aOnLeft = a.position.x <= b.position.x;
+        const pa = aOnLeft ? left : right;
+        const pb = aOnLeft ? right : left;
+        const strands = propValue('rope', p.props, 'strands');
+        this.ropes.push({
+          a,
+          b,
+          pa,
+          pb,
+          strands,
+          length: ropeLength(a.position, b.position, pa, pb, strands),
+          friction: propValue('pulley', pulley.props, 'friction'),
+        });
       }
     }
 
@@ -266,10 +334,61 @@ export class Simulation {
     for (const pv of this.pivots) {
       if (pv.speed !== undefined) Body.setAngularVelocity(pv.body, pv.speed);
     }
+    for (const fw of this.flywheels) {
+      for (const m of fw.members) Body.setAngularVelocity(m.pivot.body, m.factor * fw.omega);
+    }
+  }
+
+  /**
+   * A motorless gear train turns as one. Whatever the collisions did to each gear this step
+   * (a ball landing on a paddle) is pooled into one speed for the whole train, weighted by how
+   * hard each gear is to turn, then handed back to every gear in proportion to its gear ratio.
+   */
+  private stepFlywheels() {
+    for (const fw of this.flywheels) {
+      let push = 0;
+      let stiffness = 0;
+      for (const m of fw.members) {
+        const inertia = m.pivot.body.inertia;
+        push += inertia * m.factor * Body.getAngularVelocity(m.pivot.body);
+        stiffness += inertia * m.factor * m.factor;
+      }
+      let omega = stiffness > 0 && Number.isFinite(stiffness) ? push / stiffness : 0;
+      omega *= 1 - FLYWHEEL_DRAG;
+      if (Math.abs(omega) < 1e-4) omega = 0;
+      fw.omega = omega;
+      fw.theta += omega;
+      for (const m of fw.members) Body.setAngle(m.pivot.body, m.pivot.angle0 + m.factor * fw.theta, false);
+    }
+  }
+
+  /** Ropes pull the weights along, so the heavier side drops and lifts the lighter one. */
+  private stepRopes() {
+    for (const r of this.ropes) {
+      const va = Body.getVelocity(r.a);
+      const vb = Body.getVelocity(r.b);
+      const res = solveRope(
+        { x: r.a.position.x, y: r.a.position.y, vx: va.x, vy: va.y, mass: r.a.mass },
+        { x: r.b.position.x, y: r.b.position.y, vx: vb.x, vy: vb.y, mass: r.b.mass },
+        r.pa,
+        r.pb,
+        r.strands,
+        r.length,
+        r.friction,
+      );
+      if (!res.tight) continue;
+      if (res.moveA.x || res.moveA.y) Body.setPosition(r.a, { x: r.a.position.x + res.moveA.x, y: r.a.position.y + res.moveA.y }, false);
+      if (res.moveB.x || res.moveB.y) Body.setPosition(r.b, { x: r.b.position.x + res.moveB.x, y: r.b.position.y + res.moveB.y }, false);
+      Body.setVelocity(r.a, { x: res.a.vx, y: res.a.vy });
+      Body.setVelocity(r.b, { x: res.b.vx, y: res.b.vy });
+    }
   }
 
   private afterStep() {
     if (!this.running) return;
+    this.stepRopes();
+
+    this.stepFlywheels();
 
     // Hold pivot parts on their axle; gears also snap to their exact angle so
     // meshed teeth never drift apart.

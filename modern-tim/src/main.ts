@@ -13,9 +13,9 @@ import { LEVELS, levelToParts, solutionToParts, type Level } from './game/levels
 import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts';
 import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './game/world';
 import { HUB_RADIUS, snapGear } from './game/mechanics';
-import { PROP_SPECS, partProp, propValue } from './game/props';
-import { findFreeSpot } from './game/space';
-import { drawBelt, drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
+import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
+import { findFreeSpot, overlapsAny } from './game/space';
+import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
@@ -56,6 +56,11 @@ let playing = false;
 let tool: PartType | null = null;
 let toolAngle = 0;
 let selectedId: number | null = null;
+/** Several parts selected at once (drag a box on the empty board, Shift+click, Ctrl+A). selectedId is null while this has 2 or more. */
+let multi = new Set<number>();
+let selectMode: 'select' | 'pan' = 'select';
+let marquee: { x0: number; y0: number; x1: number; y1: number } | null = null;
+let groupDrag: { start: { x: number; y: number }; origins: Map<number, { x: number; y: number }>; dx: number; dy: number; moved: boolean; before: PlacedPart[] } | null = null;
 let hover: { x: number; y: number } | null = null;
 let hoverId: number | undefined;
 let drag: { id: number; dx: number; dy: number; moved: boolean; before: PlacedPart[] } | null = null;
@@ -73,7 +78,7 @@ const allScores: AllScores = loadScores();
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const view = { z: 1, cx: 0, cy: 0 };
-let pan: { x0: number; y0: number; cx0: number; cy0: number; moved: boolean; lockedHit: boolean } | null = null;
+let pan: { x0: number; y0: number; cx0: number; cy0: number; moved: boolean; lockedHit: boolean; select: boolean; shift: boolean } | null = null;
 const touches = new Map<number, { x: number; y: number }>();
 let pinch: { dist: number; midX: number; midY: number } | null = null;
 
@@ -309,8 +314,14 @@ function restoreSandbox(): PlacedPart[] {
         return { ...p, id, locked: false, props: cleanProps(p.type, p.props), belt: undefined };
       });
     // Strings point at gears by id, and every part got a new id.
-    for (const p of fresh) if (p.link) p.link = { a: ids.get(p.link.a) ?? -1, b: ids.get(p.link.b) ?? -1 };
-    return fresh.filter((p) => p.type !== 'string' || (p.link && p.link.a > 0 && p.link.b > 0));
+    for (const p of fresh) {
+      if (p.link) p.link = { a: ids.get(p.link.a) ?? -1, b: ids.get(p.link.b) ?? -1, via: p.link.via === undefined ? undefined : (ids.get(p.link.via) ?? -1) };
+    }
+    return fresh.filter((p) => {
+      if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
+      if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
+      return true;
+    });
   } catch {
     return [];
   }
@@ -331,6 +342,64 @@ function remaining(): Remaining {
 }
 
 const selectedPart = () => parts.find((p) => p.id === selectedId);
+
+function clearSelection() {
+  selectedId = null;
+  multi.clear();
+}
+
+/** Select these parts: none, one (the usual way, with toolbar and Tinker lab), or a group. */
+function setSelection(ids: number[]) {
+  if (ids.length <= 1) {
+    multi.clear();
+    selectedId = ids[0] ?? null;
+  } else {
+    selectedId = null;
+    multi = new Set(ids);
+  }
+}
+
+const currentSelection = (): number[] => (selectedId !== null ? [selectedId] : [...multi]);
+
+/** Parts the player may pick up and move (not the puzzle's own pieces, not strings). */
+const movable = (p: PlacedPart) => !p.locked && !PART_DEFS[p.type].anchored;
+
+function boundsOf(id: number) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const b of sim.bodiesOf(id)) {
+    x0 = Math.min(x0, b.bounds.min.x);
+    y0 = Math.min(y0, b.bounds.min.y);
+    x1 = Math.max(x1, b.bounds.max.x);
+    y1 = Math.max(y1, b.bounds.max.y);
+  }
+  return { x0, y0, x1, y1 };
+}
+
+/** Would moving the group by (dx, dy) keep every part on the board and out of everything that is not moving? */
+function groupFits(ids: Set<number>, origins: Map<number, { x: number; y: number }>, dx: number, dy: number): boolean {
+  const others = parts.filter((q) => !ids.has(q.id));
+  for (const id of ids) {
+    const q = parts.find((r) => r.id === id);
+    const o = origins.get(id);
+    if (!q || !o) return false;
+    const nx = o.x + dx;
+    const ny = o.y + dy;
+    if (nx < 10 || nx > WORLD_W - 10 || ny < 10 || ny > FLOOR_TOP - 10) return false;
+    if (overlapsAny({ ...q, x: nx, y: ny }, others)) return false;
+  }
+  return true;
+}
+
+function moveGroup(ids: Set<number>, origins: Map<number, { x: number; y: number }>, dx: number, dy: number) {
+  for (const id of ids) {
+    const q = parts.find((r) => r.id === id);
+    const o = origins.get(id);
+    if (q && o) {
+      q.x = o.x + dx;
+      q.y = o.y + dy;
+    }
+  }
+}
 
 function worldPoint(clientX: number, clientY: number) {
   const rect = canvas.getBoundingClientRect();
@@ -393,8 +462,34 @@ function syncStrings() {
   }
 }
 
+/** What a rope can be tied to: a weight that is free to hang. */
+const ropeable = (type: PartType) => type === 'crate' || type === 'ball' || type === 'heavyBall';
+
+/** Ropes follow the weights and pulley they join; a rope loses an end when that part is deleted. */
+function syncRopes() {
+  const find = (id: number | undefined) => parts.find((q) => q.id === id);
+  parts = parts.filter((p) => {
+    if (p.type !== 'rope') return true;
+    const l = p.link;
+    const a = find(l?.a);
+    const b = find(l?.b);
+    const via = find(l?.via);
+    return !!l && !!a && !!b && !!via && a !== b && ropeable(a.type) && ropeable(b.type) && via.type === 'pulley';
+  });
+  for (const r of parts) {
+    if (r.type !== 'rope' || !r.link) continue;
+    const a = find(r.link.a)!;
+    const via = find(r.link.via)!;
+    r.x = (a.x + via.x) / 2;
+    r.y = (a.y + via.y) / 2;
+    r.angle = Math.atan2(via.y - a.y, via.x - a.x);
+    r.w = Math.max(10, Math.hypot(via.x - a.x, via.y - a.y) - 20);
+  }
+}
+
 function rebuild() {
   syncStrings();
+  syncRopes();
   sim.goalEnabled = level.hasGoal;
   sim.goalTargets = level.goalTargets ?? ['ball'];
   sim.load(parts, playing);
@@ -414,6 +509,7 @@ function changed() {
 
 function refreshUI() {
   if (tool !== 'string') stringFrom = null;
+  if (tool !== 'rope') ropePicks = [];
   ui.showProps(propsModel());
   ui.updateCounts(remaining());
   ui.setSelectedTool(tool);
@@ -468,7 +564,7 @@ function loadLevel(index: number, restore: boolean) {
   playing = false;
   tool = null;
   toolAngle = 0;
-  selectedId = null;
+  clearSelection();
   drag = null;
   undoStack = [];
   lastTrails = [];
@@ -497,7 +593,7 @@ function start() {
   if (playing) return;
   playing = true;
   tool = null;
-  selectedId = null;
+  clearSelection();
   drag = null;
   paletteDrag = null;
   rebuild();
@@ -522,6 +618,47 @@ function stop() {
 
 /** The gear a string has been started from (first click done, second still to come). */
 let stringFrom: number | null = null;
+
+/** Parts picked so far with the Rope tool: weight, then pulley, then the second weight. */
+let ropePicks: number[] = [];
+
+/** One click of the Rope tool: weight, pulley, weight. */
+function ropeClick(x: number, y: number, touch = false) {
+  const stage = ropePicks.length;
+  const wantPulley = stage === 1;
+  const id = sim.partNear(x, y, (touch ? 24 : 12) / view.z, (q) => (wantPulley ? q.type === 'pulley' : ropeable(q.type)));
+  if (id === undefined) {
+    ui.toast(stage === 0 ? 'Click a crate or ball to tie the rope to.' : wantPulley ? 'Now click a pulley for the rope to go over.' : 'Now click the second weight.');
+    return;
+  }
+  if (stage === 0) {
+    ropePicks = [id];
+    ui.toast('Now click a pulley.');
+    return;
+  }
+  if (stage === 1) {
+    ropePicks.push(id);
+    ui.toast('Now click the second weight (the load).');
+    return;
+  }
+  const [a, via] = ropePicks;
+  ropePicks = [];
+  if (id === a) {
+    ui.toast('Rope cancelled: pick a different second weight.');
+    return;
+  }
+  if (remaining().rope === 0) {
+    ui.toast('No ropes left.');
+    return;
+  }
+  pushUndo();
+  const part: PlacedPart = { id: nextId(), type: 'rope', x: 0, y: 0, angle: 0, link: { a, via, b: id } };
+  parts.push(part);
+  tool = null;
+  setSelection([part.id]);
+  ui.showPartInfo('rope');
+  changed();
+}
 
 /** One click of the String tool: pick the first gear, then the second, then tie them. */
 function stringClick(x: number, y: number, touch = false) {
@@ -573,6 +710,17 @@ function propsModel(): PropsModel | null {
     else if (speed) facts.push(`Turns ${((Math.abs(speed) * 60) / (2 * Math.PI)).toFixed(2)} times a second, ${speed > 0 ? 'clockwise' : 'anticlockwise'}.`);
     else if (!def.gear.motor) facts.push('Not turning. Join it to a motor gear with teeth or a string.');
   }
+  if (sel.type === 'rope' && sel.link) {
+    const effort = parts.find((q) => q.id === sel.link!.a);
+    const load = parts.find((q) => q.id === sel.link!.b);
+    if (effort && load) {
+      const n = propValue('rope', sel.props, 'strands');
+      const e = nominalMass(effort.type, effort.props);
+      const l = nominalMass(load.type, load.props) / n;
+      facts.push(`Effort side pulls with ${Math.round(e * 100) / 100}. The load needs ${Math.round(l * 100) / 100}${n > 1 ? ` (its weight shared by ${n} strands)` : ''}.`);
+      facts.push(Math.abs(e - l) < 0.05 * Math.max(e, l) ? 'Balanced: nothing moves.' : e > l ? 'The effort side wins: the load goes up.' : 'The load side wins: the effort side is hauled up.');
+    }
+  }
   if (sel.type === 'string') facts.push(sel.flip ? 'Crossed: the second gear turns the opposite way.' : 'Straight: both gears turn the same way. Press F to cross it.');
   return { id: sel.id, title: def.label, items, facts };
 }
@@ -598,7 +746,7 @@ function selectTool(type: PartType | null) {
   }
   tool = type;
   if (type) {
-    selectedId = null;
+    clearSelection();
     ui.showPartInfo(type);
     if (!PART_DEFS[type].rotatable) toolAngle = 0;
   }
@@ -648,12 +796,23 @@ function deleteById(id: number) {
   if (!part || part.locked) return;
   pushUndo();
   parts = parts.filter((p) => p.id !== id);
-  if (selectedId === id) selectedId = null;
+  if (selectedId === id) clearSelection();
   changed();
 }
 
 function deleteSelected() {
-  if (!playing && selectedId !== null) deleteById(selectedId);
+  if (playing) return;
+  if (selectedId !== null) {
+    deleteById(selectedId);
+    return;
+  }
+  const doomed = [...multi].filter((id) => parts.some((p) => p.id === id && !p.locked));
+  if (!doomed.length) return;
+  pushUndo();
+  parts = parts.filter((p) => !doomed.includes(p.id));
+  clearSelection();
+  ui.toast(`Removed ${doomed.length} parts.`);
+  changed();
 }
 
 function undo() {
@@ -661,7 +820,7 @@ function undo() {
   const prev = undoStack.pop();
   if (!prev) return;
   parts = prev;
-  selectedId = null;
+  clearSelection();
   changed();
 }
 
@@ -695,6 +854,10 @@ function positionPart(p: PlacedPart, x: number, y: number): boolean {
 const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 
 function placeAt(type: PartType, x: number, y: number) {
+  if (type === 'rope') {
+    ropeClick(x, y);
+    return;
+  }
   if (type === 'string') {
     stringClick(x, y);
     return;
@@ -732,14 +895,22 @@ function updateCursor() {
     if (drag) cursor = 'grabbing';
     else if (hoverId !== undefined) cursor = parts.find((p) => p.id === hoverId)?.locked ? 'not-allowed' : 'grab';
     else if (tool) cursor = 'copy';
-    else if (view.z > 1) cursor = 'grab';
+    else if (selectMode === 'pan' || view.z > 1) cursor = 'grab';
+    else cursor = 'crosshair';
   }
-  if (pan?.moved && view.z > 1) cursor = 'grabbing';
+  if (pan?.moved && !pan.select && view.z > 1) cursor = 'grabbing';
   canvas.style.cursor = cursor;
 }
 
 /** Cancel a part drag (used when a second finger turns it into a pinch). */
 function cancelDrag() {
+  if (groupDrag) {
+    if (groupDrag.moved) {
+      parts = groupDrag.before;
+      rebuild();
+    }
+    groupDrag = null;
+  }
   if (!drag) return;
   if (drag.moved) {
     parts = drag.before;
@@ -748,7 +919,23 @@ function cancelDrag() {
   drag = null;
 }
 
+function setSelectMode(mode: 'select' | 'pan') {
+  selectMode = mode;
+  document.getElementById('mode-select')?.classList.toggle('on', mode === 'select');
+  document.getElementById('mode-pan')?.classList.toggle('on', mode === 'pan');
+  updateCursor();
+}
+document.getElementById('mode-select')?.addEventListener('click', () => setSelectMode('select'));
+document.getElementById('mode-pan')?.addEventListener('click', () => setSelectMode('pan'));
+
 canvas.addEventListener('pointerdown', (e) => {
+  if (e.button === 1) {
+    // Middle mouse button always pans the view.
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    pan = { x0: e.clientX, y0: e.clientY, cx0: view.cx, cy0: view.cy, moved: false, lockedHit: false, select: false, shift: false };
+    return;
+  }
   if (e.button !== 0) return;
   e.preventDefault();
   canvas.setPointerCapture(e.pointerId);
@@ -768,8 +955,9 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   const p = worldPoint(e.clientX, e.clientY);
-  const startPan = (lockedHit: boolean) => {
-    pan = { x0: e.clientX, y0: e.clientY, cx0: view.cx, cy0: view.cy, moved: false, lockedHit };
+  const startPan = (lockedHit: boolean, select = false) => {
+    pan = { x0: e.clientX, y0: e.clientY, cx0: view.cx, cy0: view.cy, moved: false, lockedHit, select, shift: e.shiftKey };
+    marquee = select ? { x0: p.x, y0: p.y, x1: p.x, y1: p.y } : null;
   };
 
   // While the machine runs you can still look around.
@@ -780,6 +968,12 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   const touch = e.pointerType === 'touch';
+  if (tool === 'rope') {
+    ropeClick(p.x, p.y, touch);
+    refreshUI();
+    updateCursor();
+    return;
+  }
   if (tool === 'string') {
     stringClick(p.x, p.y, touch);
     refreshUI();
@@ -791,10 +985,28 @@ canvas.addEventListener('pointerdown', (e) => {
   const tolerance = (tool ? (touch ? 8 : 3) : touch ? 26 : 16) / view.z;
   const ownId = sim.partNear(p.x, p.y, tolerance, ownParts);
 
-  if (ownId !== undefined) {
+  if (ownId !== undefined && e.shiftKey && !tool) {
+    // Shift+click adds a part to the selection, or takes it out again.
+    const part = parts.find((q) => q.id === ownId)!;
+    if (movable(part)) {
+      const now = new Set(currentSelection());
+      if (now.has(ownId)) now.delete(ownId);
+      else now.add(ownId);
+      setSelection([...now]);
+      if (now.size > 1) ui.toast(`${now.size} parts selected. Drag one to move them all, Delete to remove.`);
+    }
+  } else if (ownId !== undefined && multi.size > 1 && multi.has(ownId)) {
+    // Grab any part of a selected group and the whole group moves.
+    const origins = new Map<number, { x: number; y: number }>();
+    for (const id of multi) {
+      const q = parts.find((r) => r.id === id);
+      if (q) origins.set(id, { x: q.x, y: q.y });
+    }
+    groupDrag = { start: { x: p.x, y: p.y }, origins, dx: 0, dy: 0, moved: false, before: clone(parts) };
+  } else if (ownId !== undefined) {
     const part = parts.find((q) => q.id === ownId)!;
     tool = null;
-    selectedId = part.id;
+    setSelection([part.id]);
     // Strings follow their gears, so they can be selected but not dragged.
     if (!PART_DEFS[part.type].anchored) drag = { id: part.id, dx: part.x - p.x, dy: part.y - p.y, moved: false, before: clone(parts) };
     ui.showPartInfo(part.type);
@@ -806,7 +1018,7 @@ canvas.addEventListener('pointerdown', (e) => {
   } else {
     // Empty space (or a puzzle part): drag to pan the view, tap to deselect.
     const lockedId = sim.partNear(p.x, p.y, tolerance, (q) => !!q.locked);
-    startPan(lockedId !== undefined);
+    startPan(lockedId !== undefined, selectMode === 'select');
   }
   refreshUI();
   updateCursor();
@@ -839,7 +1051,12 @@ canvas.addEventListener('pointermove', (e) => {
     const dx = e.clientX - pan.x0;
     const dy = e.clientY - pan.y0;
     if (!pan.moved && Math.hypot(dx, dy) > 5) pan.moved = true;
-    if (pan.moved && view.z > 1) {
+    if (pan.select) {
+      if (marquee) {
+        marquee.x1 = p.x;
+        marquee.y1 = p.y;
+      }
+    } else if (pan.moved && view.z > 1) {
       const rect = canvas.getBoundingClientRect();
       view.cx = pan.cx0 - (dx / rect.width) * (WORLD_W / view.z);
       view.cy = pan.cy0 - (dy / rect.height) * (WORLD_H / view.z);
@@ -851,7 +1068,19 @@ canvas.addEventListener('pointermove', (e) => {
   }
 
   if (playing) return;
-  if (drag) {
+  if (groupDrag) {
+    const g = groupDrag;
+    const dx = snap(p.x - g.start.x);
+    const dy = snap(p.y - g.start.y);
+    if ((dx !== g.dx || dy !== g.dy) && groupFits(multi, g.origins, dx, dy)) {
+      if (!g.moved) updateToolbarHidden();
+      g.dx = dx;
+      g.dy = dy;
+      g.moved = true;
+      moveGroup(multi, g.origins, dx, dy);
+      rebuild();
+    }
+  } else if (drag) {
     const part = parts.find((q) => q.id === drag!.id);
     if (!part) return;
     const oldX = part.x;
@@ -878,9 +1107,24 @@ function endPointer(e: PointerEvent) {
   if (pan) {
     const p = pan;
     pan = null;
-    if (!p.moved && playing) ui.toast('Press Stop to change your machine.');
+    const box = marquee;
+    marquee = null;
+    if (p.select && p.moved && box && !playing) {
+      // A box was dragged over the empty board: select every part of yours it touches.
+      const x0 = Math.min(box.x0, box.x1), x1 = Math.max(box.x0, box.x1);
+      const y0 = Math.min(box.y0, box.y1), y1 = Math.max(box.y0, box.y1);
+      const hit = parts.filter((q) => {
+        if (!movable(q)) return false;
+        const b = boundsOf(q.id);
+        return b.x1 >= x0 && b.x0 <= x1 && b.y1 >= y0 && b.y0 <= y1;
+      }).map((q) => q.id);
+      const ids = p.shift ? [...new Set([...currentSelection(), ...hit])] : hit;
+      setSelection(ids);
+      if (ids.length > 1) ui.toast(`${ids.length} parts selected. Drag one to move them all, Delete to remove.`);
+      refreshUI();
+    } else if (!p.moved && playing) ui.toast('Press Stop to change your machine.');
     else if (!p.moved) {
-      selectedId = null;
+      clearSelection();
       if (p.lockedHit) ui.toast('That part belongs to the puzzle, so it stays put.');
       refreshUI();
     }
@@ -890,6 +1134,16 @@ function endPointer(e: PointerEvent) {
 }
 
 function endDrag() {
+  if (groupDrag) {
+    if (groupDrag.moved) {
+      pushUndo(groupDrag.before);
+      persistSandbox();
+    }
+    groupDrag = null;
+    refreshUI();
+    updateCursor();
+    return;
+  }
   if (!drag) return;
   if (drag.moved) {
     pushUndo(drag.before);
@@ -913,7 +1167,7 @@ window.addEventListener('pointermove', (e) => {
   if (!paletteDrag.active && Math.hypot(e.clientX - paletteDrag.x0, e.clientY - paletteDrag.y0) > 6) {
     paletteDrag.active = true;
     tool = paletteDrag.type;
-    selectedId = null;
+    clearSelection();
     refreshUI();
   }
   if (paletteDrag.active) {
@@ -931,7 +1185,7 @@ window.addEventListener('pointerup', (e) => {
   const p = worldPoint(e.clientX, e.clientY);
   if (p.inside && !playing) {
     placeAt(pd.type, p.x, p.y);
-    if (!(pd.type === 'string' && stringFrom !== null)) tool = null;
+    if (!((pd.type === 'string' && stringFrom !== null) || (pd.type === 'rope' && ropePicks.length > 0))) tool = null;
   }
   refreshUI();
 });
@@ -976,6 +1230,15 @@ window.addEventListener('keydown', (e) => {
   if (target && (target.tagName === 'TEXTAREA' || (target as HTMLInputElement).type === 'text')) return;
   if (target && /^(INPUT|SELECT)$/.test(target.tagName) && e.code !== 'Space') return;
 
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a' && !playing) {
+    e.preventDefault();
+    const all = parts.filter(movable).map((q) => q.id);
+    setSelection(all);
+    if (all.length > 1) ui.toast(`${all.length} parts selected. Drag one to move them all, Delete to remove.`);
+    refreshUI();
+    return;
+  }
+
   if (e.code === 'Space') {
     e.preventDefault();
     if (playing) stop();
@@ -1000,8 +1263,22 @@ window.addEventListener('keydown', (e) => {
     resetZoom();
   } else if (e.key === 'Escape') {
     tool = null;
-    selectedId = null;
+    clearSelection();
     refreshUI();
+  } else if (e.key.startsWith('Arrow') && multi.size > 1 && !playing) {
+    e.preventDefault();
+    const d = { ArrowLeft: [-GRID, 0], ArrowRight: [GRID, 0], ArrowUp: [0, -GRID], ArrowDown: [0, GRID] }[e.key] ?? [0, 0];
+    const origins = new Map<number, { x: number; y: number }>();
+    for (const id of multi) {
+      const q = parts.find((r) => r.id === id);
+      if (q) origins.set(id, { x: q.x, y: q.y });
+    }
+    if (groupFits(multi, origins, d[0], d[1])) {
+      const before = clone(parts);
+      moveGroup(multi, origins, d[0], d[1]);
+      pushUndo(before);
+      changed();
+    }
   } else if (e.key.startsWith('Arrow')) {
     const sel = selectedPart();
     if (!sel || sel.locked || playing || PART_DEFS[sel.type].anchored) return;
@@ -1072,7 +1349,7 @@ function render() {
 
   // Ghost of the part being placed: show where it will go (and gear snapping).
   const ghostBodies = (() => {
-    if (playing || !tool || tool === 'string' || !hover) return null;
+    if (playing || !tool || tool === 'string' || tool === 'rope' || !hover) return null;
     const def = PART_DEFS[tool];
     const ghost: PlacedPart = { id: -1, type: tool, x: 0, y: 0, angle: def.rotatable ? toolAngle : 0, power: 2 };
     if (!positionPart(ghost, hover.x, hover.y)) return null;
@@ -1086,9 +1363,51 @@ function render() {
   drawBodies(ctx, solids, state);
   for (const b of solids) drawDecoration(ctx, b, state);
   for (const s of parts) if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
+  for (const r of parts) {
+    if (r.type !== 'rope' || !r.link) continue;
+    const pa = parts.find((q) => q.id === r.link!.a);
+    const pb = parts.find((q) => q.id === r.link!.b);
+    const pv = parts.find((q) => q.id === r.link!.via);
+    const ba = sim.bodiesOf(r.link.a)[0];
+    const bb = sim.bodiesOf(r.link.b)[0];
+    if (!pa || !pb || !pv || !ba || !bb) continue;
+    drawRope(
+      ctx,
+      { x: ba.position.x, top: ba.bounds.min.y },
+      { x: bb.position.x, top: bb.bounds.min.y },
+      pv,
+      pa.x <= pb.x,
+      propValue('rope', r.props, 'strands'),
+      !playing && r.id === selectedId,
+    );
+  }
 
   if (!playing) {
     drawGearLinks();
+
+    // Rope tool: ring the parts picked so far and follow the pointer.
+    if (tool === 'rope') {
+      ctx.save();
+      ctx.lineWidth = 4 / view.z;
+      ctx.strokeStyle = '#2f7df6';
+      let tip: PlacedPart | undefined;
+      for (const id of ropePicks) {
+        const g = parts.find((q) => q.id === id);
+        if (!g) continue;
+        tip = g;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, 24, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (tip && hover) {
+        ctx.setLineDash([7 / view.z, 6 / view.z]);
+        ctx.beginPath();
+        ctx.moveTo(tip.x, tip.y);
+        ctx.lineTo(hover.x, hover.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // String tool: show the first gear and a line following the pointer.
     if (tool === 'string' && hover) {
@@ -1124,6 +1443,29 @@ function render() {
         ctx.stroke();
         ctx.restore();
       }
+    }
+
+    if (marquee && pan?.select && pan.moved) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(47,125,246,0.12)';
+      ctx.strokeStyle = '#2f7df6';
+      ctx.lineWidth = 2 / view.z;
+      ctx.setLineDash([6 / view.z, 5 / view.z]);
+      const rx = Math.min(marquee.x0, marquee.x1), ry = Math.min(marquee.y0, marquee.y1);
+      ctx.fillRect(rx, ry, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+      ctx.strokeRect(rx, ry, Math.abs(marquee.x1 - marquee.x0), Math.abs(marquee.y1 - marquee.y0));
+      ctx.restore();
+    }
+
+    for (const id of multi) {
+      ctx.save();
+      ctx.lineWidth = 3 / view.z;
+      ctx.setLineDash([7 / view.z, 5 / view.z]);
+      ctx.lineDashOffset = -performance.now() / 40;
+      ctx.strokeStyle = '#2f7df6';
+      traceBodies(ctx, sim.bodiesOf(id));
+      ctx.stroke();
+      ctx.restore();
     }
 
     if (selectedId !== null) {

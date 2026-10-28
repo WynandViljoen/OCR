@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.2f
+- **Paddle gear is now a real gear**: a ball (or anything) hitting its paddles spins it, and any gears meshed or strung to it turn too. A free gear train shares one spin; friction slows it down. A jammed train does not turn.
+- **Select and move**: new Select / Pan switch under the board. Drag on empty space to draw a box, Shift+click adds or removes parts, Ctrl+A selects all. Drag any selected part to move the whole group; Delete, arrow keys and Esc work on the group. A group only moves if every part fits (no overlaps). Middle mouse button or Pan mode still pans.
+- **Pulley system**: new Crate (weight), Pulley and Rope tools. Rope: click the weight on one side, then a pulley, then the weight on the other side. Heavier side wins. The pulley's "Rope strands" slider (1 to 4) makes a block and tackle: N strands give N times the pulling force but N times the distance. The Tinker lab shows who wins and why. Crate weight and pulley friction are sliders too.
+- New `npm run check-ropes` (rope maths). Please re-run `npm run check-levels`, `check-belts` and `check-space`.
+- Not verified in the build sandbox: real Matter behaviour of the spinning paddle gear and ropes. Test in a browser.
+
 ## Modern TIM 0.2e
 - New **String** tool: click two gears and a string joins their centres. Both gears turn, even far apart. A straight string turns them the same way; press F to cross it and the second gear turns the opposite way. The second pulley can be made bigger or smaller (bigger = slower).
 - New **Tinker lab** card: select any part and change its numbers with sliders, each with a kid-friendly sentence and the science word. Ball and bowling ball: bounciness, weight, grip. Ramp and wall: grip, bounciness. Conveyor: belt speed. Motor gear: motor speed. Spring: strength. Domino and mouse: weight, grip, bounce. Seesaw and paddle wheel: weight, axle drag. Untouched parts behave exactly as before.
