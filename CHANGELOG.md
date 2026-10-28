@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.2i
+- Fixed level 7 "Big machine": its recorded solution failed on the real physics engine (found by the new Test all levels button). The two belts are re-laid end to end on the long wall and verified: all 7 levels now pass `check-levels` (solution solves, empty board does not). Note the level is sensitive: the spring must stay at x = 630 and the belts close to where they are.
+- Verified on real Matter 0.20 (not just maths): a rope over a pulley lifts the lighter weight, balanced weights stay put, a motor-lifted pulley raises hanging crates by its rail length, and a ball hitting the paddle gear spins it and a meshed gear the opposite way.
+
 ## Modern TIM 0.2h
 - **Pulley motor**: a Pulley now has a "Pulley motor" slider in the Tinker lab (Off / Lift up / Lower down), plus lift speed and rail length. When you press Start it slides along a dotted blue rail (arrow shows the way) and a rope over it drags the weights along. Off by default, so old builds behave the same.
 - **Tool categories** in the sandbox: Balls, Ramps and walls, Moving things, Dominoes and critters, Gears and strings, Pulleys and weights, Goals. Click a heading to fold it (remembered), or use the new "Find a part" box. Levels with few parts keep the flat list.

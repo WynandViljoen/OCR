@@ -6,6 +6,9 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+## Testing with real Matter (no npm needed)
+`git clone --depth 1 --branch 0.20.0 https://github.com/liabru/matter-js` then copy `build/matter.js` to `modern-tim/node_modules/matter-js/index.js` with a `package.json` (`main: index.js`). Then `npm run check-levels`, `check-belts`, `check-space` (footprints vs bodies), `check-ropes` all run for real. node_modules is git-ignored. v0.2i: all pass.
+
 ## Current features (v0.2h)
 - v0.2h: pulley `lift`/`liftSpeed`/`travel` props (world.ts `lifts`, `stepLifts()` runs before `stepRopes()`, rope anchors follow the pulley body); `PALETTE_GROUPS` in parts.ts + grouped palette/search in ui.ts (7+ parts); `src/game/selftest.ts` (used by check-levels and the Test all levels dialog); `Level.hints` + ghost of `solution`; `sound.ts` (WebAudio, `modern-tim:muted`), `confetti.ts`, `Simulation.onImpact`; phone CSS at the end of styles.css. Tracker event `hint` added (admin.php EVENTS). Still to do: pulley and paddle-gear levels (need real-physics verification).
 
