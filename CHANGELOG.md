@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.2j
+- **Two new levels** (verified on the real physics engine): **7 Spin it** (no motor: a heavy ball hits the left paddle gear and the spin must travel through a gear chain to the right paddle, which bats the ball into the basket; count the gears, an even number keeps the direction) and **8 Pulleys** (lift the crate up into an upside-down basket with a rope, a pulley and a heavier counterweight; try equal weights first, then the Tinker lab weight slider). Big machine is now level 9.
+- Free gear trains: a hit now gets a "light gear" boost (`FLYWHEEL_LEVERAGE` in world.ts) so a falling ball can really start a train. The old pooling treated gears as heavy solid discs, so almost nothing happened. Also fixed a feedback loop where the train's own turning was read back as a hit.
+- Level data can now name parts (`key`) and tie ropes and strings to them (`link`), and set Tinker-lab numbers (`props`). A level can use `goalTargets: ['crate']`; crates now record a path like balls do.
+- `scores.php` knows the new level ids (`spin`, `pulleys`): copy the new file to the server or the community boards will reject them.
+
 ## Modern TIM 0.2i
 - Fixed level 7 "Big machine": its recorded solution failed on the real physics engine (found by the new Test all levels button). The two belts are re-laid end to end on the long wall and verified: all 7 levels now pass `check-levels` (solution solves, empty board does not). Note the level is sensitive: the spring must stay at x = 630 and the belts close to where they are.
 - Verified on real Matter 0.20 (not just maths): a rope over a pulley lifts the lighter weight, balanced weights stay put, a motor-lifted pulley raises hanging crates by its rail length, and a ball hitting the paddle gear spins it and a meshed gear the opposite way.

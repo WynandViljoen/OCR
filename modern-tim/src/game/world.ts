@@ -77,6 +77,11 @@ interface RopeInfo {
 
 /** How quickly a free-spinning train loses speed (fraction per step), like a little friction in the axles. */
 const FLYWHEEL_DRAG = 0.004;
+/**
+ * A real toy gear is far lighter than the solid disc the physics engine models, so a hit on a free
+ * train (a ball landing on a paddle) is multiplied by this. 1 would be the engine's own heavy disc.
+ */
+const FLYWHEEL_LEVERAGE = 95;
 
 interface PivotInfo {
   body: Matter.Body;
@@ -252,7 +257,7 @@ export class Simulation {
 
     // Balls start their path where the player placed them.
     for (const body of Composite.allBodies(world)) {
-      if (body.label === 'ball' || body.label === 'heavyBall') {
+      if (body.label === 'ball' || body.label === 'heavyBall' || body.label === 'crate') {
         this.paths.set(body.id, { x: body.position.x, y: body.position.y, length: 0 });
       }
     }
@@ -382,15 +387,20 @@ export class Simulation {
    */
   private stepFlywheels() {
     for (const fw of this.flywheels) {
+      // The engine derives each gear's angular velocity from how far we turned it, so first take away the
+      // turning we asked for ourselves (factor * last omega). What is left was pushed by a collision.
       let push = 0;
       let stiffness = 0;
       for (const m of fw.members) {
         const inertia = m.pivot.body.inertia;
-        push += inertia * m.factor * Body.getAngularVelocity(m.pivot.body);
+        const hit = Body.getAngularVelocity(m.pivot.body) - m.factor * fw.omega;
+        push += inertia * m.factor * hit;
         stiffness += inertia * m.factor * m.factor;
       }
-      let omega = stiffness > 0 && Number.isFinite(stiffness) ? push / stiffness : 0;
-      omega *= 1 - FLYWHEEL_DRAG;
+      const kick = stiffness > 0 && Number.isFinite(stiffness) && Number.isFinite(push) ? (push / stiffness) * FLYWHEEL_LEVERAGE : 0;
+      let omega = (fw.omega + kick) * (1 - FLYWHEEL_DRAG);
+      if (!Number.isFinite(omega)) omega = 0;
+      omega = Math.max(-0.15, Math.min(0.15, omega));
       if (Math.abs(omega) < 1e-4) omega = 0;
       fw.omega = omega;
       fw.theta += omega;

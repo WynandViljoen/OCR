@@ -23,6 +23,12 @@ export interface LevelPart {
   power?: number;
   /** Pre-placed but the player may move/rotate/delete it. */
   movable?: boolean;
+  /** Tinker-lab numbers (for example a crate's weight). */
+  props?: Record<string, number>;
+  /** A name other parts of the same level can point at (see `link`). */
+  key?: string;
+  /** For a rope or string: the `key`s of the parts it joins (`via` is the pulley). */
+  link?: { a: string; b: string; via?: string };
 }
 
 export interface Science {
@@ -207,6 +213,63 @@ export const LEVELS: Level[] = [
     },
   },
   {
+    id: 'spin',
+    hints: [
+      "Anything that hits a paddle makes the gear turn. The falling ball is your motor this time.",
+      "Fill the gap between the two paddle gears. Every mesh flips the spin direction, so count the gears: the right paddle must turn the SAME way as the left one to bat its ball to the RIGHT.",
+    ],
+    name: 'Spin it',
+    goal: 'No motor! The heavy ball spins the left paddle gear. Pass the spin along so the right paddle bats the small ball into the basket.',
+    hasGoal: true,
+    fixed: [
+      { type: 'heavyBall', x: 126, y: 60 },
+      { type: 'paddleGear', x: 137, y: 296.2 },
+      { type: 'paddleGear', x: 430, y: 300 },
+      { type: 'wall', x: 430, y: 418, w: 260, h: 20 },
+      { type: 'ball', x: 430, y: 394 },
+      ...basketWithFunnel(700),
+    ],
+    inventory: { gear: 3, bigGear: 2 },
+    solution: [
+      { type: 'bigGear', x: 210.5, y: 234.5 },
+      { type: 'gear', x: 285.1, y: 174.0 },
+      { type: 'bigGear', x: 356.5, y: 238.3 },
+    ],
+    science: {
+      topic: 'Energy transfer',
+      text: 'A falling ball has energy from gravity. When it hits a paddle it hands some of that energy to the gear, and the gear train carries it to the other side. Machines pass energy along, they do not make it from nothing.',
+      tryThis: 'Try a chain with two big gears. Does the right paddle spin the same way or the opposite way? Why does an even number of gears give the same direction?',
+      learned: 'Energy can travel through a machine: falling ball, to gears, to a bat.',
+    },
+  },
+  {
+    id: 'pulleys',
+    hints: [
+      "A pulley turns a downward pull into an upward lift. The crate has to go UP into the upside-down basket.",
+      "Hang the pulley above the crate, a little to its right. Rope: click the crate on the floor, then the pulley, then your own crate. Then press Start. If nothing moves, click your crate and tinker with its weight.",
+    ],
+    name: 'Pulleys',
+    goal: 'Lift the heavy crate up into the upside-down basket. Hint: the rope needs a weight on the other end that wins.',
+    hasGoal: true,
+    goalTargets: ['crate'],
+    fixed: [
+      { type: 'crate', x: 250, y: 580, key: 'load' },
+      { type: 'basket', x: 250, y: 225, angle: 180 },
+    ],
+    inventory: { crate: 1, pulley: 1, rope: 1 },
+    solution: [
+      { type: 'pulley', x: 282, y: 40, key: 'pul' },
+      { type: 'crate', x: 306, y: 100, key: 'weight', props: { weight: 0.012 } },
+      { type: 'rope', x: 290, y: 300, link: { a: 'load', via: 'pul', b: 'weight' } },
+    ],
+    science: {
+      topic: 'Pulleys and balance',
+      text: 'A pulley changes the direction of a pull: pull down on one side and the other side goes up. Both sides feel the same rope tension, so the heavier side wins. To lift a load you need an effort that weighs MORE than the load, or a block and tackle with extra rope strands.',
+      tryThis: 'Start with a crate the same weight as the load. Does anything move? Now click your crate and drag its weight slider up. Try the strands slider on the rope too.',
+      learned: 'A pulley changes the direction of a force, and the heavier side wins the tug-of-war.',
+    },
+  },
+  {
     id: 'machine',
     hints: [
       "Break it into steps: up the hill, over the wall, into the basket.",
@@ -255,6 +318,7 @@ export const LEVELS: Level[] = [
 
 function toPlaced(p: LevelPart, id: number, locked: boolean): PlacedPart {
   return {
+    props: p.props ? { ...p.props } : undefined,
     id,
     type: p.type,
     x: p.x,
@@ -270,10 +334,32 @@ function toPlaced(p: LevelPart, id: number, locked: boolean): PlacedPart {
 
 /** Level fixed parts as placed parts (locked unless marked movable). */
 export function levelToParts(level: Level, nextId: () => number): PlacedPart[] {
-  return level.fixed.map((p) => toPlaced(p, nextId(), !p.movable));
+  const parts = level.fixed.map((p) => toPlaced(p, nextId(), !p.movable));
+  resolveLinks(level.fixed, parts, (k) => level.fixed.findIndex((p) => p.key === k) >= 0 ? parts[level.fixed.findIndex((p) => p.key === k)].id : undefined);
+  return parts;
+}
+
+/** Turn a level part's `link` (made of keys) into the ids of the placed parts. */
+function resolveLinks(source: LevelPart[], placed: PlacedPart[], idOf: (key: string) => number | undefined) {
+  source.forEach((p, i) => {
+    if (!p.link) return;
+    const a = idOf(p.link.a);
+    const b = idOf(p.link.b);
+    const via = p.link.via ? idOf(p.link.via) : undefined;
+    if (a !== undefined && b !== undefined) placed[i].link = via !== undefined ? { a, b, via } : { a, b };
+  });
 }
 
 /** The recorded solution as unlocked player parts. */
 export function solutionToParts(level: Level, nextId: () => number): PlacedPart[] {
-  return (level.solution ?? []).map((p) => toPlaced(p, nextId(), false));
+  const sol = level.solution ?? [];
+  const placed = sol.map((p) => toPlaced(p, nextId(), false));
+  // Fixed parts are numbered 1..n when a level loads, so a key can be looked up by its position.
+  resolveLinks(sol, placed, (k) => {
+    const f = level.fixed.findIndex((p) => p.key === k);
+    if (f >= 0) return f + 1;
+    const s = sol.findIndex((p) => p.key === k);
+    return s >= 0 ? placed[s].id : undefined;
+  });
+  return placed;
 }

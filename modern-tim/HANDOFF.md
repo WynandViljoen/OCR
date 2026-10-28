@@ -6,6 +6,8 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.2j: levels 7 "Spin it" (`spin`) and 8 "Pulleys" (`pulleys`), Big machine is 9. Level parts support `key`, `link`, `props`. FLYWHEEL_LEVERAGE 95 works across about 70 to 120 (tested); keep `check-levels` green when touching it. Big machine and Spin it are sensitive to exact positions.
+
 ## Testing with real Matter (no npm needed)
 `git clone --depth 1 --branch 0.20.0 https://github.com/liabru/matter-js` then copy `build/matter.js` to `modern-tim/node_modules/matter-js/index.js` with a `package.json` (`main: index.js`). Then `npm run check-levels`, `check-belts`, `check-space` (footprints vs bodies), `check-ropes` all run for real. node_modules is git-ignored. v0.2i: all pass.
 
