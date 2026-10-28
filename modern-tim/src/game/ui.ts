@@ -6,7 +6,7 @@
 import { PALETTE_ORDER, PART_DEFS, type PartType } from './parts';
 import type { Level } from './levels';
 import { drawThumbnail } from './draw';
-import { CATEGORIES, CATEGORY_INFO, formatValue, sanitizeName, type Board } from './profile';
+import { BOARD_SIZE, CATEGORIES, CATEGORY_INFO, emptyBoard, formatValue, sanitizeName, type Board } from './profile';
 
 export interface UIHandlers {
   onPaletteClick(type: PartType): void;
@@ -30,6 +30,16 @@ export interface UIHandlers {
 }
 
 /** One line on the Solved card: how this run did in one score category. */
+export interface ScoresView {
+  level: Level;
+  /** This browser's boards for the level, or null for levels without a goal. */
+  mine: Board | null;
+  /** The shared board from the server, if it has been fetched. */
+  community: Board | null;
+  status: 'loading' | 'ok' | 'offline';
+  player: string;
+}
+
 export interface SolvedRow {
   label: string;
   value: string;
@@ -71,6 +81,7 @@ export class UI {
 
   constructor(private handlers: UIHandlers) {
     this.setupGate();
+    this.setupScoresTabs();
     this.runBtn.addEventListener('click', () => handlers.onToggleRun());
     $('btn-reset').addEventListener('click', () => handlers.onReset());
     this.undoBtn.addEventListener('click', () => handlers.onUndo());
@@ -294,18 +305,73 @@ export class UI {
   // High scores
   // -------------------------------------------------------------------------
 
-  /** Fill the High scores card for the current level. `board` is null for levels without a goal. */
-  setScores(level: Level, board: Board | null, player: string) {
+  private scoresView: ScoresView | null = null;
+  private scoresTab: 'community' | 'mine' = 'community';
+
+  /** Fill the High scores card for the current level. `view.mine` is null for levels without a goal. */
+  setScores(view: ScoresView) {
+    this.scoresView = view;
+    this.renderScores();
+  }
+
+  private setupScoresTabs() {
+    for (const tab of ['community', 'mine'] as const) {
+      $(`tab-${tab}`).addEventListener('click', () => {
+        this.scoresTab = tab;
+        this.renderScores();
+      });
+    }
+  }
+
+  private renderScores() {
+    const view = this.scoresView;
+    if (!view) return;
+    const { level, mine, community, status, player } = view;
     $('scores-level').textContent = level.hasGoal ? level.name : 'Sandbox';
+    for (const tab of ['community', 'mine'] as const) {
+      const btn = $(`tab-${tab}`);
+      const on = this.scoresTab === tab;
+      btn.setAttribute('aria-selected', String(on));
+      btn.classList.toggle('on', on);
+    }
+    $('scores-tabs').hidden = !mine;
     const body = $('scores-body');
     body.innerHTML = '';
-    if (!board) {
+    const note = (text: string) => {
       const p = document.createElement('p');
       p.className = 'scores-empty';
-      p.textContent = 'The sandbox has no goal, so there are no scores here. Build anything you like.';
+      p.textContent = text;
       body.appendChild(p);
+    };
+    if (!mine) {
+      note('The sandbox has no goal, so there are no scores here. Build anything you like.');
       return;
     }
+
+    if (this.scoresTab === 'mine') {
+      for (const category of CATEGORIES) {
+        const best = mine[category].find((e) => e.name.toLowerCase() === player.toLowerCase());
+        const row = document.createElement('div');
+        row.className = 'mine-row';
+        const lab = document.createElement('span');
+        lab.textContent = CATEGORY_INFO[category].label;
+        const val = document.createElement('span');
+        val.className = 'val';
+        val.textContent = best ? formatValue(category, best.value) : 'not yet';
+        if (!best) val.classList.add('none');
+        row.append(lab, val);
+        body.appendChild(row);
+      }
+      note(player ? `Your best on this level, ${player}. Stored in this browser.` : 'Enter a name to start keeping scores.');
+      return;
+    }
+
+    if (status === 'loading' && !community) note('Loading community scores...');
+    if (status === 'offline' && !community) {
+      note('Community scores are not reachable right now. Your own scores still count and will be sent when the connection is back.');
+      return;
+    }
+    const board = community ?? emptyBoard();
     for (const category of CATEGORIES) {
       const info = CATEGORY_INFO[category];
       const section = document.createElement('section');
@@ -314,7 +380,7 @@ export class UI {
       h.textContent = info.label;
       h.title = info.blurb;
       section.appendChild(h);
-      const rows = board[category].slice(0, 3);
+      const rows = board[category].slice(0, BOARD_SIZE);
       if (!rows.length) {
         const p = document.createElement('p');
         p.className = 'scores-empty';
@@ -338,6 +404,7 @@ export class UI {
       }
       body.appendChild(section);
     }
+    if (status === 'offline') note('Showing the last community scores. The server could not be reached just now.');
   }
 
   /** The three score lines on the Solved card. */

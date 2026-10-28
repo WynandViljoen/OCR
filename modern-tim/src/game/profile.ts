@@ -177,30 +177,34 @@ export function savePlayer(name: string, store: StoreLike | null = browserStore(
   }
 }
 
+/** Turn untrusted data (storage or the server) into a clean board: bad rows dropped, sorted, capped. */
+export function parseBoard(b: unknown): Board {
+  const board = emptyBoard();
+  const src = (b && typeof b === 'object' ? b : {}) as Partial<Record<Category, unknown>>;
+  for (const category of CATEGORIES) {
+    const rows = Array.isArray(src[category]) ? (src[category] as unknown[]) : [];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const e = row as Partial<ScoreEntry> | null;
+      const name = sanitizeName(typeof e?.name === 'string' ? e.name : '');
+      const value = typeof e?.value === 'number' ? e.value : NaN;
+      if (!name || !Number.isFinite(value) || value < 0 || value > 100000 || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      board[category].push({ name, value, at: Number.isFinite(e?.at) ? (e!.at as number) : 0 });
+    }
+    sortBoard(category, board[category]);
+    board[category].length = Math.min(board[category].length, BOARD_SIZE);
+  }
+  return board;
+}
+
 /** Read the boards back, dropping anything that does not look like a real score. */
 export function loadScores(store: StoreLike | null = browserStore()): AllScores {
   const out: AllScores = {};
   try {
     const raw = JSON.parse(store?.getItem(SCORES_KEY) ?? '{}');
     if (!raw || typeof raw !== 'object') return out;
-    for (const [levelId, b] of Object.entries(raw as Record<string, Partial<Record<Category, unknown>>>)) {
-      const board = emptyBoard();
-      for (const category of CATEGORIES) {
-        const rows = Array.isArray(b?.[category]) ? (b[category] as unknown[]) : [];
-        const seen = new Set<string>();
-        for (const row of rows) {
-          const e = row as Partial<ScoreEntry> | null;
-          const name = sanitizeName(typeof e?.name === 'string' ? e.name : '');
-          const value = typeof e?.value === 'number' ? e.value : NaN;
-          if (!name || !Number.isFinite(value) || value < 0 || value > 100000 || seen.has(name.toLowerCase())) continue;
-          seen.add(name.toLowerCase());
-          board[category].push({ name, value, at: Number.isFinite(e?.at) ? (e!.at as number) : 0 });
-        }
-        sortBoard(category, board[category]);
-        board[category].length = Math.min(board[category].length, BOARD_SIZE);
-      }
-      out[levelId] = board;
-    }
+    for (const [levelId, b] of Object.entries(raw as Record<string, unknown>)) out[levelId] = parseBoard(b);
   } catch {
     return {};
   }

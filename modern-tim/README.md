@@ -38,6 +38,11 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 ### Solid space
 Parts cannot overlap. Drop, drag, rotate or nudge one into another and it slides to the nearest free grid spot; with no room within reach it stays put. The rules live in `src/game/space.ts` (pure geometry), checked by `npm run check-space`.
 
+### Community scores
+The High scores card has two tabs: **Community** (shared by everyone, kept by `scores.php` on the server) and **My best** (this player, stored in this browser).
+Finished runs are posted to `scores.php`; if the server can't be reached they wait in localStorage (`modern-tim:pending`) and are sent next visit.
+Names are not passwords: anyone can type any name, and the server only rejects impossible numbers. `npm run check-community` tests the client with a fake server.
+
 ### Name and high scores
 - The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
 - Every level has five boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) **Fastest solve** and **Slowest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
@@ -109,11 +114,13 @@ src/game/world.ts        Simulation: Matter engine, conveyors, springs, pivots, 
 src/game/draw.ts         custom canvas drawing for parts, thumbnails, arrows, paper
 src/game/levels.ts       level data and science text
 src/game/space.ts        solid-space rule: footprints, overlap test, nearest free spot
+src/game/community.ts  talks to scores.php (fetch board, send run, retry later)
 src/game/version.ts      the on-screen version number (bump each release)
 src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)
 scripts/check-space.ts  solid-space check (npm run check-space)
+scripts/check-community.ts  community client check (npm run check-community)
 scripts/check-scores.ts  high-score rules check (npm run check-scores)
 scripts/build-single.mjs bundle into one HTML file
 ```

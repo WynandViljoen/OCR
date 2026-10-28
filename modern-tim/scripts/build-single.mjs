@@ -8,7 +8,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = process.argv[2] ?? path.join(root, 'dist-single', 'modern-tim.html');
 const matterArg = process.argv.find((a) => a.startsWith('--matter='));
-const order = ['game/parts.ts', 'game/mechanics.ts', 'game/levels.ts', 'game/version.ts', 'game/space.ts', 'game/profile.ts', 'game/draw.ts', 'game/world.ts', 'game/ui.ts', 'main.ts'];
+const order = ['game/parts.ts', 'game/mechanics.ts', 'game/levels.ts', 'game/version.ts', 'game/space.ts', 'game/profile.ts', 'game/community.ts', 'game/draw.ts', 'game/world.ts', 'game/ui.ts', 'main.ts'];
 
 let js = '';
 for (const f of order) {
@@ -16,7 +16,7 @@ for (const f of order) {
   code = stripTypeScriptTypes(code, { mode: 'transform' });
   code = code.replace(/^import[\s\S]*?;\s*$/gm, '');
   const names = [];
-  code = code.replace(/^export\s+(const|function|class|let)\s+(\w+)/gm, (_m, kw, n) => {
+  code = code.replace(/^export\s+(const|function|async\s+function|class|let)\s+(\w+)/gm, (_m, kw, n) => {
     names.push(n);
     return `${kw} ${n}`;
   });

@@ -13,6 +13,13 @@ This repo replaced the earlier Snap OCR page (its history is still in git).
 | `.cpanel.yml` | cPanel deploy settings. Leave as is. |
 | `modern-tim/` | The full project source (Vite + TypeScript + Matter.js): `src/`, `scripts/`, its own `README.md` and `HANDOFF.md`. `modern-tim/modern-tim.html` is the same game without the page wrapper (for pasting into viewers that add their own). |
 
+## Community scores (scores.php)
+`scores.php` is the only server code. It must sit in the same web folder as `index.html` (for example `public_html/ocr/`).
+Add it to the deploy copy step, for example the cron command ends with
+`... && cp index.html scores.php /home/<user>/public_html/ocr/` (or upload it once in cPanel File Manager).
+It creates `scores-data.json` beside itself; copying `scores.php` again never touches that data. Without it the game still works with
+scores kept in each browser only.
+
 ## Updating the live page
 
 The root `index.html` is generated from the source. After any change in `modern-tim/src/`, rebuild it:

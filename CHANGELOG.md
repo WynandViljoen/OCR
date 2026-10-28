@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.2d
+- Community high scores shared by everyone who plays on the server, next to a personal "My best" tab. Both are on the High scores card; the Solved card shows your rank on each.
+- New root file `scores.php` keeps the shared boards in `scores-data.json` (same top-5 rules). It must be copied to the web folder next to `index.html` (see README).
+- If the server cannot be reached (or `scores.php` is not installed yet), the game works as before and waiting scores are sent next visit.
+- Build script now supports `export async function`.
+
 ## Modern TIM 0.2c
 - Solid space: parts can no longer overlap. A part dropped, dragged, rotated or nudged into another is moved to the nearest free spot; if there is no room it stays where it was and a message says so.
 - Touching is fine (a ball resting on a ramp, meshed gears). The green goal zone of the basket is empty air; its walls are solid. Spinning paddles and gear teeth are not reserved while they turn.

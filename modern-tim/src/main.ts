@@ -16,6 +16,7 @@ import { snapGear } from './game/mechanics';
 import { findFreeSpot } from './game/space';
 import { drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type Remaining, type SolvedRow } from './game/ui';
+import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -28,6 +29,7 @@ import {
   saveScores,
   savePlayer,
   type AllScores,
+  type Board,
   type RunResult,
 } from './game/profile';
 
@@ -154,7 +156,29 @@ sim.onSolved = (info) => {
     saveScores(allScores);
     refreshScores();
   }
-  ui.setSolvedScores(describeRun(run, results));
+  ui.setSolvedScores(describeRun(run, results, null));
+
+  // Send it to the community board. If that fails, keep it and try again next visit.
+  if (player && level.hasGoal) {
+    const id = level.id;
+    const name = player;
+    void submitRun(id, name, run).then((sub) => {
+      if (!sub) {
+        savePending([...loadPending(), { levelId: id, name, run }]);
+        if (level.id === id) {
+          communityStatus = 'offline';
+          refreshScores();
+        }
+        return;
+      }
+      community[id] = sub.board;
+      if (level.id === id) {
+        communityStatus = 'ok';
+        refreshScores();
+        if (sim.solved) ui.setSolvedScores(describeRun(run, results, sub.results));
+      }
+    });
+  }
 
   window.setTimeout(() => {
     if (playing && sim.solved) ui.showSolved(true);
@@ -168,28 +192,58 @@ function spareTools(): number {
   return total;
 }
 
-/** The lines shown on the Solved card, one per score category. */
-function describeRun(run: { pathMeters: number; seconds: number; spare: number }, results: RunResult[]): SolvedRow[] {
+/** The lines shown on the Solved card, one per score category: your own best, then the community board. */
+function describeRun(
+  run: { pathMeters: number; seconds: number; spare: number },
+  results: RunResult[],
+  shared: Submission['results'] | null,
+): SolvedRow[] {
   return results.map((r) => {
-    let note = '';
+    const notes: string[] = [];
     let kind: SolvedRow['kind'] = 'plain';
-    if (r.record) {
-      note = 'New record!';
-      kind = 'record';
-    } else if (r.improved && r.rank !== null) {
-      note = `New personal best, #${r.rank} on the board`;
+    if (r.improved) {
+      notes.push('New personal best!');
       kind = 'board';
-    } else if (r.rank !== null) {
-      note = `Your best is #${r.rank} on the board`;
     } else if (r.category === 'spare' && run.spare === 0) {
-      note = 'Try solving it with a part to spare';
+      notes.push('Try solving it with a part to spare');
     }
-    return { label: CATEGORY_INFO[r.category].label, value: formatValue(r.category, r.value), note, kind };
+    const c = shared?.[r.category];
+    if (c?.record) {
+      notes.push('New community record!');
+      kind = 'record';
+    } else if (c?.rank) {
+      notes.push(`#${c.rank} in the community`);
+      if (kind === 'plain') kind = 'board';
+    }
+    return { label: CATEGORY_INFO[r.category].label, value: formatValue(r.category, r.value), note: notes.join(' · '), kind };
   });
 }
 
+/** Shared boards fetched from the server this visit, and whether the last try worked. */
+const community: Record<string, Board> = {};
+let communityStatus: 'loading' | 'ok' | 'offline' = 'loading';
+
 function refreshScores() {
-  ui.setScores(level, level.hasGoal ? (allScores[level.id] ?? emptyBoard()) : null, player);
+  ui.setScores({
+    level,
+    mine: level.hasGoal ? (allScores[level.id] ?? emptyBoard()) : null,
+    community: community[level.id] ?? null,
+    status: communityStatus,
+    player,
+  });
+}
+
+/** Fetch the shared board for the level on screen. */
+function loadCommunity() {
+  if (!level.hasGoal) return;
+  const id = level.id;
+  communityStatus = 'loading';
+  void fetchCommunity(id).then((board) => {
+    if (board) community[id] = board;
+    if (level.id !== id) return;
+    communityStatus = board ? 'ok' : 'offline';
+    refreshScores();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +430,7 @@ function loadLevel(index: number, restore: boolean) {
   ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
   ui.setSolvedScores([]);
   refreshScores();
+  loadCommunity();
   ui.setPalette(remaining());
   ui.setRunning(false);
   ui.showSolved(false);
@@ -971,6 +1026,9 @@ loadLevel(0, true);
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
 const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
+void flushPending().then((n) => {
+  if (n > 0) loadCommunity();
+});
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();

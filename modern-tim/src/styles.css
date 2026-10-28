@@ -524,3 +524,11 @@ kbd {
   .logo, .solved-card, .gate-card { animation: none; }
   .btn, .toast { transition: none; }
 }
+
+.tabs { display: flex; gap: 6px; margin: 2px 0 4px; }
+.tabs[hidden] { display: none; }
+.tab { font: inherit; font-size: 0.8rem; font-weight: 800; padding: 3px 12px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+.tab.on { background: var(--ink); color: #fff; }
+.mine-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: #eef2ff; margin-bottom: 3px; }
+.mine-row .val { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
+.mine-row .val.none { color: var(--muted); font-weight: 600; }

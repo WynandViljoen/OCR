@@ -10,7 +10,8 @@
     "check-levels": "tsx scripts/check-levels.ts",
     "build:single": "node scripts/build-single.mjs",
     "check-scores": "tsx scripts/check-scores.ts",
-    "check-space": "tsx scripts/check-space.ts"
+    "check-space": "tsx scripts/check-space.ts",
+    "check-community": "tsx scripts/check-community.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0"
