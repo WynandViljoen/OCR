@@ -6,7 +6,10 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
-## Current features (v0.2f)
+## Current features (v0.2g)
+- v0.2g: `../admin.php` (tracking API `?api=track` + dashboard) and `src/game/tracker.ts` (device id in localStorage `modern-tim:device` + cookie `tim_device`, events visit/name/level/play/solve). Data in `tim-data/`. Password is a bcrypt hash in `ADMIN_HASH`. Tested locally with `php -S`; not tested on the real host.
+
+## Earlier (v0.2f)
 - v0.2f: free gear trains (`GearTrain.free`, `Flywheel` in world.ts pools angular velocity, drag 0.004) so a ball on the paddle gear drives meshed or strung gears; Select/Pan mode with marquee and group drag in main.ts (`multi`, `groupDrag`, `groupFits`); pulley system: crate, pulley (static circle r24, `PULLEY_RADIUS`), rope (`link {a,via,b}`, `strands` prop; maths in `src/game/rope.ts`, applied by `stepRopes()` in world.ts). Unverified against real Matter: flywheel and rope physics. Run `npm run check-levels`, `check-ropes`, `check-belts`, `check-space`.
 - Edit mode / play mode, Start/Stop/Reset/Undo, keyboard shortcuts (see README).
 - Parts: ball, bowling ball, ramp, wall, conveyor (flip), spring (strength 1-3), domino, seesaw

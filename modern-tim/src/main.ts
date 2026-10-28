@@ -17,6 +17,7 @@ import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
 import { findFreeSpot, overlapsAny } from './game/space';
 import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
+import { track } from './game/tracker';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
@@ -146,11 +147,13 @@ const ui = new UI({
   onZoomReset: () => resetZoom(),
   onNameChosen: (name) => {
     const first = player === '';
+    const before = player;
     player = name;
     savePlayer(name);
     ui.setPlayer(name);
     ui.closeGate();
     refreshScores();
+    track('name', name, '', before && before !== name ? { from: before } : {});
     ui.toast(first ? `Hi, ${name}! Let's build a machine.` : `Now playing as ${name}.`);
   },
 });
@@ -169,6 +172,7 @@ sim.onSolved = (info) => {
     refreshScores();
   }
   ui.setSolvedScores(describeRun(run, results, null));
+  track('solve', player, level.id, { seconds: run.seconds });
 
   // Send it to the community board. If that fails, keep it and try again next visit.
   if (player && level.hasGoal) {
@@ -557,6 +561,7 @@ function updateToolbar() {
 function loadLevel(index: number, restore: boolean) {
   levelIndex = index;
   level = LEVELS[index];
+  if (booted) track('level', player, level.id);
   idCounter = 1;
   parts = levelToParts(level, nextId);
   if (level.id === 'sandbox' && restore) parts.push(...restoreSandbox());
@@ -592,6 +597,7 @@ function loadLevel(index: number, restore: boolean) {
 function start() {
   if (playing) return;
   playing = true;
+  track('play', player, level.id);
   tool = null;
   clearSelection();
   drag = null;
@@ -1521,7 +1527,11 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame);
 
+let booted = false;
 loadLevel(0, true);
+booted = true;
+track('visit', player, level.id);
+track('level', player, level.id);
 
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
 const versionTag = document.getElementById('version-tag');

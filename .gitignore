@@ -1,3 +1,5 @@
 .DS_Store
 Thumbs.db
 *.log
+tim-data/
+scores-data.json

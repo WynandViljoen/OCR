@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.2g
+- New root file `admin.php`: the player tracking API plus a password-protected admin dashboard. Pages: **Players** (name, device id, browser/OS, visits, plays, solves, online dot), **Levels** (opened / Start pressed / solved, fastest solve) and **Log** (filter by name, level, event or device). Auto-refresh and JSON export included.
+- Every browser now gets a **device id** from the server: random and signed, so it cannot be edited or invented (a changed id is replaced). It is kept in localStorage, a cookie and an HttpOnly cookie. A player can still lose it by clearing site data or switching browser; no website can prevent that.
+- Logged events: visit, name chosen / changed, level opened, Start pressed, puzzle solved (with seconds), admin sign-in and failed sign-ins. IP addresses are not stored, only a short salted hash. Sign-in locks for 15 minutes after 5 wrong passwords.
+- Data lives in `tim-data/` next to `admin.php` (created automatically, closed to the web by `.htaccess`, git-ignored). The log rotates at about 1.5 MB.
+- Deploy: `admin.php` (and `scores.php`) must be copied next to `index.html`. The password hash is `ADMIN_HASH` at the top of `admin.php`.
+
 ## Modern TIM 0.2f
 - **Paddle gear is now a real gear**: a ball (or anything) hitting its paddles spins it, and any gears meshed or strung to it turn too. A free gear train shares one spin; friction slows it down. A jammed train does not turn.
 - **Select and move**: new Select / Pan switch under the board. Drag on empty space to draw a box, Shift+click adds or removes parts, Ctrl+A selects all. Drag any selected part to move the whole group; Delete, arrow keys and Esc work on the group. A group only moves if every part fits (no overlaps). Middle mouse button or Pan mode still pans.
