@@ -1,5 +1,8 @@
 # Changelog
 
+## Modern TIM 0.2k
+- **Portrait phone layout** reworked: a compact header (logo, name and version on one line, player chip beside it), one row of equal buttons (sound, Undo, Reset, Start), scrolling level chips, a one-line "turn your phone sideways" tip you can dismiss, the Select/Pan and zoom buttons moved to a row under the board so they never cover parts, and the Parts tray as one sideways-scrolling strip. Landscape is unchanged.
+
 ## Modern TIM 0.2j
 - **Two new levels** (verified on the real physics engine): **7 Spin it** (no motor: a heavy ball hits the left paddle gear and the spin must travel through a gear chain to the right paddle, which bats the ball into the basket; count the gears, an even number keeps the direction) and **8 Pulleys** (lift the crate up into an upside-down basket with a rope, a pulley and a heavier counterweight; try equal weights first, then the Tinker lab weight slider). Big machine is now level 9.
 - Free gear trains: a hit now gets a "light gear" boost (`FLYWHEEL_LEVERAGE` in world.ts) so a falling ball can really start a train. The old pooling treated gears as heavy solid discs, so almost nothing happened. Also fixed a feedback loop where the train's own turning was read back as a hit.

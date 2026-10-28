@@ -611,6 +611,55 @@ kbd {
   .player-chip { max-width: 96px; overflow: hidden; text-overflow: ellipsis; }
 }
 
+/* ---------- phone, portrait ---------- */
+.rotate-tip { display: none; }
+.btn { white-space: nowrap; }
+@media (max-width: 600px) and (orientation: portrait) {
+  .topbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding-block: 8px;
+    align-items: center;
+  }
+  .brand { grid-column: 1 / 4; grid-row: 1; min-width: 0; gap: 8px; }
+  .brand-text { display: flex; flex-direction: row; align-items: baseline; gap: 6px; }
+  .brand h1 { font-size: 1rem; white-space: nowrap; }
+  .brand-text span { display: inline; font-size: 0.58rem; letter-spacing: 0.04em; white-space: nowrap; }
+  .logo { width: 30px; height: 30px; flex: none; }
+  .controls { display: contents; }
+  #player-chip { grid-column: 4; grid-row: 1; max-width: none; min-width: 0; padding: 5px 8px; overflow: hidden; text-overflow: ellipsis; }
+  #btn-sound { grid-column: 1; grid-row: 2; }
+  #btn-undo { grid-column: 2; grid-row: 2; }
+  #btn-reset { grid-column: 3; grid-row: 2; }
+  #btn-run { grid-column: 4; grid-row: 2; min-width: 0; }
+  #btn-sound, #btn-undo, #btn-reset, #btn-run { padding: 6px 4px; font-size: 0.88rem; width: 100%; }
+  .levels { grid-column: 1 / -1; grid-row: 3; order: 0; flex-basis: auto; min-width: 0; }
+  .brand-text > span:last-child { display: inline; }
+
+  .goal-bar { padding: 8px 10px; }
+  .goal-text { font-size: 0.95rem; }
+  .rotate-tip { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0; padding: 6px 10px; border-radius: 10px; background: var(--blue-soft, #e6efff); font-size: 0.82rem; font-weight: 700; }
+  .rotate-tip[hidden] { display: none; }
+  .rotate-tip button { border: 0; background: transparent; color: inherit; font-size: 1rem; min-width: 36px; min-height: 36px; cursor: pointer; }
+
+  /* Board controls: in a row just under the board, so they never hide any part of it. */
+  .board { overflow: visible; }
+  .stage-area { padding-bottom: 58px; }
+  .mode-controls { top: calc(100% + 12px); bottom: auto; left: 0; }
+  .zoom-controls { top: calc(100% + 12px); bottom: auto; right: 0; }
+  .mode-controls button { height: 34px; padding: 0 9px; font-size: 0.8rem; }
+  .zoom-controls button { height: 34px; min-width: 34px; }
+  .zoom-controls #zoom-reset { min-width: 48px; font-size: 0.78rem; }
+
+  /* Parts: one scrolling strip. */
+  .tray { padding: 10px; }
+  .palette:not(.grouped) { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
+  .palette:not(.grouped) .part-btn { flex: 0 0 92px; }
+  .tray-test { width: auto; padding: 6px 12px; font-size: 0.88rem; }
+  .part-info { display: none; }
+}
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -655,6 +704,10 @@ kbd {
             <button id="hint-btn" class="btn hint-btn" type="button" title="Stuck? Get a hint (H)">💡 Hint</button>
             <span id="status" class="status" data-kind="edit">Building</span>
           </div>
+          <p id="rotate-tip" class="rotate-tip" hidden>
+            <span>📱 Turn your phone sideways for a bigger board.</span>
+            <button id="rotate-tip-close" type="button" aria-label="Hide this tip">✕</button>
+          </p>
           <div id="stage-area" class="stage-area">
             <div id="board" class="board">
               <canvas id="canvas"></canvas>
@@ -2774,7 +2827,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2j';
+const VERSION = '0.2k';
 
 return { VERSION };
 })();
@@ -6820,6 +6873,18 @@ sim.onImpact = (speed, a, b)=>{
     if (!playing) return;
     playSound(a === 'ball' || b === 'ball' || a === 'heavyBall' || b === 'heavyBall' ? 'bounce' : 'thud', speed / 12);
 };
+const rotateTip = document.getElementById('rotate-tip');
+try {
+    rotateTip.hidden = window.localStorage.getItem('modern-tim:rotatetip') === '1';
+} catch  {
+    rotateTip.hidden = false;
+}
+document.getElementById('rotate-tip-close')?.addEventListener('click', ()=>{
+    rotateTip.hidden = true;
+    try {
+        window.localStorage.setItem('modern-tim:rotatetip', '1');
+    } catch  {}
+});
 const soundBtn = document.getElementById('btn-sound');
 const paintSound = ()=>{
     soundBtn.textContent = isMuted() ? '🔇' : '🔊';

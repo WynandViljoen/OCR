@@ -1595,6 +1595,22 @@ sim.onImpact = (speed, a, b) => {
   playSound(a === 'ball' || b === 'ball' || a === 'heavyBall' || b === 'heavyBall' ? 'bounce' : 'thud', speed / 12);
 };
 
+// Portrait-phone tip (CSS only shows it on narrow portrait screens).
+const rotateTip = document.getElementById('rotate-tip') as HTMLElement;
+try {
+  rotateTip.hidden = window.localStorage.getItem('modern-tim:rotatetip') === '1';
+} catch {
+  rotateTip.hidden = false;
+}
+document.getElementById('rotate-tip-close')?.addEventListener('click', () => {
+  rotateTip.hidden = true;
+  try {
+    window.localStorage.setItem('modern-tim:rotatetip', '1');
+  } catch {
+    /* ignore */
+  }
+});
+
 // Sound button.
 const soundBtn = document.getElementById('btn-sound') as HTMLButtonElement;
 const paintSound = () => {
