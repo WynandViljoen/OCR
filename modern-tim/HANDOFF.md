@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.2n: nine new levels (see Levels). All checked on the real Matter engine (`check-levels` and the in-game Test all levels dialog both pass). Rough robustness to placing parts a few pixels off (random nudges of 4 px / 2 degrees still solve): Over the Top 93%, Domino Bridge 100%, Chain reaction 90%, Double dominoes 100%, Heavy lifting 100%, Force or distance 100%, Crane 100%, Sky high about 50% (hardest). Long reach relies on gear snapping. Crane uses guide walls so the load crate rises straight. The level chip strip scrolls to the current level.
 - v0.2j: levels 7 "Spin it" (`spin`) and 8 "Pulleys" (`pulleys`), Big machine is 9. Level parts support `key`, `link`, `props`. FLYWHEEL_LEVERAGE 95 works across about 70 to 120 (tested); keep `check-levels` green when touching it. Big machine and Spin it are sensitive to exact positions.
 
 ## Testing with real Matter (no npm needed)
@@ -23,7 +24,7 @@ Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Eac
 - Parts: ball, bowling ball, ramp, wall, conveyor (flip), spring (strength 1-3), domino, seesaw
   (catapult lips), paddle wheel, motor gear, small/big gear, paddle gear, basket, mouse.
 - Gears mesh by distance (4 px radius per tooth), snap into place, show direction arrows in edit mode.
-- Levels: 1 Ramps, 2 Conveyors, 3 Springs, 4 Levers, 5 Dominoes, 6 Gears, 7 Big machine, plus Sandbox.
+- Levels: 1 Ramps, 2 Conveyors, 3 Springs, 4 Levers, 5 Dominoes, 6 Gears, 7 Spin it, 8 Pulleys, 9 Big machine, then the v0.2n set 10 Over the Top (`overtop`), 11 Domino Bridge (`bridge`), 12 Chain reaction (`chain`), 13 Double dominoes (`double`), 14 Long reach (`reach`), 15 Heavy lifting (`tackle`), 16 Force or distance (`tradeoff`), 17 Crane (`crane`), 18 Sky high (`skyhigh`), plus Sandbox. New level ids are in the `LEVELS` whitelist of `scores.php`.
   Every level has science-corner text, a "try this" prompt and a "you learned" line.
 - Pick up / move: generous hit-testing, drag from tray, drag placed parts, touch support.
 - Floating part toolbar sits ~38 px above the selected part with a dotted stalk.

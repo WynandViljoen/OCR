@@ -1,7 +1,7 @@
 # Modern TIM
 
 A browser physics puzzle game in the spirit of *The Incredible Machine*, built to teach
-kids (about 8 to 13) how simple machines work. Version 0.2m: nine science levels plus a sandbox, player names and per-level high scores.
+kids (about 8 to 13) how simple machines work. Version 0.2n: eighteen science levels plus a sandbox, player names and per-level high scores.
 
 This repo replaced the earlier Snap OCR page (its history is still in git).
 

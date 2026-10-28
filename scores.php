@@ -20,7 +20,7 @@ header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys', 'machine'];
+const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys', 'machine', 'overtop', 'bridge', 'chain', 'reach', 'tackle', 'tradeoff', 'double', 'crane', 'skyhigh'];
 const CATEGORIES = ['shortest', 'fastest', 'spare'];
 const LOWER_IS_BETTER = ['shortest' => true, 'fastest' => true];
 const BOARD_SIZE = 5;

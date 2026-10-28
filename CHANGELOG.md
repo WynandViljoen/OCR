@@ -1,5 +1,20 @@
 # Changelog
 
+## Modern TIM 0.2n
+
+- **Nine new, harder levels** (10 to 18). Each one was checked on the real physics: its solution solves, and the empty board does not.
+  - 10 **Over the Top**: a spring and a plank to clear a tall wall and a low ceiling.
+  - 11 **Domino Bridge**: lay a plank across a gap, then space nine dominoes so the chain reaches the far ball.
+  - 12 **Chain reaction**: three dominoes carry the push to a heavy ball, which lands on a seesaw and flicks the little ball into the basket.
+  - 13 **Double dominoes**: two rows to build with only seven dominoes.
+  - 14 **Long reach**: the motor and paddle are too far apart for gears alone. Use big gears and a crossed string.
+  - 15 **Heavy lifting**: a block and tackle with four rope strands lifts a crate nearly three times as heavy as yours.
+  - 16 **Force or distance**: two strands is the only choice that works. More strands need more rope than the room allows.
+  - 17 **Crane**: turn on the pulley motor, lengthen its rail, and hang an equal counterweight.
+  - 18 **Sky high**: one spring and two planks to reach a platform higher than the wall.
+- The level strip scrolls so the level you are on is always in view.
+- New level ids added to the `LEVELS` list in `scores.php`. Copy the updated `scores.php` to the server so scores for the new levels are accepted.
+
 ## Modern TIM 0.2m
 
 - High scores: removed the Longest path and Slowest solve boards. Each level now has Shortest path, Fastest solve and Most spare tools. Old saved scores that contain the removed boards still load (the extra boards are ignored). Copy the updated `scores.php` to the server.

@@ -109,7 +109,18 @@ Names are not passwords: anyone can type any name, and the server only rejects i
 | 4 | Levers | Levers and fulcrums | Drop a bowling ball on a seesaw to fling a ball |
 | 5 | Dominoes | Chain reactions | Bridge a gap with a domino chain |
 | 6 | Gears | Gear trains | Connect a motor to a paddle gear so it spins the right way |
-| 7 | Big machine | Systems | Conveyors up a slope, then a spring over a wall |
+| 7 | Spin it | Energy transfer | Pass a falling ball's spin along a gear train |
+| 8 | Pulleys | Pulleys and balance | Lift a crate with a heavier counterweight |
+| 9 | Big machine | Systems | Conveyors up a slope, then a spring over a wall |
+| 10 | Over the Top | Projectile motion | A spring and a plank to clear a wall and a low ceiling |
+| 11 | Domino Bridge | Chain reactions | Plank across a gap, then nine dominoes spaced to reach the end |
+| 12 | Chain reaction | Energy transfer | Three dominoes carry a push to a heavy ball, a seesaw and a little ball |
+| 13 | Double dominoes | Energy budget | Share seven dominoes between two rows |
+| 14 | Long reach | Gears and belts | Bridge a gap with big gears and a crossed string |
+| 15 | Heavy lifting | Block and tackle | Four rope strands let a light crate lift a heavy one |
+| 16 | Force or distance | Trade-offs | Two strands is the sweet spot: more needs too much rope |
+| 17 | Crane | Counterweights | A pulley motor lifts a crate balanced by an equal counterweight |
+| 18 | Sky high | Angles and bounces | One spring and two planks to reach a high platform |
 | ★ | Sandbox | Engineering | Unlimited parts, no goal, saved in the browser |
 
 Every level has a **Science corner** with a short explanation and a "Try this" experiment,

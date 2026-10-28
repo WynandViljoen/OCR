@@ -141,6 +141,9 @@ export class UI {
       b.addEventListener('click', () => this.handlers.onSelectLevel(i));
       this.levelsEl.appendChild(b);
     });
+    // With many levels the strip scrolls sideways, so keep the current one in view.
+    const cur = this.levelsEl.querySelector<HTMLElement>('.current');
+    if (cur) this.levelsEl.scrollLeft = Math.max(0, cur.offsetLeft - (this.levelsEl.clientWidth - cur.offsetWidth) / 2);
   }
 
   setLevelInfo(level: Level, hasNext: boolean) {
