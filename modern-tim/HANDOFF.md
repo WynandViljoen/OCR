@@ -6,7 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
-## Current features (v0.2d)
+## Current features (v0.2e)
 - Edit mode / play mode, Start/Stop/Reset/Undo, keyboard shortcuts (see README).
 - Parts: ball, bowling ball, ramp, wall, conveyor (flip), spring (strength 1-3), domino, seesaw
   (catapult lips), paddle wheel, motor gear, small/big gear, paddle gear, basket, mouse.
@@ -23,6 +23,8 @@ Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Eac
   winning ball's path (`SolveInfo`), it does not change physics. Sandbox has no scores.
 - Community scores: `../scores.php` (repo root) + `src/game/community.ts`. The Cron/.cpanel.yml copy step only copied
   index.html, so scores.php had to be added to it by hand (user action).
+- Strings (`type: 'string'`, `link: {a,b}` gear ids, `anchored`): `syncStrings()` in main.ts recomputes their line each rebuild; the body is an invisible sensor strip used only for clicking. `computeGearTrain` treats them as same-direction links (F = crossed, opposite), factor 1/pulley.
+- Tinker lab: `PROP_SPECS` in `src/game/props.ts`; factories in parts.ts read `propValue(type, props, key)`; conveyor speed in world.ts, motor speed in mechanics.ts. Defaults must stay equal to the old constants. NOT physics-verified in the sandbox: run `npm run check-levels`.
 - Solid space (`src/game/space.ts`): footprints mirror the Matter bodies in parts.ts (keep them in step when sizes
   change; `npm run check-space` compares them when Matter is installed). Placement, drag, rotate and arrow keys go
   through `positionPart` in main.ts, which nudges to the nearest free grid spot. Level 7's solution was re-laid

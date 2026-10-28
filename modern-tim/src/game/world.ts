@@ -22,6 +22,7 @@ import {
   type PartType,
   type PlacedPart,
 } from './parts';
+import { propValue } from './props';
 import { computeGearTrain, pointPolygonDistance, type GearTrain } from './mechanics';
 
 const { Engine, Composite, Bodies, Body, Events } = Matter;
@@ -253,7 +254,8 @@ export class Simulation {
       const dx = Math.cos(belt.angle) * sign;
       const dy = Math.sin(belt.angle) * sign;
       const along = other.velocity.x * dx + other.velocity.y * dy;
-      if (along < CONVEYOR_SPEED) {
+      const maxSpeed = part ? propValue('conveyor', part.props, 'speed') : CONVEYOR_SPEED;
+      if (along < maxSpeed) {
         const f = other.mass * CONVEYOR_FORCE;
         Body.applyForce(other, other.position, { x: dx * f, y: dy * f });
       }

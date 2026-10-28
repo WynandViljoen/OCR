@@ -6,11 +6,17 @@
  *  - two gears mesh when their centres are exactly radius A + radius B apart
  *  - meshed gears turn in OPPOSITE directions
  *  - speed scales with teeth: a 16-tooth gear driven by an 8-tooth gear turns at half speed
+ *  - a string joins two gears' centres: they turn the SAME way (crossed: opposite), and a bigger
+ *    pulley turns slower (speed x 1 / pulley size)
  */
-import { MOTOR_SPEED, PART_DEFS, PX_PER_TOOTH, type PlacedPart } from './parts';
+import { PART_DEFS, PX_PER_TOOTH, type PlacedPart } from './parts';
+import { propValue } from './props';
 
 export const MESH_TOLERANCE = 6;
 export const SNAP_DISTANCE = 30;
+
+/** Radius of the pulley hub a string wraps around, in px. The second pulley can be scaled. */
+export const HUB_RADIUS = 9;
 
 export interface GearLink {
   a: number;
@@ -38,16 +44,29 @@ function meshes(a: PlacedPart, b: PlacedPart) {
 export function computeGearTrain(parts: PlacedPart[]): GearTrain {
   const gears = parts.filter((p) => PART_DEFS[p.type].gear);
   const links: GearLink[] = [];
-  const neighbours = new Map<number, PlacedPart[]>();
+  /** Who a gear drives, and the factor its speed is multiplied by to get theirs. */
+  const neighbours = new Map<number, { part: PlacedPart; factor: number }[]>();
   for (const g of gears) neighbours.set(g.id, []);
   for (let i = 0; i < gears.length; i++) {
     for (let j = i + 1; j < gears.length; j++) {
       if (meshes(gears[i], gears[j])) {
         links.push({ a: gears[i].id, b: gears[j].id });
-        neighbours.get(gears[i].id)!.push(gears[j]);
-        neighbours.get(gears[j].id)!.push(gears[i]);
+        neighbours.get(gears[i].id)!.push({ part: gears[j], factor: -radiusOf(gears[i]) / radiusOf(gears[j]) });
+        neighbours.get(gears[j].id)!.push({ part: gears[i], factor: -radiusOf(gears[j]) / radiusOf(gears[i]) });
       }
     }
+  }
+
+  // Strings: both ends turn the same way, or opposite ways if the string is crossed.
+  for (const s of parts) {
+    if (s.type !== 'string' || !s.link) continue;
+    const a = gears.find((g) => g.id === s.link!.a);
+    const b = gears.find((g) => g.id === s.link!.b);
+    if (!a || !b || a === b) continue;
+    const k = propValue('string', s.props, 'pulley');
+    const sign = s.flip ? -1 : 1;
+    neighbours.get(a.id)!.push({ part: b, factor: sign / k });
+    neighbours.get(b.id)!.push({ part: a, factor: sign * k });
   }
 
   const speeds = new Map<number, number>();
@@ -55,15 +74,16 @@ export function computeGearTrain(parts: PlacedPart[]): GearTrain {
   const queue: PlacedPart[] = [];
   for (const g of gears) {
     if (PART_DEFS[g.type].gear!.motor) {
-      speeds.set(g.id, g.flip ? -MOTOR_SPEED : MOTOR_SPEED);
+      const speed = propValue(g.type, g.props, 'speed');
+      speeds.set(g.id, g.flip ? -speed : speed);
       queue.push(g);
     }
   }
   while (queue.length) {
     const g = queue.shift()!;
     const w = speeds.get(g.id)!;
-    for (const n of neighbours.get(g.id)!) {
-      const next = (-w * radiusOf(g)) / radiusOf(n);
+    for (const { part: n, factor } of neighbours.get(g.id)!) {
+      const next = w * factor;
       const known = speeds.get(n.id);
       if (known === undefined) {
         speeds.set(n.id, next);

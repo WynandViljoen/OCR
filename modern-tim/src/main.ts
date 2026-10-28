@@ -12,10 +12,11 @@ import './styles.css';
 import { LEVELS, levelToParts, solutionToParts, type Level } from './game/levels';
 import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts';
 import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './game/world';
-import { snapGear } from './game/mechanics';
+import { HUB_RADIUS, snapGear } from './game/mechanics';
+import { PROP_SPECS, partProp, propValue } from './game/props';
 import { findFreeSpot } from './game/space';
-import { drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
-import { UI, type Remaining, type SolvedRow } from './game/ui';
+import { drawBelt, drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
+import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
@@ -123,6 +124,12 @@ const ui = new UI({
   onUndo: () => undo(),
   onRotate: (dir) => rotate(dir),
   onFlip: () => flip(),
+  onPropStart: () => pushUndo(),
+  onProp: (key, value) => setProp(key, value),
+  onPropEnd: () => {
+    persistSandbox();
+    refreshUI();
+  },
   onPower: (p) => setPower(p),
   onDelete: () => deleteSelected(),
   onSelectLevel: (i) => loadLevel(i, true),
@@ -279,10 +286,31 @@ function persistSandbox() {
   }
 }
 
+/** Keep only known, in-range numbers from saved data. */
+function cleanProps(type: PartType, raw: unknown): Record<string, number> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: Record<string, number> = {};
+  for (const spec of PROP_SPECS[type] ?? []) {
+    const v = (raw as Record<string, unknown>)[spec.key];
+    if (typeof v === 'number' && Number.isFinite(v)) out[spec.key] = clamp(v, spec.min, spec.max);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
 function restoreSandbox(): PlacedPart[] {
   try {
     const saved = JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]') as PlacedPart[];
-    return saved.filter((p) => p && p.type in PART_DEFS).map((p) => ({ ...p, id: nextId(), locked: false }));
+    const ids = new Map<number, number>();
+    const fresh = saved
+      .filter((p) => p && p.type in PART_DEFS)
+      .map((p) => {
+        const id = nextId();
+        ids.set(p.id, id);
+        return { ...p, id, locked: false, props: cleanProps(p.type, p.props), belt: undefined };
+      });
+    // Strings point at gears by id, and every part got a new id.
+    for (const p of fresh) if (p.link) p.link = { a: ids.get(p.link.a) ?? -1, b: ids.get(p.link.b) ?? -1 };
+    return fresh.filter((p) => p.type !== 'string' || (p.link && p.link.a > 0 && p.link.b > 0));
   } catch {
     return [];
   }
@@ -343,7 +371,30 @@ function resetZoom() {
   updateToolbar();
 }
 
+/**
+ * Strings follow their gears: keep each one's line, pulley sizes and clickable strip up to date,
+ * and drop any string whose gear has been deleted.
+ */
+function syncStrings() {
+  const gearOf = (id: number) => parts.find((q) => q.id === id && isGear(q.type));
+  parts = parts.filter((p) => p.type !== 'string' || (p.link && p.link.a !== p.link.b && gearOf(p.link.a) && gearOf(p.link.b)));
+  for (const s of parts) {
+    if (s.type !== 'string' || !s.link) continue;
+    const a = gearOf(s.link.a)!;
+    const b = gearOf(s.link.b)!;
+    const ar = HUB_RADIUS;
+    const br = HUB_RADIUS * propValue('string', s.props, 'pulley');
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    s.belt = { ax: a.x, ay: a.y, ar, bx: b.x, by: b.y, br, crossed: !!s.flip };
+    s.x = (a.x + b.x) / 2;
+    s.y = (a.y + b.y) / 2;
+    s.angle = Math.atan2(b.y - a.y, b.x - a.x);
+    s.w = Math.max(10, d - ar - br);
+  }
+}
+
 function rebuild() {
+  syncStrings();
   sim.goalEnabled = level.hasGoal;
   sim.goalTargets = level.goalTargets ?? ['ball'];
   sim.load(parts, playing);
@@ -362,6 +413,8 @@ function changed() {
 }
 
 function refreshUI() {
+  if (tool !== 'string') stringFrom = null;
+  ui.showProps(propsModel());
   ui.updateCounts(remaining());
   ui.setSelectedTool(tool);
   ui.setUndoEnabled(undoStack.length > 0 && !playing);
@@ -465,6 +518,76 @@ function stop() {
   ui.showSolved(false);
   ui.setStatus('Building');
   refreshUI();
+}
+
+/** The gear a string has been started from (first click done, second still to come). */
+let stringFrom: number | null = null;
+
+/** One click of the String tool: pick the first gear, then the second, then tie them. */
+function stringClick(x: number, y: number, touch = false) {
+  const id = sim.partNear(x, y, (touch ? 24 : 14) / view.z, (q) => isGear(q.type));
+  if (id === undefined) {
+    ui.toast('Click a gear to tie the string to its centre.');
+    return;
+  }
+  if (stringFrom === null) {
+    stringFrom = id;
+    ui.toast('Now click a second gear.');
+    return;
+  }
+  if (id === stringFrom) {
+    stringFrom = null;
+    ui.toast('String cancelled.');
+    return;
+  }
+  const a = stringFrom;
+  stringFrom = null;
+  if (parts.some((q) => q.type === 'string' && q.link && ((q.link.a === a && q.link.b === id) || (q.link.a === id && q.link.b === a)))) {
+    ui.toast('Those two gears are already joined.');
+    return;
+  }
+  if (remaining().string === 0) {
+    ui.toast('No strings left.');
+    return;
+  }
+  pushUndo();
+  const part: PlacedPart = { id: nextId(), type: 'string', x: 0, y: 0, angle: 0, link: { a, b: id } };
+  parts.push(part);
+  tool = null;
+  selectedId = part.id;
+  ui.showPartInfo('string');
+  changed();
+}
+
+/** The Tinker lab card for the selected part. */
+function propsModel(): PropsModel | null {
+  const sel = selectedPart();
+  if (!sel || playing) return null;
+  const def = PART_DEFS[sel.type];
+  const items = (PROP_SPECS[sel.type] ?? []).map((spec) => ({ spec, value: partProp(sel, spec.key) }));
+  const facts: string[] = [];
+  if (def.gear) {
+    facts.push(`Teeth: ${def.gear.teeth}`);
+    const speed = sim.gearTrain.speeds.get(sel.id);
+    if (sim.gearTrain.jammed.has(sel.id)) facts.push('Jammed! These gears fight each other, so nothing can turn.');
+    else if (speed) facts.push(`Turns ${((Math.abs(speed) * 60) / (2 * Math.PI)).toFixed(2)} times a second, ${speed > 0 ? 'clockwise' : 'anticlockwise'}.`);
+    else if (!def.gear.motor) facts.push('Not turning. Join it to a motor gear with teeth or a string.');
+  }
+  if (sel.type === 'string') facts.push(sel.flip ? 'Crossed: the second gear turns the opposite way.' : 'Straight: both gears turn the same way. Press F to cross it.');
+  return { id: sel.id, title: def.label, items, facts };
+}
+
+/** A Tinker lab slider moved: change the selected part and rebuild so the preview matches. */
+function setProp(key: string, value: number) {
+  const sel = selectedPart();
+  if (!sel || sel.locked || playing) return;
+  const spec = PROP_SPECS[sel.type]?.find((p) => p.key === key);
+  if (!spec) return;
+  const v = clamp(value, spec.min, spec.max);
+  if (key === 'power') sel.power = Math.round(v);
+  else (sel.props ??= {})[key] = v;
+  rebuild();
+  updateToolbar();
 }
 
 function selectTool(type: PartType | null) {
@@ -572,6 +695,10 @@ function positionPart(p: PlacedPart, x: number, y: number): boolean {
 const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 
 function placeAt(type: PartType, x: number, y: number) {
+  if (type === 'string') {
+    stringClick(x, y);
+    return;
+  }
   if (remaining()[type] === 0) return;
   const def = PART_DEFS[type];
   const part: PlacedPart = {
@@ -653,6 +780,12 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 
   const touch = e.pointerType === 'touch';
+  if (tool === 'string') {
+    stringClick(p.x, p.y, touch);
+    refreshUI();
+    updateCursor();
+    return;
+  }
   // Tolerances are screen pixels, so divide by zoom to get world units.
   // With a part in hand, only a click right on another part picks that one up instead.
   const tolerance = (tool ? (touch ? 8 : 3) : touch ? 26 : 16) / view.z;
@@ -662,7 +795,8 @@ canvas.addEventListener('pointerdown', (e) => {
     const part = parts.find((q) => q.id === ownId)!;
     tool = null;
     selectedId = part.id;
-    drag = { id: part.id, dx: part.x - p.x, dy: part.y - p.y, moved: false, before: clone(parts) };
+    // Strings follow their gears, so they can be selected but not dragged.
+    if (!PART_DEFS[part.type].anchored) drag = { id: part.id, dx: part.x - p.x, dy: part.y - p.y, moved: false, before: clone(parts) };
     ui.showPartInfo(part.type);
   } else if (tool) {
     const t = tool;
@@ -797,7 +931,7 @@ window.addEventListener('pointerup', (e) => {
   const p = worldPoint(e.clientX, e.clientY);
   if (p.inside && !playing) {
     placeAt(pd.type, p.x, p.y);
-    tool = null;
+    if (!(pd.type === 'string' && stringFrom !== null)) tool = null;
   }
   refreshUI();
 });
@@ -870,7 +1004,7 @@ window.addEventListener('keydown', (e) => {
     refreshUI();
   } else if (e.key.startsWith('Arrow')) {
     const sel = selectedPart();
-    if (!sel || sel.locked || playing) return;
+    if (!sel || sel.locked || playing || PART_DEFS[sel.type].anchored) return;
     e.preventDefault();
     const d = { ArrowLeft: [-GRID, 0], ArrowRight: [GRID, 0], ArrowUp: [0, -GRID], ArrowDown: [0, GRID] }[e.key] ?? [0, 0];
     const before = clone(parts);
@@ -938,7 +1072,7 @@ function render() {
 
   // Ghost of the part being placed: show where it will go (and gear snapping).
   const ghostBodies = (() => {
-    if (playing || !tool || !hover) return null;
+    if (playing || !tool || tool === 'string' || !hover) return null;
     const def = PART_DEFS[tool];
     const ghost: PlacedPart = { id: -1, type: tool, x: 0, y: 0, angle: def.rotatable ? toolAngle : 0, power: 2 };
     if (!positionPart(ghost, hover.x, hover.y)) return null;
@@ -951,9 +1085,33 @@ function render() {
   drawBodies(ctx, sensors, state);
   drawBodies(ctx, solids, state);
   for (const b of solids) drawDecoration(ctx, b, state);
+  for (const s of parts) if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
 
   if (!playing) {
     drawGearLinks();
+
+    // String tool: show the first gear and a line following the pointer.
+    if (tool === 'string' && hover) {
+      const near = sim.partNear(hover.x, hover.y, 14 / view.z, (q) => isGear(q.type));
+      const first = parts.find((q) => q.id === stringFrom);
+      ctx.save();
+      ctx.lineWidth = 4 / view.z;
+      ctx.strokeStyle = '#2f7df6';
+      for (const g of [first, parts.find((q) => q.id === near)]) {
+        if (!g) continue;
+        ctx.beginPath();
+        ctx.arc(g.x, g.y, HUB_RADIUS + 5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (first) {
+        ctx.setLineDash([7 / view.z, 6 / view.z]);
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        ctx.lineTo(hover.x, hover.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
 
     // Hover hint: a soft outline on parts you can pick up.
     if (hoverId !== undefined && hoverId !== selectedId && !drag) {

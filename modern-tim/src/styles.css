@@ -532,3 +532,13 @@ kbd {
 .mine-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: #eef2ff; margin-bottom: 3px; }
 .mine-row .val { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
 .mine-row .val.none { color: var(--muted); font-weight: 600; }
+
+/* ---------- tinker lab ---------- */
+.props h2 { font-size: 1.1rem; }
+.prop-row { display: grid; gap: 3px; margin-top: 8px; }
+.prop-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 800; }
+.prop-head strong { font-family: var(--font-display); font-variant-numeric: tabular-nums; color: var(--blue); }
+.prop-row input[type='range'] { width: 100%; accent-color: var(--blue); margin: 0; }
+.prop-feel { font-size: 0.84rem; font-weight: 700; }
+.prop-sci { font-size: 0.74rem; color: var(--muted); }
+.prop-fact { margin-top: 8px !important; font-size: 0.84rem; font-weight: 700; background: #fff6cc; border-radius: 8px; padding: 4px 8px; }

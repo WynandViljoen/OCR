@@ -547,6 +547,16 @@ kbd {
 .mine-row .val { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
 .mine-row .val.none { color: var(--muted); font-weight: 600; }
 
+/* ---------- tinker lab ---------- */
+.props h2 { font-size: 1.1rem; }
+.prop-row { display: grid; gap: 3px; margin-top: 8px; }
+.prop-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 800; }
+.prop-head strong { font-family: var(--font-display); font-variant-numeric: tabular-nums; color: var(--blue); }
+.prop-row input[type='range'] { width: 100%; accent-color: var(--blue); margin: 0; }
+.prop-feel { font-size: 0.84rem; font-weight: 700; }
+.prop-sci { font-size: 0.74rem; color: var(--muted); }
+.prop-fact { margin-top: 8px !important; font-size: 0.84rem; font-weight: 700; background: #fff6cc; border-radius: 8px; padding: 4px 8px; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -642,6 +652,11 @@ kbd {
             </div>
             <div id="scores-body"></div>
           </div>
+          <div id="props-card" class="sci-card props" hidden>
+            <span class="eyebrow">Tinker lab</span>
+            <h2 id="props-title"></h2>
+            <div id="props-body"></div>
+          </div>
           <div id="part-info" class="part-info"></div>
           <label class="toggle"><input type="checkbox" id="show-paths" checked /> Show ball paths</label>
           <dl class="keys">
@@ -675,8 +690,316 @@ kbd {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
 
+// ---- game/props.ts ----
+const { PROP_SPECS, propValue, partProp, feelOf } = (() => {
+const pct = (v)=>`${Math.round(v * 100)}%`;
+const bounceSpec = (def)=>({
+        key: 'bounce',
+        label: 'Bounciness',
+        icon: '🏀',
+        min: 0,
+        max: 0.95,
+        step: 0.05,
+        def,
+        show: pct,
+        science: 'Elasticity: how much energy a bounce gives back.',
+        feel: [
+            [
+                0,
+                'Thud! It lands like a lump of clay.'
+            ],
+            [
+                0.2,
+                'A little bounce, like a tennis ball on carpet.'
+            ],
+            [
+                0.45,
+                'Bouncy, like a rubber ball.'
+            ],
+            [
+                0.7,
+                'Super bouncy! Almost no energy is lost.'
+            ],
+            [
+                0.9,
+                'A superball! It bounces nearly forever.'
+            ]
+        ]
+    });
+const gripSpec = (def)=>({
+        key: 'grip',
+        label: 'Grip',
+        icon: '🧤',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        def,
+        show: pct,
+        science: 'Friction: the rubbing force between two surfaces.',
+        feel: [
+            [
+                0,
+                'Slippery as ice! Things slide right off.'
+            ],
+            [
+                0.15,
+                'Smooth, like polished wood.'
+            ],
+            [
+                0.4,
+                'Some grip, like a rubber mat.'
+            ],
+            [
+                0.7,
+                'Really grippy, like sandpaper!'
+            ]
+        ]
+    });
+const weightSpec = (def)=>({
+        key: 'weight',
+        label: 'Weight',
+        icon: '⚖️',
+        min: def * 0.25,
+        max: def * 3,
+        step: def * 0.25,
+        def,
+        show: (v)=>`x${Math.round(v / def * 100) / 100}`,
+        science: 'Mass: how much stuff there is. Heavier things are harder to push and push back harder.',
+        feel: [
+            [
+                0,
+                'Light as a feather. A little push moves it.'
+            ],
+            [
+                def * 0.75,
+                'Normal weight.'
+            ],
+            [
+                def * 1.5,
+                'Heavy! It takes a big push to move it.'
+            ],
+            [
+                def * 2.5,
+                'Super heavy, like a bag of sand.'
+            ]
+        ]
+    });
+const dragSpec = (def)=>({
+        key: 'drag',
+        label: 'Axle drag',
+        icon: '🛢️',
+        min: 0,
+        max: 0.1,
+        step: 0.005,
+        def,
+        show: (v)=>`${Math.round(v * 1000) / 10}`,
+        science: 'Friction in the axle slows spinning things down.',
+        feel: [
+            [
+                0,
+                'Oiled axle: it spins and spins.'
+            ],
+            [
+                0.01,
+                'A little rubbing slows it gently.'
+            ],
+            [
+                0.04,
+                'Sticky axle! It stops quickly.'
+            ]
+        ]
+    });
+const beltSpeedSpec = {
+    key: 'speed',
+    label: 'Belt speed',
+    icon: '🏃',
+    min: 0.8,
+    max: 8,
+    step: 0.4,
+    def: 3.2,
+    show: (v)=>`${(v * 0.6).toFixed(1)} m/s`,
+    science: 'Speed: how far something moves each second.',
+    feel: [
+        [
+            0,
+            'Slow and gentle, like a walk.'
+        ],
+        [
+            2.4,
+            'A brisk jog.'
+        ],
+        [
+            4.4,
+            'Fast! Things fly along.'
+        ],
+        [
+            6.4,
+            'Super fast, like a sprinter!'
+        ]
+    ]
+};
+const motorSpeedSpec = {
+    key: 'speed',
+    label: 'Motor speed',
+    icon: '⚡',
+    min: 0.01,
+    max: 0.12,
+    step: 0.01,
+    def: 0.05,
+    show: (v)=>`${(v * 60 / (2 * Math.PI)).toFixed(2)} turns/s`,
+    science: 'Rotation speed: how many turns each second.',
+    feel: [
+        [
+            0,
+            'A lazy crawl.'
+        ],
+        [
+            0.03,
+            'A steady spin.'
+        ],
+        [
+            0.07,
+            'Whirring along!'
+        ],
+        [
+            0.1,
+            'Zoom! Hold on to your hat.'
+        ]
+    ]
+};
+const springSpec = {
+    key: 'power',
+    label: 'Strength',
+    icon: '💪',
+    min: 1,
+    max: 3,
+    step: 1,
+    def: 2,
+    show: (v)=>[
+            '',
+            'soft',
+            'medium',
+            'strong'
+        ][v] ?? '',
+    science: 'Stored energy: a squashed spring is full of it. A stronger spring launches higher.',
+    feel: [
+        [
+            1,
+            'Soft: a gentle hop.'
+        ],
+        [
+            2,
+            'Medium: a good boing.'
+        ],
+        [
+            3,
+            'Strong: launches things high!'
+        ]
+    ]
+};
+const pulleySpec = {
+    key: 'pulley',
+    label: 'Second pulley size',
+    icon: '🎡',
+    min: 0.5,
+    max: 2,
+    step: 0.25,
+    def: 1,
+    show: (v)=>`x${v}`,
+    science: 'A bigger pulley turns slower, a smaller one faster. Crossing the string (F) turns the other gear the opposite way.',
+    feel: [
+        [
+            0.5,
+            'Small pulley: it spins twice as fast.'
+        ],
+        [
+            0.75,
+            'A little smaller: a bit faster.'
+        ],
+        [
+            1,
+            'Same size: same speed.'
+        ],
+        [
+            1.25,
+            'A little bigger: a bit slower.'
+        ],
+        [
+            2,
+            'Twice as big: half the speed.'
+        ]
+    ]
+};
+const PROP_SPECS = {
+    ball: [
+        bounceSpec(0.45),
+        weightSpec(0.002),
+        gripSpec(0.02)
+    ],
+    heavyBall: [
+        bounceSpec(0.05),
+        weightSpec(0.012),
+        gripSpec(0.05)
+    ],
+    plank: [
+        gripSpec(0.1),
+        bounceSpec(0.1)
+    ],
+    wall: [
+        gripSpec(0.4),
+        bounceSpec(0.1)
+    ],
+    conveyor: [
+        beltSpeedSpec
+    ],
+    spring: [
+        springSpec
+    ],
+    domino: [
+        weightSpec(0.005),
+        gripSpec(0.6)
+    ],
+    seesaw: [
+        weightSpec(0.001),
+        dragSpec(0.01)
+    ],
+    wheel: [
+        weightSpec(0.0015),
+        dragSpec(0.02)
+    ],
+    mouse: [
+        bounceSpec(0.2),
+        weightSpec(0.002),
+        gripSpec(0.6)
+    ],
+    motorGear: [
+        motorSpeedSpec
+    ],
+    string: [
+        pulleySpec
+    ]
+};
+function propValue(type, props, key) {
+    const fromPlayer = props?.[key];
+    if (typeof fromPlayer === 'number' && Number.isFinite(fromPlayer)) return fromPlayer;
+    const spec = PROP_SPECS[type]?.find((p)=>p.key === key);
+    return spec ? spec.def : 0;
+}
+function partProp(part, key) {
+    return key === 'power' ? part.power ?? 2 : propValue(part.type, part.props, key);
+}
+function feelOf(spec, v) {
+    let text = spec.feel[0][1];
+    for (const [from, t] of spec.feel)if (v + 1e-9 >= from) text = t;
+    return text;
+}
+
+return { PROP_SPECS, propValue, partProp, feelOf };
+})();
+
 // ---- game/parts.ts ----
 const { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOTOR_SPEED, SPRING_SPEEDS, PX_PER_TOOTH, COLORS, toWorld, PART_DEFS, PALETTE_ORDER, isGear } = (() => {
+
 
 const { Bodies, Body } = Matter;
 const CAT_SOLID = 0x0001;
@@ -706,7 +1029,8 @@ const COLORS = {
     wheel: '#14b8c4',
     motor: '#ff7a1a',
     gear: '#f5c400',
-    mouse: '#c7ccd8'
+    mouse: '#c7ccd8',
+    string: '#8a5a33'
 };
 const solid = {
     category: CAT_SOLID,
@@ -809,14 +1133,14 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'dynamic',
-        build: ({ x, y }, play)=>[
+        build: ({ x, y, props }, play)=>[
                 Bodies.circle(x, y, 14, {
                     label: 'ball',
                     isStatic: !play,
-                    restitution: 0.45,
-                    friction: 0.02,
+                    restitution: propValue('ball', props, 'bounce'),
+                    friction: propValue('ball', props, 'grip'),
                     frictionAir: 0.0005,
-                    density: 0.002,
+                    density: propValue('ball', props, 'weight'),
                     collisionFilter: solid,
                     render: look(COLORS.ball)
                 })
@@ -831,14 +1155,14 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'dynamic',
-        build: ({ x, y }, play)=>[
+        build: ({ x, y, props }, play)=>[
                 Bodies.circle(x, y, 18, {
                     label: 'heavyBall',
                     isStatic: !play,
-                    restitution: 0.05,
-                    friction: 0.05,
+                    restitution: propValue('heavyBall', props, 'bounce'),
+                    friction: propValue('heavyBall', props, 'grip'),
                     frictionAir: 0.0005,
-                    density: 0.012,
+                    density: propValue('heavyBall', props, 'weight'),
                     collisionFilter: solid,
                     render: look(COLORS.heavy)
                 })
@@ -853,13 +1177,13 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'static',
-        build: ({ x, y, angle, w, h })=>[
+        build: ({ x, y, angle, w, h, props })=>[
                 Bodies.rectangle(x, y, w ?? 170, h ?? 12, {
                     label: 'plank',
                     angle,
                     isStatic: true,
-                    friction: 0.1,
-                    restitution: 0.1,
+                    friction: propValue('plank', props, 'grip'),
+                    restitution: propValue('plank', props, 'bounce'),
                     collisionFilter: solid,
                     render: look(COLORS.wood)
                 })
@@ -874,13 +1198,13 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'static',
-        build: ({ x, y, angle, w, h })=>[
+        build: ({ x, y, angle, w, h, props })=>[
                 Bodies.rectangle(x, y, w ?? 120, h ?? 20, {
                     label: 'wall',
                     angle,
                     isStatic: true,
-                    friction: 0.4,
-                    restitution: 0.1,
+                    friction: propValue('wall', props, 'grip'),
+                    restitution: propValue('wall', props, 'bounce'),
                     collisionFilter: solid,
                     render: look(COLORS.wall)
                 })
@@ -998,13 +1322,13 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'dynamic',
-        build: ({ x, y, angle }, play)=>[
+        build: ({ x, y, angle, props }, play)=>[
                 Bodies.rectangle(x, y, 12, 70, {
                     label: 'domino',
                     angle,
                     isStatic: !play,
-                    density: 0.005,
-                    friction: 0.6,
+                    density: propValue('domino', props, 'weight'),
+                    friction: propValue('domino', props, 'grip'),
                     frictionAir: 0,
                     restitution: 0,
                     chamfer: {
@@ -1024,7 +1348,7 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'pivot',
-        build: ({ x, y, angle, w }, play)=>{
+        build: ({ x, y, angle, w, props }, play)=>{
             const len = w ?? 200;
             const style = {
                 render: look(COLORS.seesaw)
@@ -1053,11 +1377,11 @@ const PART_DEFS = {
                 ],
                 label: 'seesaw',
                 friction: 0.6,
-                frictionAir: 0.01,
+                frictionAir: propValue('seesaw', props, 'drag'),
                 restitution: 0.05,
                 collisionFilter: solid
             });
-            Body.setDensity(body, 0.001);
+            Body.setDensity(body, propValue('seesaw', props, 'weight'));
             if (!play) Body.setStatic(body, true);
             return [
                 body
@@ -1073,7 +1397,7 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'pivot',
-        build: ({ x, y, angle }, play)=>{
+        build: ({ x, y, angle, props }, play)=>{
             const parts = [
                 Bodies.circle(x, y, 16, {
                     render: look(COLORS.wheel)
@@ -1094,11 +1418,11 @@ const PART_DEFS = {
                 parts,
                 label: 'wheel',
                 friction: 0.3,
-                frictionAir: 0.02,
+                frictionAir: propValue('wheel', props, 'drag'),
                 restitution: 0.1,
                 collisionFilter: solid
             });
-            Body.setDensity(body, 0.0015);
+            Body.setDensity(body, propValue('wheel', props, 'weight'));
             if (!play) Body.setStatic(body, true);
             return [
                 body
@@ -1118,18 +1442,45 @@ const PART_DEFS = {
         flippable: false,
         hasPower: false,
         motion: 'dynamic',
-        build: ({ x, y }, play)=>[
+        build: ({ x, y, props }, play)=>[
                 Bodies.rectangle(x, y, 36, 24, {
                     label: 'mouse',
                     isStatic: !play,
                     chamfer: {
                         radius: 10
                     },
-                    friction: 0.6,
-                    restitution: 0.2,
-                    density: 0.002,
+                    friction: propValue('mouse', props, 'grip'),
+                    restitution: propValue('mouse', props, 'bounce'),
+                    density: propValue('mouse', props, 'weight'),
                     collisionFilter: solid,
                     render: look(COLORS.mouse)
+                })
+            ]
+    },
+    string: {
+        type: 'string',
+        label: 'String',
+        blurb: 'Click two gears. The string joins their centres, so when one turns the other turns too. Press F to cross it.',
+        color: COLORS.string,
+        rotatable: false,
+        flippable: true,
+        hasPower: false,
+        motion: 'static',
+        anchored: true,
+        build: ({ x, y, angle, w })=>[
+                Bodies.rectangle(x, y, Math.max(w ?? 40, 10), 14, {
+                    label: 'string',
+                    angle,
+                    isStatic: true,
+                    isSensor: true,
+                    collisionFilter: {
+                        category: CAT_SENSOR,
+                        mask: 0,
+                        group: 0
+                    },
+                    render: {
+                        visible: false
+                    }
                 })
             ]
     }
@@ -1149,7 +1500,8 @@ const PALETTE_ORDER = [
     'bigGear',
     'paddleGear',
     'basket',
-    'mouse'
+    'mouse',
+    'string'
 ];
 function isGear(type) {
     return !!PART_DEFS[type].gear;
@@ -1159,10 +1511,12 @@ return { CAT_SOLID, CAT_SENSOR, GROUP_GEARS, CONVEYOR_SPEED, CONVEYOR_FORCE, MOT
 })();
 
 // ---- game/mechanics.ts ----
-const { MESH_TOLERANCE, SNAP_DISTANCE, computeGearTrain, snapGear, pointPolygonDistance } = (() => {
+const { MESH_TOLERANCE, SNAP_DISTANCE, HUB_RADIUS, computeGearTrain, snapGear, pointPolygonDistance } = (() => {
+
 
 const MESH_TOLERANCE = 6;
 const SNAP_DISTANCE = 30;
+const HUB_RADIUS = 9;
 function radiusOf(p) {
     return PART_DEFS[p.type].gear?.radius ?? 0;
 }
@@ -1182,25 +1536,48 @@ function computeGearTrain(parts) {
                     a: gears[i].id,
                     b: gears[j].id
                 });
-                neighbours.get(gears[i].id).push(gears[j]);
-                neighbours.get(gears[j].id).push(gears[i]);
+                neighbours.get(gears[i].id).push({
+                    part: gears[j],
+                    factor: -radiusOf(gears[i]) / radiusOf(gears[j])
+                });
+                neighbours.get(gears[j].id).push({
+                    part: gears[i],
+                    factor: -radiusOf(gears[j]) / radiusOf(gears[i])
+                });
             }
         }
+    }
+    for (const s of parts){
+        if (s.type !== 'string' || !s.link) continue;
+        const a = gears.find((g)=>g.id === s.link.a);
+        const b = gears.find((g)=>g.id === s.link.b);
+        if (!a || !b || a === b) continue;
+        const k = propValue('string', s.props, 'pulley');
+        const sign = s.flip ? -1 : 1;
+        neighbours.get(a.id).push({
+            part: b,
+            factor: sign / k
+        });
+        neighbours.get(b.id).push({
+            part: a,
+            factor: sign * k
+        });
     }
     const speeds = new Map();
     const jammed = new Set();
     const queue = [];
     for (const g of gears){
         if (PART_DEFS[g.type].gear.motor) {
-            speeds.set(g.id, g.flip ? -MOTOR_SPEED : MOTOR_SPEED);
+            const speed = propValue(g.type, g.props, 'speed');
+            speeds.set(g.id, g.flip ? -speed : speed);
             queue.push(g);
         }
     }
     while(queue.length){
         const g = queue.shift();
         const w = speeds.get(g.id);
-        for (const n of neighbours.get(g.id)){
-            const next = -w * radiusOf(g) / radiusOf(n);
+        for (const { part: n, factor } of neighbours.get(g.id)){
+            const next = w * factor;
             const known = speeds.get(n.id);
             if (known === undefined) {
                 speeds.set(n.id, next);
@@ -1270,7 +1647,7 @@ function pointPolygonDistance(px, py, verts) {
     return inside ? 0 : best;
 }
 
-return { MESH_TOLERANCE, SNAP_DISTANCE, computeGearTrain, snapGear, pointPolygonDistance };
+return { MESH_TOLERANCE, SNAP_DISTANCE, HUB_RADIUS, computeGearTrain, snapGear, pointPolygonDistance };
 })();
 
 // ---- game/levels.ts ----
@@ -1555,7 +1932,8 @@ const LEVELS = [
         ],
         inventory: {
             gear: 3,
-            bigGear: 2
+            bigGear: 2,
+            string: 1
         },
         solution: [
             {
@@ -1572,7 +1950,7 @@ const LEVELS = [
         science: {
             topic: 'Gear trains',
             text: 'Gears pass turning along. When two gears mesh, they spin in opposite directions. Bigger gears turn slower. Drop a gear near another and it clicks into place.',
-            tryThis: 'Watch the arrows before you press Start. Can you predict which way the paddle will spin?',
+            tryThis: 'Watch the arrows before you press Start. Can you predict which way the paddle will spin? There is a string too: it joins two gears across a gap, and crossing it (F) flips the direction.',
             learned: 'Every gear in a train flips the direction, so counting gears tells you which way the last one turns.'
         }
     },
@@ -1692,7 +2070,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2d';
+const VERSION = '0.2e';
 
 return { VERSION };
 })();
@@ -2259,7 +2637,8 @@ return { ENDPOINT, PENDING_KEY, fetchCommunity, submitRun, loadPending, savePend
 })();
 
 // ---- game/draw.ts ----
-const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+
 
 const INK = COLORS.ink;
 function pieces(body) {
@@ -2395,7 +2774,8 @@ function drawDecoration(ctx, body, state) {
                 ctx.rotate(body.angle);
                 const spacing = 26;
                 const span = len - 36;
-                const offset = state.playing ? state.steps * 0.9 % spacing : 0;
+                const beltScale = part ? propValue('conveyor', part.props, 'speed') / 3.2 : 1;
+                const offset = state.playing ? state.steps * 0.9 * beltScale % spacing : 0;
                 ctx.strokeStyle = 'rgba(29,36,64,0.7)';
                 ctx.lineWidth = 2.5;
                 ctx.lineCap = 'round';
@@ -2516,6 +2896,93 @@ function drawGearMarks(ctx, body, part, state) {
         else if (speed) drawSpinArrow(ctx, x, y, spec.radius + 14, speed > 0 ? 1 : -1, spec.motor ? COLORS.motor : COLORS.goal);
     }
 }
+function drawBelt(ctx, part, state, selected = false) {
+    const belt = part.belt;
+    if (!belt) return;
+    const { ax, ay, ar, bx, by, br, crossed } = belt;
+    const dx = bx - ax;
+    const dy = by - ay;
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return;
+    const theta = Math.atan2(dy, dx);
+    const cosPhi = crossed ? (ar + br) / d : (ar - br) / d;
+    const phi = Math.acos(Math.max(-1, Math.min(1, cosPhi)));
+    const at = (cx, cy, r, a)=>({
+            x: cx + r * Math.cos(a),
+            y: cy + r * Math.sin(a)
+        });
+    const trace = ()=>{
+        ctx.beginPath();
+        if (!crossed) {
+            const a1 = at(ax, ay, ar, theta + phi);
+            const b1 = at(bx, by, br, theta + phi);
+            ctx.moveTo(a1.x, a1.y);
+            ctx.lineTo(b1.x, b1.y);
+            ctx.arc(bx, by, br, theta + phi, theta - phi, true);
+            ctx.lineTo(at(ax, ay, ar, theta - phi).x, at(ax, ay, ar, theta - phi).y);
+            ctx.arc(ax, ay, ar, theta - phi, theta + phi - Math.PI * 2, true);
+        } else {
+            const a1 = at(ax, ay, ar, theta + phi);
+            const b1 = at(bx, by, br, theta + phi + Math.PI);
+            const a2 = at(ax, ay, ar, theta - phi);
+            ctx.moveTo(a1.x, a1.y);
+            ctx.lineTo(b1.x, b1.y);
+            ctx.arc(bx, by, br, theta + phi + Math.PI, theta - phi + Math.PI + Math.PI * 2, false);
+            ctx.lineTo(a2.x, a2.y);
+            ctx.arc(ax, ay, ar, theta - phi, theta + phi + Math.PI * 2, false);
+        }
+        ctx.closePath();
+    };
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (selected) {
+        ctx.strokeStyle = 'rgba(47,125,246,0.45)';
+        ctx.lineWidth = 12;
+        trace();
+        ctx.stroke();
+    }
+    ctx.strokeStyle = COLORS.string;
+    ctx.lineWidth = 6;
+    trace();
+    ctx.stroke();
+    const w = state.train?.speeds.get(part.link?.a ?? -1) ?? 0;
+    ctx.strokeStyle = 'rgba(255,236,200,0.9)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([
+        7,
+        11
+    ]);
+    ctx.lineDashOffset = state.playing ? -(w * ar * state.steps) : 0;
+    trace();
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const [cx, cy, r] of [
+        [
+            ax,
+            ay,
+            ar
+        ],
+        [
+            bx,
+            by,
+            br
+        ]
+    ]){
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#f3d9b1';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = INK;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = INK;
+        ctx.fill();
+    }
+    ctx.restore();
+}
 function drawSpinArrow(ctx, x, y, r, dir, color) {
     const start = -Math.PI * 0.85;
     const end = -Math.PI * 0.15;
@@ -2622,16 +3089,32 @@ function drawThumbnail(canvas, type) {
         playing: false,
         train: null
     };
+    if (type === 'string') {
+        drawBelt(ctx, {
+            ...fake,
+            belt: {
+                ax: -22,
+                ay: 0,
+                ar: 9,
+                bx: 22,
+                by: 0,
+                br: 9,
+                crossed: false
+            }
+        }, state);
+        return;
+    }
     for (const b of bodies)drawUnderlay(ctx, b, state);
     drawBodies(ctx, bodies, state);
     for (const b of bodies)drawDecoration(ctx, b, state);
 }
 
-return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawSpinArrow, drawPaper, drawThumbnail };
+return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
 })();
 
 // ---- game/world.ts ----
 const { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
+
 
 
 
@@ -2843,7 +3326,8 @@ class Simulation {
             const dx = Math.cos(belt.angle) * sign;
             const dy = Math.sin(belt.angle) * sign;
             const along = other.velocity.x * dx + other.velocity.y * dy;
-            if (along < CONVEYOR_SPEED) {
+            const maxSpeed = part ? propValue('conveyor', part.props, 'speed') : CONVEYOR_SPEED;
+            if (along < maxSpeed) {
                 const f = other.mass * CONVEYOR_FORCE;
                 Body.applyForce(other, other.position, {
                     x: dx * f,
@@ -2937,6 +3421,7 @@ return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
 
 // ---- game/ui.ts ----
 const { UI } = (() => {
+
 
 
 
@@ -3146,6 +3631,78 @@ class UI {
         this.gateEl.hidden = true;
         $('app').removeAttribute('inert');
     }
+    propsId = null;
+    propsBusy = false;
+    showProps(model) {
+        const card = $('props-card');
+        if (!model || !model.items.length && !model.facts.length) {
+            card.hidden = true;
+            this.propsId = null;
+            return;
+        }
+        if (this.propsBusy && this.propsId === model.id) return;
+        card.hidden = false;
+        this.propsId = model.id;
+        $('props-title').textContent = model.title;
+        const body = $('props-body');
+        body.innerHTML = '';
+        for (const { spec, value } of model.items){
+            const row = document.createElement('div');
+            row.className = 'prop-row';
+            const head = document.createElement('label');
+            head.className = 'prop-head';
+            const name = document.createElement('span');
+            name.textContent = `${spec.icon} ${spec.label}`;
+            const val = document.createElement('strong');
+            val.textContent = spec.show(value);
+            head.append(name, val);
+            const input = document.createElement('input');
+            input.type = 'range';
+            input.min = String(spec.min);
+            input.max = String(spec.max);
+            input.step = String(spec.step);
+            input.value = String(value);
+            input.setAttribute('aria-label', spec.label);
+            const feel = document.createElement('p');
+            feel.className = 'prop-feel';
+            feel.textContent = feelOf(spec, value);
+            const sci = document.createElement('p');
+            sci.className = 'prop-sci';
+            sci.textContent = spec.science;
+            const begin = ()=>{
+                if (!this.propsBusy) {
+                    this.propsBusy = true;
+                    this.handlers.onPropStart();
+                }
+            };
+            const end = ()=>{
+                if (this.propsBusy) {
+                    this.propsBusy = false;
+                    this.handlers.onPropEnd();
+                }
+            };
+            input.addEventListener('pointerdown', begin);
+            input.addEventListener('keydown', begin);
+            input.addEventListener('input', ()=>{
+                begin();
+                const v = Number(input.value);
+                val.textContent = spec.show(v);
+                feel.textContent = feelOf(spec, v);
+                this.handlers.onProp(spec.key, v);
+            });
+            input.addEventListener('change', end);
+            input.addEventListener('pointerup', end);
+            input.addEventListener('keyup', end);
+            row.append(head, input, feel, sci);
+            body.appendChild(row);
+        }
+        for (const fact of model.facts){
+            const p = document.createElement('p');
+            p.className = 'prop-fact';
+            p.textContent = fact;
+            body.appendChild(p);
+        }
+    }
     scoresView = null;
     scoresTab = 'community';
     setScores(view) {
@@ -3287,6 +3844,7 @@ return { UI };
 
 
 
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -3364,6 +3922,12 @@ const ui = new UI({
     onUndo: ()=>undo(),
     onRotate: (dir)=>rotate(dir),
     onFlip: ()=>flip(),
+    onPropStart: ()=>pushUndo(),
+    onProp: (key, value)=>setProp(key, value),
+    onPropEnd: ()=>{
+        persistSandbox();
+        refreshUI();
+    },
     onPower: (p)=>setPower(p),
     onDelete: ()=>deleteSelected(),
     onSelectLevel: (i)=>loadLevel(i, true),
@@ -3508,14 +4072,35 @@ function persistSandbox() {
         localStorage.setItem(SANDBOX_KEY, JSON.stringify(parts.filter((p)=>!p.locked)));
     } catch  {}
 }
+function cleanProps(type, raw) {
+    if (!raw || typeof raw !== 'object') return undefined;
+    const out = {};
+    for (const spec of PROP_SPECS[type] ?? []){
+        const v = raw[spec.key];
+        if (typeof v === 'number' && Number.isFinite(v)) out[spec.key] = clamp(v, spec.min, spec.max);
+    }
+    return Object.keys(out).length ? out : undefined;
+}
 function restoreSandbox() {
     try {
         const saved = JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]');
-        return saved.filter((p)=>p && p.type in PART_DEFS).map((p)=>({
+        const ids = new Map();
+        const fresh = saved.filter((p)=>p && p.type in PART_DEFS).map((p)=>{
+            const id = nextId();
+            ids.set(p.id, id);
+            return {
                 ...p,
-                id: nextId(),
-                locked: false
-            }));
+                id,
+                locked: false,
+                props: cleanProps(p.type, p.props),
+                belt: undefined
+            };
+        });
+        for (const p of fresh)if (p.link) p.link = {
+            a: ids.get(p.link.a) ?? -1,
+            b: ids.get(p.link.b) ?? -1
+        };
+        return fresh.filter((p)=>p.type !== 'string' || p.link && p.link.a > 0 && p.link.b > 0);
     } catch  {
         return [];
     }
@@ -3565,7 +4150,33 @@ function resetZoom() {
     ui.setZoom(1);
     updateToolbar();
 }
+function syncStrings() {
+    const gearOf = (id)=>parts.find((q)=>q.id === id && isGear(q.type));
+    parts = parts.filter((p)=>p.type !== 'string' || p.link && p.link.a !== p.link.b && gearOf(p.link.a) && gearOf(p.link.b));
+    for (const s of parts){
+        if (s.type !== 'string' || !s.link) continue;
+        const a = gearOf(s.link.a);
+        const b = gearOf(s.link.b);
+        const ar = HUB_RADIUS;
+        const br = HUB_RADIUS * propValue('string', s.props, 'pulley');
+        const d = Math.hypot(b.x - a.x, b.y - a.y);
+        s.belt = {
+            ax: a.x,
+            ay: a.y,
+            ar,
+            bx: b.x,
+            by: b.y,
+            br,
+            crossed: !!s.flip
+        };
+        s.x = (a.x + b.x) / 2;
+        s.y = (a.y + b.y) / 2;
+        s.angle = Math.atan2(b.y - a.y, b.x - a.x);
+        s.w = Math.max(10, d - ar - br);
+    }
+}
 function rebuild() {
+    syncStrings();
     sim.goalEnabled = level.hasGoal;
     sim.goalTargets = level.goalTargets ?? [
         'ball'
@@ -3583,6 +4194,8 @@ function changed() {
     refreshUI();
 }
 function refreshUI() {
+    if (tool !== 'string') stringFrom = null;
+    ui.showProps(propsModel());
     ui.updateCounts(remaining());
     ui.setSelectedTool(tool);
     ui.setUndoEnabled(undoStack.length > 0 && !playing);
@@ -3677,6 +4290,86 @@ function stop() {
     ui.showSolved(false);
     ui.setStatus('Building');
     refreshUI();
+}
+let stringFrom = null;
+function stringClick(x, y, touch = false) {
+    const id = sim.partNear(x, y, (touch ? 24 : 14) / view.z, (q)=>isGear(q.type));
+    if (id === undefined) {
+        ui.toast('Click a gear to tie the string to its centre.');
+        return;
+    }
+    if (stringFrom === null) {
+        stringFrom = id;
+        ui.toast('Now click a second gear.');
+        return;
+    }
+    if (id === stringFrom) {
+        stringFrom = null;
+        ui.toast('String cancelled.');
+        return;
+    }
+    const a = stringFrom;
+    stringFrom = null;
+    if (parts.some((q)=>q.type === 'string' && q.link && (q.link.a === a && q.link.b === id || q.link.a === id && q.link.b === a))) {
+        ui.toast('Those two gears are already joined.');
+        return;
+    }
+    if (remaining().string === 0) {
+        ui.toast('No strings left.');
+        return;
+    }
+    pushUndo();
+    const part = {
+        id: nextId(),
+        type: 'string',
+        x: 0,
+        y: 0,
+        angle: 0,
+        link: {
+            a,
+            b: id
+        }
+    };
+    parts.push(part);
+    tool = null;
+    selectedId = part.id;
+    ui.showPartInfo('string');
+    changed();
+}
+function propsModel() {
+    const sel = selectedPart();
+    if (!sel || playing) return null;
+    const def = PART_DEFS[sel.type];
+    const items = (PROP_SPECS[sel.type] ?? []).map((spec)=>({
+            spec,
+            value: partProp(sel, spec.key)
+        }));
+    const facts = [];
+    if (def.gear) {
+        facts.push(`Teeth: ${def.gear.teeth}`);
+        const speed = sim.gearTrain.speeds.get(sel.id);
+        if (sim.gearTrain.jammed.has(sel.id)) facts.push('Jammed! These gears fight each other, so nothing can turn.');
+        else if (speed) facts.push(`Turns ${(Math.abs(speed) * 60 / (2 * Math.PI)).toFixed(2)} times a second, ${speed > 0 ? 'clockwise' : 'anticlockwise'}.`);
+        else if (!def.gear.motor) facts.push('Not turning. Join it to a motor gear with teeth or a string.');
+    }
+    if (sel.type === 'string') facts.push(sel.flip ? 'Crossed: the second gear turns the opposite way.' : 'Straight: both gears turn the same way. Press F to cross it.');
+    return {
+        id: sel.id,
+        title: def.label,
+        items,
+        facts
+    };
+}
+function setProp(key, value) {
+    const sel = selectedPart();
+    if (!sel || sel.locked || playing) return;
+    const spec = PROP_SPECS[sel.type]?.find((p)=>p.key === key);
+    if (!spec) return;
+    const v = clamp(value, spec.min, spec.max);
+    if (key === 'power') sel.power = Math.round(v);
+    else (sel.props ??= {})[key] = v;
+    rebuild();
+    updateToolbar();
 }
 function selectTool(type) {
     if (playing) return;
@@ -3776,6 +4469,10 @@ function positionPart(p, x, y) {
 }
 const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 function placeAt(type, x, y) {
+    if (type === 'string') {
+        stringClick(x, y);
+        return;
+    }
     if (remaining()[type] === 0) return;
     const def = PART_DEFS[type];
     const part = {
@@ -3858,13 +4555,19 @@ canvas.addEventListener('pointerdown', (e)=>{
         return;
     }
     const touch = e.pointerType === 'touch';
+    if (tool === 'string') {
+        stringClick(p.x, p.y, touch);
+        refreshUI();
+        updateCursor();
+        return;
+    }
     const tolerance = (tool ? touch ? 8 : 3 : touch ? 26 : 16) / view.z;
     const ownId = sim.partNear(p.x, p.y, tolerance, ownParts);
     if (ownId !== undefined) {
         const part = parts.find((q)=>q.id === ownId);
         tool = null;
         selectedId = part.id;
-        drag = {
+        if (!PART_DEFS[part.type].anchored) drag = {
             id: part.id,
             dx: part.x - p.x,
             dy: part.y - p.y,
@@ -4000,7 +4703,7 @@ window.addEventListener('pointerup', (e)=>{
     const p = worldPoint(e.clientX, e.clientY);
     if (p.inside && !playing) {
         placeAt(pd.type, p.x, p.y);
-        tool = null;
+        if (!(pd.type === 'string' && stringFrom !== null)) tool = null;
     }
     refreshUI();
 });
@@ -4061,7 +4764,7 @@ window.addEventListener('keydown', (e)=>{
         refreshUI();
     } else if (e.key.startsWith('Arrow')) {
         const sel = selectedPart();
-        if (!sel || sel.locked || playing) return;
+        if (!sel || sel.locked || playing || PART_DEFS[sel.type].anchored) return;
         e.preventDefault();
         const d = {
             ArrowLeft: [
@@ -4150,7 +4853,7 @@ function render() {
         else drawTrails(lastTrails, true);
     }
     const ghostBodies = (()=>{
-        if (playing || !tool || !hover) return null;
+        if (playing || !tool || tool === 'string' || !hover) return null;
         const def = PART_DEFS[tool];
         const ghost = {
             id: -1,
@@ -4169,8 +4872,36 @@ function render() {
     drawBodies(ctx, sensors, state);
     drawBodies(ctx, solids, state);
     for (const b of solids)drawDecoration(ctx, b, state);
+    for (const s of parts)if (s.type === 'string') drawBelt(ctx, s, state, !playing && s.id === selectedId);
     if (!playing) {
         drawGearLinks();
+        if (tool === 'string' && hover) {
+            const near = sim.partNear(hover.x, hover.y, 14 / view.z, (q)=>isGear(q.type));
+            const first = parts.find((q)=>q.id === stringFrom);
+            ctx.save();
+            ctx.lineWidth = 4 / view.z;
+            ctx.strokeStyle = '#2f7df6';
+            for (const g of [
+                first,
+                parts.find((q)=>q.id === near)
+            ]){
+                if (!g) continue;
+                ctx.beginPath();
+                ctx.arc(g.x, g.y, HUB_RADIUS + 5, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+            if (first) {
+                ctx.setLineDash([
+                    7 / view.z,
+                    6 / view.z
+                ]);
+                ctx.beginPath();
+                ctx.moveTo(first.x, first.y);
+                ctx.lineTo(hover.x, hover.y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
         if (hoverId !== undefined && hoverId !== selectedId && !drag) {
             const hp = parts.find((p)=>p.id === hoverId);
             if (hp && !hp.locked) {

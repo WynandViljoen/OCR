@@ -168,7 +168,7 @@ export const LEVELS: Level[] = [
       { type: 'ball', x: 430, y: 394 },
       ...basketWithFunnel(700),
     ],
-    inventory: { gear: 3, bigGear: 2 },
+    inventory: { gear: 3, bigGear: 2, string: 1 },
     solution: [
       { type: 'bigGear', x: 221.3, y: 250.1 },
       { type: 'bigGear', x: 349.3, y: 248.1 },
@@ -176,7 +176,7 @@ export const LEVELS: Level[] = [
     science: {
       topic: 'Gear trains',
       text: 'Gears pass turning along. When two gears mesh, they spin in opposite directions. Bigger gears turn slower. Drop a gear near another and it clicks into place.',
-      tryThis: 'Watch the arrows before you press Start. Can you predict which way the paddle will spin?',
+      tryThis: 'Watch the arrows before you press Start. Can you predict which way the paddle will spin? There is a string too: it joins two gears across a gap, and crossing it (F) flips the direction.',
       learned: 'Every gear in a train flips the direction, so counting gears tells you which way the last one turns.',
     },
   },

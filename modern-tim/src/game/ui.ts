@@ -4,6 +4,7 @@
  * and reports user intent through `UIHandlers`; game state lives in main.ts.
  */
 import { PALETTE_ORDER, PART_DEFS, type PartType } from './parts';
+import { feelOf, type PropSpec } from './props';
 import type { Level } from './levels';
 import { drawThumbnail } from './draw';
 import { BOARD_SIZE, CATEGORIES, CATEGORY_INFO, emptyBoard, formatValue, sanitizeName, type Board } from './profile';
@@ -16,6 +17,10 @@ export interface UIHandlers {
   onUndo(): void;
   onRotate(direction: 1 | -1): void;
   onFlip(): void;
+  /** A slider in the Tinker lab: grab it, move it, let go. */
+  onPropStart(): void;
+  onProp(key: string, value: number): void;
+  onPropEnd(): void;
   onPower(level: number): void;
   onDelete(): void;
   onSelectLevel(index: number): void;
@@ -30,6 +35,15 @@ export interface UIHandlers {
 }
 
 /** One line on the Solved card: how this run did in one score category. */
+/** What the Tinker lab card shows for the selected part. */
+export interface PropsModel {
+  id: number;
+  title: string;
+  items: { spec: PropSpec; value: number }[];
+  /** Live facts such as "Turns 0.5 times a second". */
+  facts: string[];
+}
+
 export interface ScoresView {
   level: Level;
   /** This browser's boards for the level, or null for levels without a goal. */
@@ -304,6 +318,81 @@ export class UI {
   // -------------------------------------------------------------------------
   // High scores
   // -------------------------------------------------------------------------
+
+  private propsId: number | null = null;
+  private propsBusy = false;
+
+  /** Show sliders for the selected part, or hide the card. Left alone while a slider is being dragged. */
+  showProps(model: PropsModel | null) {
+    const card = $('props-card');
+    if (!model || (!model.items.length && !model.facts.length)) {
+      card.hidden = true;
+      this.propsId = null;
+      return;
+    }
+    if (this.propsBusy && this.propsId === model.id) return;
+    card.hidden = false;
+    this.propsId = model.id;
+    $('props-title').textContent = model.title;
+    const body = $('props-body');
+    body.innerHTML = '';
+    for (const { spec, value } of model.items) {
+      const row = document.createElement('div');
+      row.className = 'prop-row';
+      const head = document.createElement('label');
+      head.className = 'prop-head';
+      const name = document.createElement('span');
+      name.textContent = `${spec.icon} ${spec.label}`;
+      const val = document.createElement('strong');
+      val.textContent = spec.show(value);
+      head.append(name, val);
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(spec.min);
+      input.max = String(spec.max);
+      input.step = String(spec.step);
+      input.value = String(value);
+      input.setAttribute('aria-label', spec.label);
+      const feel = document.createElement('p');
+      feel.className = 'prop-feel';
+      feel.textContent = feelOf(spec, value);
+      const sci = document.createElement('p');
+      sci.className = 'prop-sci';
+      sci.textContent = spec.science;
+      const begin = () => {
+        if (!this.propsBusy) {
+          this.propsBusy = true;
+          this.handlers.onPropStart();
+        }
+      };
+      const end = () => {
+        if (this.propsBusy) {
+          this.propsBusy = false;
+          this.handlers.onPropEnd();
+        }
+      };
+      input.addEventListener('pointerdown', begin);
+      input.addEventListener('keydown', begin);
+      input.addEventListener('input', () => {
+        begin();
+        const v = Number(input.value);
+        val.textContent = spec.show(v);
+        feel.textContent = feelOf(spec, v);
+        this.handlers.onProp(spec.key, v);
+      });
+      input.addEventListener('change', end);
+      input.addEventListener('pointerup', end);
+      input.addEventListener('keyup', end);
+      row.append(head, input, feel, sci);
+      body.appendChild(row);
+    }
+    for (const fact of model.facts) {
+      const p = document.createElement('p');
+      p.className = 'prop-fact';
+      p.textContent = fact;
+      body.appendChild(p);
+    }
+  }
 
   private scoresView: ScoresView | null = null;
   private scoresTab: 'community' | 'mine' = 'community';

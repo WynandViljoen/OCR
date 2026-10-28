@@ -6,6 +6,7 @@
 import type Matter from 'matter-js';
 import { COLORS, PART_DEFS, type PartType, type PlacedPart } from './parts';
 import type { GearTrain } from './mechanics';
+import { propValue } from './props';
 
 export interface DrawState {
   steps: number;
@@ -148,7 +149,8 @@ export function drawDecoration(ctx: CanvasRenderingContext2D, body: Matter.Body,
       ctx.rotate(body.angle);
       const spacing = 26;
       const span = len - 36;
-      const offset = state.playing ? (state.steps * 0.9) % spacing : 0;
+      const beltScale = part ? propValue('conveyor', part.props, 'speed') / 3.2 : 1;
+      const offset = state.playing ? (state.steps * 0.9 * beltScale) % spacing : 0;
       ctx.strokeStyle = 'rgba(29,36,64,0.7)';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
@@ -267,6 +269,85 @@ function drawGearMarks(ctx: CanvasRenderingContext2D, body: Matter.Body, part: P
   }
 }
 
+/**
+ * A string between two gear hubs: a belt around two little pulleys, with dashes that
+ * travel along it while the machine runs. Crossed strings make a figure of eight.
+ */
+export function drawBelt(ctx: CanvasRenderingContext2D, part: PlacedPart, state: DrawState, selected = false) {
+  const belt = part.belt;
+  if (!belt) return;
+  const { ax, ay, ar, bx, by, br, crossed } = belt;
+  const dx = bx - ax;
+  const dy = by - ay;
+  const d = Math.hypot(dx, dy);
+  if (d < 1) return;
+  const theta = Math.atan2(dy, dx);
+  const cosPhi = crossed ? (ar + br) / d : (ar - br) / d;
+  const phi = Math.acos(Math.max(-1, Math.min(1, cosPhi)));
+  const at = (cx: number, cy: number, r: number, a: number) => ({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+
+  const trace = () => {
+    ctx.beginPath();
+    if (!crossed) {
+      const a1 = at(ax, ay, ar, theta + phi);
+      const b1 = at(bx, by, br, theta + phi);
+      ctx.moveTo(a1.x, a1.y);
+      ctx.lineTo(b1.x, b1.y);
+      ctx.arc(bx, by, br, theta + phi, theta - phi, true);
+      ctx.lineTo(at(ax, ay, ar, theta - phi).x, at(ax, ay, ar, theta - phi).y);
+      ctx.arc(ax, ay, ar, theta - phi, theta + phi - Math.PI * 2, true);
+    } else {
+      const a1 = at(ax, ay, ar, theta + phi);
+      const b1 = at(bx, by, br, theta + phi + Math.PI);
+      const a2 = at(ax, ay, ar, theta - phi);
+      ctx.moveTo(a1.x, a1.y);
+      ctx.lineTo(b1.x, b1.y);
+      ctx.arc(bx, by, br, theta + phi + Math.PI, theta - phi + Math.PI + Math.PI * 2, false);
+      ctx.lineTo(a2.x, a2.y);
+      ctx.arc(ax, ay, ar, theta - phi, theta + phi + Math.PI * 2, false);
+    }
+    ctx.closePath();
+  };
+
+  ctx.save();
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  if (selected) {
+    ctx.strokeStyle = 'rgba(47,125,246,0.45)';
+    ctx.lineWidth = 12;
+    trace();
+    ctx.stroke();
+  }
+  ctx.strokeStyle = COLORS.string;
+  ctx.lineWidth = 6;
+  trace();
+  ctx.stroke();
+  // Light dashes that crawl along the string show which way it travels.
+  const w = state.train?.speeds.get(part.link?.a ?? -1) ?? 0;
+  ctx.strokeStyle = 'rgba(255,236,200,0.9)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([7, 11]);
+  ctx.lineDashOffset = state.playing ? -(w * ar * state.steps) : 0;
+  trace();
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // The two little pulleys.
+  for (const [cx, cy, r] of [[ax, ay, ar], [bx, by, br]]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#f3d9b1';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = INK;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 /** Curved arrow around (x, y). dir 1 = clockwise. */
 export function drawSpinArrow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, dir: 1 | -1, color: string) {
   const start = -Math.PI * 0.85;
@@ -362,6 +443,10 @@ export function drawThumbnail(canvas: HTMLCanvasElement, type: PartType) {
   ctx.scale(scale, scale);
   ctx.translate(-(minX + maxX) / 2, -(minY + maxY) / 2);
   const state: DrawState = { steps: 0, playing: false, train: null };
+  if (type === 'string') {
+    drawBelt(ctx, { ...fake, belt: { ax: -22, ay: 0, ar: 9, bx: 22, by: 0, br: 9, crossed: false } }, state);
+    return;
+  }
   for (const b of bodies) drawUnderlay(ctx, b, state);
   drawBodies(ctx, bodies, state);
   for (const b of bodies) drawDecoration(ctx, b, state);

@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.2e
+- New **String** tool: click two gears and a string joins their centres. Both gears turn, even far apart. A straight string turns them the same way; press F to cross it and the second gear turns the opposite way. The second pulley can be made bigger or smaller (bigger = slower).
+- New **Tinker lab** card: select any part and change its numbers with sliders, each with a kid-friendly sentence and the science word. Ball and bowling ball: bounciness, weight, grip. Ramp and wall: grip, bounciness. Conveyor: belt speed. Motor gear: motor speed. Spring: strength. Domino and mouse: weight, grip, bounce. Seesaw and paddle wheel: weight, axle drag. Untouched parts behave exactly as before.
+- Gears show live facts (teeth, turns per second, direction, jammed).
+- Level 6 "Gears" now also has one string in its inventory (an extra way to solve it; crossing the string matters).
+- Please re-run `npm run check-levels` (physics reads the new numbers, defaults unchanged), plus `npm run check-belts`.
+
 ## Modern TIM 0.2d
 - Community high scores shared by everyone who plays on the server, next to a personal "My best" tab. Both are on the High scores card; the Solved card shows your rank on each.
 - New root file `scores.php` keeps the shared boards in `scores-data.json` (same top-5 rules). It must be copied to the web folder next to `index.html` (see README).

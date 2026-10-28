@@ -18,6 +18,7 @@
  * Dynamic and pivot parts are frozen (static) while editing.
  */
 import Matter from 'matter-js';
+import { propValue } from './props';
 
 const { Bodies, Body } = Matter;
 
@@ -36,7 +37,8 @@ export type PartType =
   | 'gear'
   | 'bigGear'
   | 'paddleGear'
-  | 'mouse';
+  | 'mouse'
+  | 'string';
 
 /** A part as stored in a level or in the player's layout. Angle is radians. */
 export interface PlacedPart {
@@ -54,6 +56,23 @@ export interface PlacedPart {
   flip?: boolean;
   /** Spring strength: 1 (soft) .. 3 (strong). */
   power?: number;
+  /** Tinkered values (bounciness, grip, weight, speed...) by key; missing keys use the part's default (see props.ts). */
+  props?: Record<string, number>;
+  /** A string: the two gears it joins (by part id). Its position is worked out from them. */
+  link?: { a: number; b: number };
+  /** Worked out from `link` every time the machine is rebuilt (never edit by hand). */
+  belt?: Belt;
+}
+
+/** Where a string runs: two pulley hubs, and whether the string is crossed. */
+export interface Belt {
+  ax: number;
+  ay: number;
+  ar: number;
+  bx: number;
+  by: number;
+  br: number;
+  crossed: boolean;
 }
 
 export type Motion = 'static' | 'dynamic' | 'pivot';
@@ -78,10 +97,12 @@ export interface PartDef {
   hasPower: boolean;
   motion: Motion;
   gear?: GearSpec;
+  /** Can be selected and deleted, but not dragged (strings follow their gears). */
+  anchored?: boolean;
   build(p: PartGeometry, play: boolean): Matter.Body[];
 }
 
-export type PartGeometry = Pick<PlacedPart, 'x' | 'y' | 'angle' | 'w' | 'h' | 'flip' | 'power'>;
+export type PartGeometry = Pick<PlacedPart, 'x' | 'y' | 'angle' | 'w' | 'h' | 'flip' | 'power' | 'props' | 'belt'>;
 
 // ---------------------------------------------------------------------------
 // Physics tuning (all speeds are px per 60 Hz step)
@@ -92,6 +113,7 @@ export const CAT_SENSOR = 0x0002;
 /** Bodies sharing a negative group never collide: gears overlap visually where they mesh. */
 export const GROUP_GEARS = -1;
 
+/** Default belt speed; players can change it (see props.ts, which must keep the same number). */
 export const CONVEYOR_SPEED = 3.2;
 export const CONVEYOR_FORCE = 0.0009; // per unit mass
 export const MOTOR_SPEED = 0.05; // radians per step (about 0.5 turns per second)
@@ -113,6 +135,7 @@ export const COLORS = {
   motor: '#ff7a1a',
   gear: '#f5c400',
   mouse: '#c7ccd8',
+  string: '#8a5a33',
 };
 
 const solid = { category: CAT_SOLID, mask: 0xffffffff, group: 0 };
@@ -222,14 +245,14 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'dynamic',
-    build: ({ x, y }, play) => [
+    build: ({ x, y, props }, play) => [
       Bodies.circle(x, y, 14, {
         label: 'ball',
         isStatic: !play,
-        restitution: 0.45,
-        friction: 0.02,
+        restitution: propValue('ball', props, 'bounce'),
+        friction: propValue('ball', props, 'grip'),
         frictionAir: 0.0005,
-        density: 0.002,
+        density: propValue('ball', props, 'weight'),
         collisionFilter: solid,
         render: look(COLORS.ball),
       }),
@@ -245,14 +268,14 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'dynamic',
-    build: ({ x, y }, play) => [
+    build: ({ x, y, props }, play) => [
       Bodies.circle(x, y, 18, {
         label: 'heavyBall',
         isStatic: !play,
-        restitution: 0.05,
-        friction: 0.05,
+        restitution: propValue('heavyBall', props, 'bounce'),
+        friction: propValue('heavyBall', props, 'grip'),
         frictionAir: 0.0005,
-        density: 0.012,
+        density: propValue('heavyBall', props, 'weight'),
         collisionFilter: solid,
         render: look(COLORS.heavy),
       }),
@@ -268,13 +291,13 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'static',
-    build: ({ x, y, angle, w, h }) => [
+    build: ({ x, y, angle, w, h, props }) => [
       Bodies.rectangle(x, y, w ?? 170, h ?? 12, {
         label: 'plank',
         angle,
         isStatic: true,
-        friction: 0.1,
-        restitution: 0.1,
+        friction: propValue('plank', props, 'grip'),
+        restitution: propValue('plank', props, 'bounce'),
         collisionFilter: solid,
         render: look(COLORS.wood),
       }),
@@ -290,13 +313,13 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'static',
-    build: ({ x, y, angle, w, h }) => [
+    build: ({ x, y, angle, w, h, props }) => [
       Bodies.rectangle(x, y, w ?? 120, h ?? 20, {
         label: 'wall',
         angle,
         isStatic: true,
-        friction: 0.4,
-        restitution: 0.1,
+        friction: propValue('wall', props, 'grip'),
+        restitution: propValue('wall', props, 'bounce'),
         collisionFilter: solid,
         render: look(COLORS.wall),
       }),
@@ -393,13 +416,13 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'dynamic',
-    build: ({ x, y, angle }, play) => [
+    build: ({ x, y, angle, props }, play) => [
       Bodies.rectangle(x, y, 12, 70, {
         label: 'domino',
         angle,
         isStatic: !play,
-        density: 0.005,
-        friction: 0.6,
+        density: propValue('domino', props, 'weight'),
+        friction: propValue('domino', props, 'grip'),
         frictionAir: 0,
         restitution: 0,
         chamfer: { radius: 2 },
@@ -419,7 +442,7 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     hasPower: false,
     motion: 'pivot',
     // A plank with a small lip at each end so a ball can sit on it, like a catapult.
-    build: ({ x, y, angle, w }, play) => {
+    build: ({ x, y, angle, w, props }, play) => {
       const len = w ?? 200;
       const style = { render: look(COLORS.seesaw) };
       const body = Body.create({
@@ -430,11 +453,11 @@ export const PART_DEFS: Record<PartType, PartDef> = {
         ],
         label: 'seesaw',
         friction: 0.6,
-        frictionAir: 0.01,
+        frictionAir: propValue('seesaw', props, 'drag'),
         restitution: 0.05,
         collisionFilter: solid,
       });
-      Body.setDensity(body, 0.001);
+      Body.setDensity(body, propValue('seesaw', props, 'weight'));
       if (!play) Body.setStatic(body, true);
       return [body];
     },
@@ -449,7 +472,7 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'pivot',
-    build: ({ x, y, angle }, play) => {
+    build: ({ x, y, angle, props }, play) => {
       const parts: Matter.Body[] = [Bodies.circle(x, y, 16, { render: look(COLORS.wheel) })];
       for (let i = 0; i < 6; i++) {
         const a = angle + (i * Math.PI) / 3;
@@ -460,11 +483,11 @@ export const PART_DEFS: Record<PartType, PartDef> = {
         parts,
         label: 'wheel',
         friction: 0.3,
-        frictionAir: 0.02,
+        frictionAir: propValue('wheel', props, 'drag'),
         restitution: 0.1,
         collisionFilter: solid,
       });
-      Body.setDensity(body, 0.0015);
+      Body.setDensity(body, propValue('wheel', props, 'weight'));
       if (!play) Body.setStatic(body, true);
       return [body];
     },
@@ -484,16 +507,40 @@ export const PART_DEFS: Record<PartType, PartDef> = {
     flippable: false,
     hasPower: false,
     motion: 'dynamic',
-    build: ({ x, y }, play) => [
+    build: ({ x, y, props }, play) => [
       Bodies.rectangle(x, y, 36, 24, {
         label: 'mouse',
         isStatic: !play,
         chamfer: { radius: 10 },
-        friction: 0.6,
-        restitution: 0.2,
-        density: 0.002,
+        friction: propValue('mouse', props, 'grip'),
+        restitution: propValue('mouse', props, 'bounce'),
+        density: propValue('mouse', props, 'weight'),
         collisionFilter: solid,
         render: look(COLORS.mouse),
+      }),
+    ],
+  },
+
+  string: {
+    type: 'string',
+    label: 'String',
+    blurb: 'Click two gears. The string joins their centres, so when one turns the other turns too. Press F to cross it.',
+    color: COLORS.string,
+    rotatable: false,
+    flippable: true,
+    hasPower: false,
+    motion: 'static',
+    anchored: true,
+    // Only a clickable strip along the string; it never collides with anything.
+    // main.ts keeps x, y, angle and w up to date from the two gears it joins.
+    build: ({ x, y, angle, w }) => [
+      Bodies.rectangle(x, y, Math.max(w ?? 40, 10), 14, {
+        label: 'string',
+        angle,
+        isStatic: true,
+        isSensor: true,
+        collisionFilter: { category: CAT_SENSOR, mask: 0, group: 0 },
+        render: { visible: false },
       }),
     ],
   },
@@ -516,6 +563,7 @@ export const PALETTE_ORDER: PartType[] = [
   'paddleGear',
   'basket',
   'mouse',
+  'string',
 ];
 
 export function isGear(type: PartType) {

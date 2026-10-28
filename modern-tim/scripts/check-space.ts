@@ -93,7 +93,7 @@ try {
   const { PART_DEFS } = await import('../src/game/parts');
   await check('footprints match the real bodies in parts.ts', () => {
     for (const [type, def] of Object.entries(PART_DEFS)) {
-      if (def.gear) continue; // gear teeth interleave; only the core is solid
+      if (def.gear || type === 'string') continue; // gear teeth interleave; strings have no solid shape
       const part = { id: 1, type: type as SpacePart['type'], x: 400, y: 300, angle: 0.3 };
       const bodies = def.build(part, false).flatMap((b) => b.parts.slice(b.parts.length > 1 ? 1 : 0));
       const solid = bodies.filter((b) => !b.isSensor);

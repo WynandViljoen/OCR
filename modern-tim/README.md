@@ -35,6 +35,13 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 7. A dotted line shows where the ball went last time, so you can see what to fix.
 8. Get a ball into the green zone of the basket to solve the level.
 
+### Strings and the Tinker lab
+- **String**: pick the tool, click a gear, then click a second gear. The string is drawn as a belt around two little pulleys on the gear hubs.
+  Both gears turn the same way; F crosses it so they turn opposite ways; the "Second pulley size" slider changes the speed ratio (bigger = slower).
+  A string that disagrees with a meshing pair jams the gears. Strings follow their gears when you move them and vanish if a gear is deleted.
+- **Tinker lab**: select a part to get its sliders (numbers and defaults live in `src/game/props.ts`; a default is exactly the old physics value).
+  `npm run check-belts` tests the belt maths and that every default sits on its slider.
+
 ### Solid space
 Parts cannot overlap. Drop, drag, rotate or nudge one into another and it slides to the nearest free grid spot; with no room within reach it stays put. The rules live in `src/game/space.ts` (pure geometry), checked by `npm run check-space`.
 
@@ -113,12 +120,14 @@ src/game/mechanics.ts    gear-train maths (meshing, speeds, snapping), hit-testi
 src/game/world.ts        Simulation: Matter engine, conveyors, springs, pivots, gears, goal
 src/game/draw.ts         custom canvas drawing for parts, thumbnails, arrows, paper
 src/game/levels.ts       level data and science text
+src/game/props.ts        tinker-lab numbers per part: ranges, defaults, kid-friendly text
 src/game/space.ts        solid-space rule: footprints, overlap test, nearest free spot
 src/game/community.ts  talks to scores.php (fetch board, send run, retry later)
 src/game/version.ts      the on-screen version number (bump each release)
 src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)
+scripts/check-belts.ts  string / gear-train / slider maths (npm run check-belts)
 scripts/check-space.ts  solid-space check (npm run check-space)
 scripts/check-community.ts  community client check (npm run check-community)
 scripts/check-scores.ts  high-score rules check (npm run check-scores)
