@@ -284,7 +284,7 @@ export class UI {
 
   setZoom(z: number) {
     $('zoom-reset').textContent = `${Math.round(z * 100)}%`;
-    ($('zoom-out') as HTMLButtonElement).disabled = z <= 1.001;
+    ($('zoom-out') as HTMLButtonElement).disabled = z <= 0.401;
     ($('zoom-in') as HTMLButtonElement).disabled = z >= 2.999;
   }
 

@@ -1,5 +1,8 @@
 # Changelog
 
+## Modern TIM 0.2l
+- **Zoom out**: the − button and key now go 80%, 60%, 50%, 40% (wheel and pinch go smoothly down to 40%). Zoomed out, the whole playfield sits centred on a grey margin. The + button steps back up through the same stops. Parts, selection and placing work at every zoom.
+
 ## Modern TIM 0.2k
 - **Portrait phone layout** reworked: a compact header (logo, name and version on one line, player chip beside it), one row of equal buttons (sound, Undo, Reset, Start), scrolling level chips, a one-line "turn your phone sideways" tip you can dismiss, the Select/Pan and zoom buttons moved to a row under the board so they never cover parts, and the Parts tray as one sideways-scrolling strip. Landscape is unchanged.
 

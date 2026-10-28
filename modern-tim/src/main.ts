@@ -79,7 +79,9 @@ let player = loadPlayer();
 const allScores: AllScores = loadScores();
 
 // Camera: `z` is the zoom factor, (cx, cy) the world point at the top-left of the view.
-const MIN_ZOOM = 1;
+const MIN_ZOOM = 0.4;
+/** Button and key steps below 100%: 80, 60, 50, 40. */
+const ZOOM_OUT_STOPS = [0.4, 0.5, 0.6, 0.8, 1];
 const MAX_ZOOM = 3;
 const view = { z: 1, cx: 0, cy: 0 };
 let pan: { x0: number; y0: number; cx0: number; cy0: number; moved: boolean; lockedHit: boolean; select: boolean; shift: boolean } | null = null;
@@ -421,8 +423,9 @@ function worldPoint(clientX: number, clientY: number) {
 
 function clampView() {
   view.z = clamp(view.z, MIN_ZOOM, MAX_ZOOM);
-  view.cx = clamp(view.cx, 0, WORLD_W - WORLD_W / view.z);
-  view.cy = clamp(view.cy, 0, WORLD_H - WORLD_H / view.z);
+  // Zoomed out, the whole world fits with room to spare, so keep it centred.
+  view.cx = view.z < 1 ? (WORLD_W - WORLD_W / view.z) / 2 : clamp(view.cx, 0, WORLD_W - WORLD_W / view.z);
+  view.cy = view.z < 1 ? (WORLD_H - WORLD_H / view.z) / 2 : clamp(view.cy, 0, WORLD_H - WORLD_H / view.z);
 }
 
 /** Zoom by `factor`, keeping the world point (px, py) under the same spot on screen. */
@@ -438,6 +441,21 @@ function zoomAt(factor: number, px: number, py: number) {
 
 /** Zoom around the middle of what is visible (buttons and keys). */
 function zoomStep(factor: number) {
+  // Around and below 100% the steps are tidy numbers (80%, 60%, 50%, 40%).
+  if (factor < 1 && view.z <= 1.001 + 0) {
+    const lower = [...ZOOM_OUT_STOPS].reverse().find((s) => s < view.z - 0.001);
+    if (lower !== undefined) {
+      zoomAt(lower / view.z, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
+      return;
+    }
+  }
+  if (factor > 1 && view.z < 0.999) {
+    const higher = ZOOM_OUT_STOPS.find((s) => s > view.z + 0.001);
+    if (higher !== undefined) {
+      zoomAt(higher / view.z, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
+      return;
+    }
+  }
   zoomAt(factor, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
 }
 
@@ -1392,8 +1410,21 @@ function drawGearLinks() {
 
 function render() {
   const scale = (canvas.width / WORLD_W) * view.z;
+  if (view.z < 1) {
+    // Zoomed out: the world is a sheet of paper with a margin around it.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#c9d3e3';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
   ctx.setTransform(scale, 0, 0, scale, -view.cx * scale, -view.cy * scale);
   drawPaper(ctx, WORLD_W, WORLD_H, FLOOR_TOP);
+  ctx.save();
+  if (view.z < 1) {
+    // Keep the invisible boundary walls out of the margin.
+    ctx.beginPath();
+    ctx.rect(0, 0, WORLD_W, WORLD_H);
+    ctx.clip();
+  }
 
   const state: DrawState = { steps: sim.steps, playing, train: sim.gearTrain };
   const bodies = sim.allBodies();
@@ -1562,6 +1593,7 @@ function render() {
       ctx.restore();
     }
   }
+  ctx.restore();
 }
 
 // ---------------------------------------------------------------------------

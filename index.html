@@ -2827,7 +2827,7 @@ return { LEVELS, levelToParts, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2k';
+const VERSION = '0.2l';
 
 return { VERSION };
 })();
@@ -4978,7 +4978,7 @@ class UI {
     }
     setZoom(z) {
         $('zoom-reset').textContent = `${Math.round(z * 100)}%`;
-        $('zoom-out').disabled = z <= 1.001;
+        $('zoom-out').disabled = z <= 0.401;
         $('zoom-in').disabled = z >= 2.999;
     }
     setUndoEnabled(enabled) {
@@ -5295,7 +5295,14 @@ let showPaths = true;
 let solvedLevels = loadSolved();
 let player = loadPlayer();
 const allScores = loadScores();
-const MIN_ZOOM = 1;
+const MIN_ZOOM = 0.4;
+const ZOOM_OUT_STOPS = [
+    0.4,
+    0.5,
+    0.6,
+    0.8,
+    1
+];
 const MAX_ZOOM = 3;
 const view = {
     z: 1,
@@ -5629,8 +5636,8 @@ function worldPoint(clientX, clientY) {
 }
 function clampView() {
     view.z = clamp(view.z, MIN_ZOOM, MAX_ZOOM);
-    view.cx = clamp(view.cx, 0, WORLD_W - WORLD_W / view.z);
-    view.cy = clamp(view.cy, 0, WORLD_H - WORLD_H / view.z);
+    view.cx = view.z < 1 ? (WORLD_W - WORLD_W / view.z) / 2 : clamp(view.cx, 0, WORLD_W - WORLD_W / view.z);
+    view.cy = view.z < 1 ? (WORLD_H - WORLD_H / view.z) / 2 : clamp(view.cy, 0, WORLD_H - WORLD_H / view.z);
 }
 function zoomAt(factor, px, py) {
     const z = clamp(view.z * factor, MIN_ZOOM, MAX_ZOOM);
@@ -5642,6 +5649,22 @@ function zoomAt(factor, px, py) {
     updateToolbar();
 }
 function zoomStep(factor) {
+    if (factor < 1 && view.z <= 1.001 + 0) {
+        const lower = [
+            ...ZOOM_OUT_STOPS
+        ].reverse().find((s)=>s < view.z - 0.001);
+        if (lower !== undefined) {
+            zoomAt(lower / view.z, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
+            return;
+        }
+    }
+    if (factor > 1 && view.z < 0.999) {
+        const higher = ZOOM_OUT_STOPS.find((s)=>s > view.z + 0.001);
+        if (higher !== undefined) {
+            zoomAt(higher / view.z, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
+            return;
+        }
+    }
     zoomAt(factor, view.cx + WORLD_W / view.z / 2, view.cy + WORLD_H / view.z / 2);
 }
 function resetZoom() {
@@ -6654,8 +6677,19 @@ function drawGearLinks() {
 }
 function render() {
     const scale = canvas.width / WORLD_W * view.z;
+    if (view.z < 1) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = '#c9d3e3';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
     ctx.setTransform(scale, 0, 0, scale, -view.cx * scale, -view.cy * scale);
     drawPaper(ctx, WORLD_W, WORLD_H, FLOOR_TOP);
+    ctx.save();
+    if (view.z < 1) {
+        ctx.beginPath();
+        ctx.rect(0, 0, WORLD_W, WORLD_H);
+        ctx.clip();
+    }
     const state = {
         steps: sim.steps,
         playing,
@@ -6847,6 +6881,7 @@ function render() {
             ctx.restore();
         }
     }
+    ctx.restore();
 }
 let last = performance.now();
 let acc = 0;
