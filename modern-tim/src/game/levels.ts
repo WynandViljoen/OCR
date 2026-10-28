@@ -195,8 +195,9 @@ export const LEVELS: Level[] = [
     ],
     inventory: { conveyor: 2, spring: 1, plank: 1 },
     solution: [
-      { type: 'conveyor', x: 272, y: 256, angle: -15 },
-      { type: 'conveyor', x: 393, y: 224, angle: -15 },
+      // Two belts end to end (they used to overlap by ~17 px, which solid space does not allow).
+      { type: 'conveyor', x: 286, y: 252.2, angle: -15 },
+      { type: 'conveyor', x: 431, y: 213.4, angle: -15 },
       { type: 'spring', x: 630, y: 570, angle: 0, power: 2 },
     ],
     science: {

@@ -13,6 +13,7 @@ import { LEVELS, levelToParts, solutionToParts, type Level } from './game/levels
 import { PART_DEFS, isGear, type PartType, type PlacedPart } from './game/parts';
 import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './game/world';
 import { snapGear } from './game/mechanics';
+import { findFreeSpot } from './game/space';
 import { drawBodies, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type Remaining, type SolvedRow } from './game/ui';
 import {
@@ -434,8 +435,16 @@ function rotate(dir: 1 | -1) {
   }
   const sel = selectedPart();
   if (sel && !sel.locked && PART_DEFS[sel.type].rotatable) {
+    // Turn a copy first: the turned part may now need more room.
+    const turned = { ...sel, angle: sel.angle + dir * ROTATE_STEP };
+    if (!positionPart(turned, sel.x, sel.y)) {
+      ui.toast(NO_ROOM);
+      return;
+    }
     pushUndo();
-    sel.angle += dir * ROTATE_STEP;
+    sel.x = turned.x;
+    sel.y = turned.y;
+    sel.angle = turned.angle;
     changed();
   }
 }
@@ -478,25 +487,38 @@ function undo() {
   changed();
 }
 
-/** Grid-snap a part to (x, y); gears also click into mesh with a nearby gear. */
-function positionPart(p: PlacedPart, x: number, y: number) {
-  p.x = clamp(snap(x), 10, WORLD_W - 10);
-  p.y = clamp(snap(y), 10, FLOOR_TOP - 10);
-  if (isGear(p.type)) {
-    const raw = { ...p, x: clamp(x, 10, WORLD_W - 10), y: clamp(y, 10, FLOOR_TOP - 10) };
-    const snapped = snapGear(raw, parts);
-    if (snapped) {
-      p.x = snapped.x;
-      p.y = snapped.y;
-      p.angle = snapped.angle;
-    }
-  }
+/**
+ * Put a part at (x, y), grid-snapped. Gears also click into mesh with a nearby gear.
+ * Two parts cannot share space: if the spot is taken, the part goes to the closest
+ * free spot instead. Returns false (and leaves the part alone) when there is no room.
+ */
+function positionPart(p: PlacedPart, x: number, y: number): boolean {
+  const others = parts.filter((q) => q.id !== p.id);
+  const spot = findFreeSpot(p, others, x, y, {
+    grid: GRID,
+    minX: 10,
+    maxX: WORLD_W - 10,
+    minY: 10,
+    maxY: FLOOR_TOP - 10,
+    adjust: isGear(p.type)
+      ? (cx, cy) => {
+          const snapped = snapGear({ ...p, x: cx, y: cy }, others);
+          return snapped ?? { x: cx, y: cy };
+        }
+      : undefined,
+  });
+  if (!spot) return false;
+  p.x = spot.x;
+  p.y = spot.y;
+  if (spot.angle !== undefined) p.angle = spot.angle;
+  return true;
 }
+
+const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 
 function placeAt(type: PartType, x: number, y: number) {
   if (remaining()[type] === 0) return;
   const def = PART_DEFS[type];
-  pushUndo();
   const part: PlacedPart = {
     id: nextId(),
     type,
@@ -505,7 +527,11 @@ function placeAt(type: PartType, x: number, y: number) {
     angle: def.rotatable ? toolAngle : 0,
     power: def.hasPower ? 2 : undefined,
   };
-  positionPart(part, x, y);
+  if (!positionPart(part, x, y)) {
+    ui.toast(NO_ROOM);
+    return;
+  }
+  pushUndo();
   parts.push(part);
   selectedId = part.id;
   ui.showPartInfo(type);
@@ -791,9 +817,11 @@ window.addEventListener('keydown', (e) => {
     const sel = selectedPart();
     if (!sel || sel.locked || playing) return;
     e.preventDefault();
-    pushUndo();
     const d = { ArrowLeft: [-GRID, 0], ArrowRight: [GRID, 0], ArrowUp: [0, -GRID], ArrowDown: [0, GRID] }[e.key] ?? [0, 0];
+    const before = clone(parts);
+    const [ox, oy] = [sel.x, sel.y];
     positionPart(sel, sel.x + d[0], sel.y + d[1]);
+    if (sel.x !== ox || sel.y !== oy) pushUndo(before);
     changed();
   }
 });
@@ -858,7 +886,7 @@ function render() {
     if (playing || !tool || !hover) return null;
     const def = PART_DEFS[tool];
     const ghost: PlacedPart = { id: -1, type: tool, x: 0, y: 0, angle: def.rotatable ? toolAngle : 0, power: 2 };
-    positionPart(ghost, hover.x, hover.y);
+    if (!positionPart(ghost, hover.x, hover.y)) return null;
     return def.build(ghost, false);
   })();
 
@@ -941,10 +969,8 @@ requestAnimationFrame(frame);
 loadLevel(0, true);
 
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
-for (const id of ['version-tag', 'version-badge']) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = id === 'version-badge' ? `Modern TIM v${VERSION}` : VERSION;
-}
+const versionTag = document.getElementById('version-tag');
+if (versionTag) versionTag.textContent = VERSION;
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
@@ -972,4 +998,6 @@ else ui.openGate();
   },
   start,
   stop,
+  place: (type: PartType, x: number, y: number) => placeAt(type, x, y),
+  rotateSelected: (dir: 1 | -1) => rotate(dir),
 };

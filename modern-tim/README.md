@@ -35,6 +35,9 @@ npm run build:single   # one self-contained HTML file in dist-single/ (Node 22.1
 7. A dotted line shows where the ball went last time, so you can see what to fix.
 8. Get a ball into the green zone of the basket to solve the level.
 
+### Solid space
+Parts cannot overlap. Drop, drag, rotate or nudge one into another and it slides to the nearest free grid spot; with no room within reach it stays put. The rules live in `src/game/space.ts` (pure geometry), checked by `npm run check-space`.
+
 ### Name and high scores
 - The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
 - Every level has five boards (top 5 each, one row per name): **Shortest path** and **Longest path** (how far the winning ball travelled, in metres, 100 px = 1 m) **Fastest solve** and **Slowest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
@@ -105,10 +108,12 @@ src/game/mechanics.ts    gear-train maths (meshing, speeds, snapping), hit-testi
 src/game/world.ts        Simulation: Matter engine, conveyors, springs, pivots, gears, goal
 src/game/draw.ts         custom canvas drawing for parts, thumbnails, arrows, paper
 src/game/levels.ts       level data and science text
+src/game/space.ts        solid-space rule: footprints, overlap test, nearest free spot
 src/game/version.ts      the on-screen version number (bump each release)
 src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card
 scripts/check-levels.ts  headless solvability check (npm run check-levels)
+scripts/check-space.ts  solid-space check (npm run check-space)
 scripts/check-scores.ts  high-score rules check (npm run check-scores)
 scripts/build-single.mjs bundle into one HTML file
 ```

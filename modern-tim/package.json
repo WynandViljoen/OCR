@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "check-levels": "tsx scripts/check-levels.ts",
     "build:single": "node scripts/build-single.mjs",
-    "check-scores": "tsx scripts/check-scores.ts"
+    "check-scores": "tsx scripts/check-scores.ts",
+    "check-space": "tsx scripts/check-space.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

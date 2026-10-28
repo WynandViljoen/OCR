@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.2c
+- Solid space: parts can no longer overlap. A part dropped, dragged, rotated or nudged into another is moved to the nearest free spot; if there is no room it stays where it was and a message says so.
+- Touching is fine (a ball resting on a ramp, meshed gears). The green goal zone of the basket is empty air; its walls are solid. Spinning paddles and gear teeth are not reserved while they turn.
+- Removed the version badge from the bottom-right corner (the version stays in the header).
+- Level 7 "Big machine": its recorded solution had two conveyors overlapping, so they now sit end to end. Please re-run `npm run check-levels`.
+
 ## Modern TIM 0.2b
 - Game version now shows on screen: a badge in the bottom-right corner, and in the header (one `VERSION` constant in `modern-tim/src/game/version.ts`).
 - Two new high-score boards for every puzzle: Fastest solve and Slowest solve (seconds from Start to the goal, simulated time, top 5 each).

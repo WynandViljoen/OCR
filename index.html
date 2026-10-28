@@ -539,8 +539,6 @@ kbd {
   .btn, .toast { transition: none; }
 }
 
-.version-badge { position: fixed; right: 10px; bottom: 8px; z-index: 5; padding: 2px 9px; border-radius: 999px; font-size: 0.75rem; font-weight: 800; background: rgba(255,255,255,0.85); color: #1d2440; border: 2px solid #1d2440; pointer-events: none; }
-
 </style>
 <div id="app">
       <header class="topbar">
@@ -572,7 +570,7 @@ kbd {
         <aside class="tray" aria-label="Parts">
           <h2 class="panel-title">Parts</h2>
           <div id="palette" class="palette"></div>
-          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them.</p>
+          <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
         <section class="stage">
@@ -662,7 +660,6 @@ kbd {
         </div>
       </form>
     </div>
-    <div id="version-badge" class="version-badge" aria-label="Game version"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
 <script>
 
@@ -1617,14 +1614,14 @@ const LEVELS = [
         solution: [
             {
                 type: 'conveyor',
-                x: 272,
-                y: 256,
+                x: 286,
+                y: 252.2,
                 angle: -15
             },
             {
                 type: 'conveyor',
-                x: 393,
-                y: 224,
+                x: 431,
+                y: 213.4,
                 angle: -15
             },
             {
@@ -1686,6 +1683,288 @@ const { VERSION } = (() => {
 const VERSION = '0.2b';
 
 return { VERSION };
+})();
+
+// ---- game/space.ts ----
+const { OVERLAP_TOLERANCE, footprint, shapesOverlap, footprintBounds, overlapsAny, findFreeSpot } = (() => {
+const OVERLAP_TOLERANCE = 1.5;
+const GEAR_RADIUS = {
+    motorGear: 40,
+    gear: 32,
+    bigGear: 64,
+    paddleGear: 32
+};
+const GEAR_CORE_INSET = 2;
+function rect(cx, cy, w, h, angle) {
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    const pts = [
+        [
+            -w / 2,
+            -h / 2
+        ],
+        [
+            w / 2,
+            -h / 2
+        ],
+        [
+            w / 2,
+            h / 2
+        ],
+        [
+            -w / 2,
+            h / 2
+        ]
+    ].map(([lx, ly])=>({
+            x: cx + lx * c - ly * s,
+            y: cy + lx * s + ly * c
+        }));
+    return {
+        kind: 'poly',
+        pts
+    };
+}
+function local(p, lx, ly, w, h) {
+    const c = Math.cos(p.angle);
+    const s = Math.sin(p.angle);
+    return rect(p.x + lx * c - ly * s, p.y + lx * s + ly * c, w, h, p.angle);
+}
+function footprint(p) {
+    switch(p.type){
+        case 'ball':
+            return [
+                {
+                    kind: 'circle',
+                    x: p.x,
+                    y: p.y,
+                    r: 14
+                }
+            ];
+        case 'heavyBall':
+            return [
+                {
+                    kind: 'circle',
+                    x: p.x,
+                    y: p.y,
+                    r: 18
+                }
+            ];
+        case 'plank':
+            return [
+                rect(p.x, p.y, p.w ?? 170, p.h ?? 12, p.angle)
+            ];
+        case 'wall':
+            return [
+                rect(p.x, p.y, p.w ?? 120, p.h ?? 20, p.angle)
+            ];
+        case 'conveyor':
+            return [
+                rect(p.x, p.y, p.w ?? 150, p.h ?? 18, p.angle)
+            ];
+        case 'domino':
+            return [
+                rect(p.x, p.y, 12, 70, p.angle)
+            ];
+        case 'mouse':
+            return [
+                rect(p.x, p.y, 36, 24, 0)
+            ];
+        case 'basket':
+            return [
+                local(p, -50, 0, 10, 70),
+                local(p, 50, 0, 10, 70),
+                local(p, 0, 30, 110, 10)
+            ];
+        case 'spring':
+            return [
+                local(p, 0, 16, 64, 10),
+                local(p, 0, -14, 70, 12)
+            ];
+        case 'seesaw':
+            {
+                const len = p.w ?? 200;
+                return [
+                    rect(p.x, p.y, len, 14, p.angle),
+                    local(p, -len / 2 + 5, -12, 10, 14),
+                    local(p, len / 2 - 5, -12, 10, 14)
+                ];
+            }
+        case 'wheel':
+            {
+                const out = [
+                    {
+                        kind: 'circle',
+                        x: p.x,
+                        y: p.y,
+                        r: 16
+                    }
+                ];
+                for(let i = 0; i < 6; i++){
+                    const a = p.angle + i * Math.PI / 3;
+                    out.push(rect(p.x + 36 * Math.cos(a), p.y + 36 * Math.sin(a), 46, 9, a));
+                }
+                return out;
+            }
+        default:
+            {
+                const r = GEAR_RADIUS[p.type];
+                return r ? [
+                    {
+                        kind: 'circle',
+                        x: p.x,
+                        y: p.y,
+                        r: r - GEAR_CORE_INSET
+                    }
+                ] : [];
+            }
+    }
+}
+function project(pts, ax, ay) {
+    let min = Infinity;
+    let max = -Infinity;
+    for (const q of pts){
+        const d = q.x * ax + q.y * ay;
+        if (d < min) min = d;
+        if (d > max) max = d;
+    }
+    return {
+        min,
+        max
+    };
+}
+function polysOverlap(a, b, tol) {
+    for (const pts of [
+        a,
+        b
+    ]){
+        for(let i = 0; i < pts.length; i++){
+            const p1 = pts[i];
+            const p2 = pts[(i + 1) % pts.length];
+            let ax = p2.y - p1.y;
+            let ay = p1.x - p2.x;
+            const len = Math.hypot(ax, ay) || 1;
+            ax /= len;
+            ay /= len;
+            const pa = project(a, ax, ay);
+            const pb = project(b, ax, ay);
+            if (Math.min(pa.max, pb.max) - Math.max(pa.min, pb.min) <= tol) return false;
+        }
+    }
+    return true;
+}
+function signedDistance(px, py, pts) {
+    let inside = false;
+    let best = Infinity;
+    for(let i = 0, j = pts.length - 1; i < pts.length; j = i++){
+        const a = pts[i];
+        const b = pts[j];
+        if (a.y > py !== b.y > py && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) inside = !inside;
+        const ex = b.x - a.x;
+        const ey = b.y - a.y;
+        const t = Math.max(0, Math.min(1, ((px - a.x) * ex + (py - a.y) * ey) / (ex * ex + ey * ey || 1)));
+        best = Math.min(best, Math.hypot(px - (a.x + t * ex), py - (a.y + t * ey)));
+    }
+    return inside ? -best : best;
+}
+function shapesOverlap(a, b, tol = OVERLAP_TOLERANCE) {
+    if (a.kind === 'circle' && b.kind === 'circle') return Math.hypot(a.x - b.x, a.y - b.y) < a.r + b.r - tol;
+    if (a.kind === 'circle' && b.kind === 'poly') return a.r - signedDistance(a.x, a.y, b.pts) > tol;
+    if (a.kind === 'poly' && b.kind === 'circle') return shapesOverlap(b, a, tol);
+    if (a.kind === 'poly' && b.kind === 'poly') return polysOverlap(a.pts, b.pts, tol);
+    return false;
+}
+function bounds(shapes) {
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (const s of shapes){
+        const pts = s.kind === 'circle' ? [
+            {
+                x: s.x - s.r,
+                y: s.y - s.r
+            },
+            {
+                x: s.x + s.r,
+                y: s.y + s.r
+            }
+        ] : s.pts;
+        for (const q of pts){
+            x0 = Math.min(x0, q.x);
+            y0 = Math.min(y0, q.y);
+            x1 = Math.max(x1, q.x);
+            y1 = Math.max(y1, q.y);
+        }
+    }
+    return {
+        x0,
+        y0,
+        x1,
+        y1
+    };
+}
+function footprintBounds(p) {
+    return bounds(footprint(p));
+}
+function overlapsAny(a, others, tol = OVERLAP_TOLERANCE) {
+    const mine = footprint(a);
+    if (!mine.length) return false;
+    const bm = bounds(mine);
+    for (const o of others){
+        const theirs = footprint(o);
+        if (!theirs.length) continue;
+        const bo = bounds(theirs);
+        if (bo.x1 < bm.x0 - tol || bo.x0 > bm.x1 + tol || bo.y1 < bm.y0 - tol || bo.y0 > bm.y1 + tol) continue;
+        for (const s of mine)for (const t of theirs)if (shapesOverlap(s, t, tol)) return true;
+    }
+    return false;
+}
+function findFreeSpot(part, others, wantX, wantY, opts) {
+    const { grid, minX, maxX, minY, maxY } = opts;
+    const reach = opts.maxDistance ?? 260;
+    const clampX = (v)=>Math.max(minX, Math.min(maxX, v));
+    const clampY = (v)=>Math.max(minY, Math.min(maxY, v));
+    const tryAt = (x, y)=>{
+        const spot = opts.adjust ? opts.adjust(x, y) : {
+            x,
+            y
+        };
+        if (!spot) return null;
+        return overlapsAny({
+            ...part,
+            x: spot.x,
+            y: spot.y,
+            angle: spot.angle ?? part.angle
+        }, others) ? null : spot;
+    };
+    const wx = clampX(wantX);
+    const wy = clampY(wantY);
+    const first = tryAt(Math.round(wx / grid) * grid, Math.round(wy / grid) * grid);
+    if (first) return first;
+    const cands = [];
+    const gx0 = Math.ceil(Math.max(minX, wx - reach) / grid);
+    const gx1 = Math.floor(Math.min(maxX, wx + reach) / grid);
+    const gy0 = Math.ceil(Math.max(minY, wy - reach) / grid);
+    const gy1 = Math.floor(Math.min(maxY, wy + reach) / grid);
+    for(let gx = gx0; gx <= gx1; gx++){
+        for(let gy = gy0; gy <= gy1; gy++){
+            const d = Math.hypot(gx * grid - wx, gy * grid - wy);
+            if (d <= reach) cands.push({
+                x: gx * grid,
+                y: gy * grid,
+                d
+            });
+        }
+    }
+    cands.sort((a, b)=>a.d - b.d);
+    for (const c of cands){
+        const spot = tryAt(c.x, c.y);
+        if (spot) return spot;
+    }
+    return null;
+}
+
+return { OVERLAP_TOLERANCE, footprint, shapesOverlap, footprintBounds, overlapsAny, findFreeSpot };
 })();
 
 // ---- game/profile.ts ----
@@ -2831,6 +3110,7 @@ return { UI };
 
 
 
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -3194,8 +3474,18 @@ function rotate(dir) {
     }
     const sel = selectedPart();
     if (sel && !sel.locked && PART_DEFS[sel.type].rotatable) {
+        const turned = {
+            ...sel,
+            angle: sel.angle + dir * ROTATE_STEP
+        };
+        if (!positionPart(turned, sel.x, sel.y)) {
+            ui.toast(NO_ROOM);
+            return;
+        }
         pushUndo();
-        sel.angle += dir * ROTATE_STEP;
+        sel.x = turned.x;
+        sel.y = turned.y;
+        sel.angle = turned.angle;
         changed();
     }
 }
@@ -3233,26 +3523,35 @@ function undo() {
     changed();
 }
 function positionPart(p, x, y) {
-    p.x = clamp(snap(x), 10, WORLD_W - 10);
-    p.y = clamp(snap(y), 10, FLOOR_TOP - 10);
-    if (isGear(p.type)) {
-        const raw = {
-            ...p,
-            x: clamp(x, 10, WORLD_W - 10),
-            y: clamp(y, 10, FLOOR_TOP - 10)
-        };
-        const snapped = snapGear(raw, parts);
-        if (snapped) {
-            p.x = snapped.x;
-            p.y = snapped.y;
-            p.angle = snapped.angle;
-        }
-    }
+    const others = parts.filter((q)=>q.id !== p.id);
+    const spot = findFreeSpot(p, others, x, y, {
+        grid: GRID,
+        minX: 10,
+        maxX: WORLD_W - 10,
+        minY: 10,
+        maxY: FLOOR_TOP - 10,
+        adjust: isGear(p.type) ? (cx, cy)=>{
+            const snapped = snapGear({
+                ...p,
+                x: cx,
+                y: cy
+            }, others);
+            return snapped ?? {
+                x: cx,
+                y: cy
+            };
+        } : undefined
+    });
+    if (!spot) return false;
+    p.x = spot.x;
+    p.y = spot.y;
+    if (spot.angle !== undefined) p.angle = spot.angle;
+    return true;
 }
+const NO_ROOM = 'No room for that here. Parts cannot overlap.';
 function placeAt(type, x, y) {
     if (remaining()[type] === 0) return;
     const def = PART_DEFS[type];
-    pushUndo();
     const part = {
         id: nextId(),
         type,
@@ -3261,7 +3560,11 @@ function placeAt(type, x, y) {
         angle: def.rotatable ? toolAngle : 0,
         power: def.hasPower ? 2 : undefined
     };
-    positionPart(part, x, y);
+    if (!positionPart(part, x, y)) {
+        ui.toast(NO_ROOM);
+        return;
+    }
+    pushUndo();
     parts.push(part);
     selectedId = part.id;
     ui.showPartInfo(type);
@@ -3534,7 +3837,6 @@ window.addEventListener('keydown', (e)=>{
         const sel = selectedPart();
         if (!sel || sel.locked || playing) return;
         e.preventDefault();
-        pushUndo();
         const d = {
             ArrowLeft: [
                 -GRID,
@@ -3556,7 +3858,13 @@ window.addEventListener('keydown', (e)=>{
             0,
             0
         ];
+        const before = clone(parts);
+        const [ox, oy] = [
+            sel.x,
+            sel.y
+        ];
         positionPart(sel, sel.x + d[0], sel.y + d[1]);
+        if (sel.x !== ox || sel.y !== oy) pushUndo(before);
         changed();
     }
 });
@@ -3626,7 +3934,7 @@ function render() {
             angle: def.rotatable ? toolAngle : 0,
             power: 2
         };
-        positionPart(ghost, hover.x, hover.y);
+        if (!positionPart(ghost, hover.x, hover.y)) return null;
         return def.build(ghost, false);
     })();
     const sensors = bodies.filter((b)=>b.isSensor);
@@ -3701,13 +4009,8 @@ function frame(now) {
 }
 requestAnimationFrame(frame);
 loadLevel(0, true);
-for (const id of [
-    'version-tag',
-    'version-badge'
-]){
-    const el = document.getElementById(id);
-    if (el) el.textContent = id === 'version-badge' ? `Modern TIM v${VERSION}` : VERSION;
-}
+const versionTag = document.getElementById('version-tag');
+if (versionTag) versionTag.textContent = VERSION;
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
@@ -3732,7 +4035,9 @@ window.tim = {
         refreshUI();
     },
     start,
-    stop
+    stop,
+    place: (type, x, y)=>placeAt(type, x, y),
+    rotateSelected: (dir)=>rotate(dir)
 };
 
 })();
