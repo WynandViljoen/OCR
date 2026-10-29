@@ -64,4 +64,20 @@ await check('flushing sends in order, and stops at the first failure', async () 
   assert.deepEqual(loadPending(store).map((r) => r.name), ['P3']);
 });
 
+await check('a run the server refuses for good is dropped and does not block the runs behind it', async () => {
+  const store = memory();
+  savePending([1, 2, 3].map((n) => ({ levelId: 'ramps', name: `P${n}`, run })), store);
+  let calls = 0;
+  const f = async () => {
+    calls++;
+    // 1st: unknown level (400). 2nd: server crashed (500). 3rd would be fine but is never reached.
+    return calls === 1 ? { ok: false, status: 400, json: async () => ({ error: 'Unknown level.' }) } : { ok: false, status: 500, json: async () => ({}) };
+  };
+  assert.equal(await flushPending(store, f), 0);
+  assert.deepEqual(loadPending(store).map((r) => r.name), ['P2', 'P3']); // P1 dropped, P2 kept for a retry
+  const ok = async () => ({ ok: true, status: 200, json: async () => ({ board: {}, results: {} }) });
+  assert.equal(await flushPending(store, ok), 2);
+  assert.deepEqual(loadPending(store), []);
+});
+
 console.log(`\n${passed} checks passed`);

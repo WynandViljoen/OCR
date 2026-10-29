@@ -685,4 +685,4 @@ kbd {
 .menu-item.done .menu-num { background: var(--go); color: #fff; }
 .menu-name { flex: 1; min-width: 0; }
 .menu-stars { color: #e0a800; letter-spacing: 2px; white-space: nowrap; }
-@media (max-width: 700px) { #btn-sandbox .lbl { display: none; } .level-now { font-size: 0.8rem; padding-inline: 8px; } }
+@media (max-width: 700px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } }

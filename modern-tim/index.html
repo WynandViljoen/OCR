@@ -56,7 +56,6 @@
           <h2 class="panel-title">Parts</h2>
           <input id="palette-search" class="palette-search" type="search" placeholder="Find a part…" aria-label="Find a part" hidden>
           <div id="palette" class="palette"></div>
-          <button id="run-selftest" class="btn tray-test" type="button" title="Run every level's recorded solution and check that nothing solves itself">🧪 Test all levels</button>
           <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Drag a box over empty board to select several and move them together. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
@@ -164,14 +163,6 @@
           <button id="gate-ok" class="btn btn-go" type="submit">Let’s build ▶</button>
         </div>
       </form>
-    </div>
-    <div id="tester" class="gate" role="dialog" aria-modal="true" aria-labelledby="tester-title" hidden>
-      <div class="gate-card">
-        <h2 id="tester-title">Level test</h2>
-        <p id="tester-sub">Running every level's solution…</p>
-        <ul id="tester-list" class="tester-list"></ul>
-        <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
-      </div>
     </div>
     <div id="builds" class="gate" role="dialog" aria-modal="true" aria-labelledby="builds-title" hidden>
       <div class="gate-card builds-card">

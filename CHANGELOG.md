@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.3d
+
+- **Removed the "Test all levels" button** (and its dialog) from the game. The same check still runs from the command line: `npm run check-levels`.
+- **The Sandbox button always shows its name** ("🛠️ Sandbox"), also on narrow phone screens, where it used to shrink to an icon.
+- **Community score delivery is more robust.** A run that cannot be sent (server down or erroring) is kept and retried on the next page load and each time a level is opened. A run the server refuses for good (for example an unknown level from an old `scores.php`) is now dropped instead of blocking every run queued behind it. New check in `check-community` covers it.
+- Checked end to end with a real solve against `scores.php`: the run lands on the community board. If the server fails at that moment, the run waits and arrives after the next visit once the server works again.
+
 ## Modern TIM 0.3c
 
 - **Fix: the server files now run on old PHP.** The host's error log showed `syntax error, unexpected '=>'` in `scores.php` (line 64) and `admin.php` (line 259): the host runs PHP older than 7.4, which cannot read `fn() =>` arrow functions. That broke the community scores, the stars and the admin dashboard. `scores.php`, `admin.php` and `share.php` were rewritten with plain PHP 7.0 syntax (no arrow functions, no `mixed`, nullable or `void` types), and the cookie code falls back to the old call style below PHP 7.3.

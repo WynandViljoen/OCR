@@ -699,7 +699,7 @@ kbd {
 .menu-item.done .menu-num { background: var(--go); color: #fff; }
 .menu-name { flex: 1; min-width: 0; }
 .menu-stars { color: #e0a800; letter-spacing: 2px; white-space: nowrap; }
-@media (max-width: 700px) { #btn-sandbox .lbl { display: none; } .level-now { font-size: 0.8rem; padding-inline: 8px; } }
+@media (max-width: 700px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } }
 
 </style>
 <div id="app">
@@ -746,7 +746,6 @@ kbd {
           <h2 class="panel-title">Parts</h2>
           <input id="palette-search" class="palette-search" type="search" placeholder="Find a part…" aria-label="Find a part" hidden>
           <div id="palette" class="palette"></div>
-          <button id="run-selftest" class="btn tray-test" type="button" title="Run every level's recorded solution and check that nothing solves itself">🧪 Test all levels</button>
           <p class="tray-hint">Drag a part onto the board, or tap it and then tap the board. Drag placed parts to move them. Drag a box over empty board to select several and move them together. Parts cannot overlap: a part dropped on another slides to the nearest free spot.</p>
         </aside>
 
@@ -854,14 +853,6 @@ kbd {
           <button id="gate-ok" class="btn btn-go" type="submit">Let’s build ▶</button>
         </div>
       </form>
-    </div>
-    <div id="tester" class="gate" role="dialog" aria-modal="true" aria-labelledby="tester-title" hidden>
-      <div class="gate-card">
-        <h2 id="tester-title">Level test</h2>
-        <p id="tester-sub">Running every level's solution…</p>
-        <ul id="tester-list" class="tester-list"></ul>
-        <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
-      </div>
     </div>
     <div id="builds" class="gate" role="dialog" aria-modal="true" aria-labelledby="builds-title" hidden>
       <div class="gate-card builds-card">
@@ -3653,7 +3644,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3c';
+const VERSION = '0.3d';
 
 return { VERSION };
 })();
@@ -4114,7 +4105,7 @@ return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, C
 })();
 
 // ---- game/community.ts ----
-const { ENDPOINT, PENDING_KEY, fetchCommunity, submitRun, loadPending, savePending, flushPending } = (() => {
+const { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending } = (() => {
 
 const ENDPOINT = 'scores.php';
 const PENDING_KEY = 'modern-tim:pending';
@@ -4127,6 +4118,7 @@ function browserStore() {
         return null;
     }
 }
+const REJECTED = Symbol('rejected');
 async function call(fetchFn, url, init) {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = ctl ? setTimeout(()=>ctl.abort(), TIMEOUT_MS) : null;
@@ -4135,7 +4127,10 @@ async function call(fetchFn, url, init) {
             ...init,
             signal: ctl?.signal
         });
-        if (!res.ok) return null;
+        if (!res.ok) {
+            const st = res.status ?? 0;
+            return st >= 400 && st < 500 && st !== 408 && st !== 429 ? REJECTED : null;
+        }
         return await res.json();
     } catch  {
         return null;
@@ -4144,7 +4139,8 @@ async function call(fetchFn, url, init) {
     }
 }
 async function fetchCommunity(levelId, fetchFn = (u, i)=>fetch(u, i)) {
-    const data = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`);
+    const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`);
+    const data = raw === REJECTED ? null : raw;
     return data && data.board ? parseBoard(data.board) : null;
 }
 function parseResults(raw) {
@@ -4160,7 +4156,7 @@ function parseResults(raw) {
     }
     return out;
 }
-async function submitRun(levelId, name, run, fetchFn = (u, i)=>fetch(u, i)) {
+async function trySubmit(levelId, name, run, fetchFn = (u, i)=>fetch(u, i)) {
     const body = JSON.stringify({
         level: levelId,
         name: sanitizeName(name),
@@ -4168,18 +4164,24 @@ async function submitRun(levelId, name, run, fetchFn = (u, i)=>fetch(u, i)) {
         seconds: run.seconds,
         spare: run.spare
     });
-    const data = await call(fetchFn, ENDPOINT, {
+    const raw = await call(fetchFn, ENDPOINT, {
         method: 'POST',
         body,
         headers: {
             'Content-Type': 'application/json'
         }
     });
-    if (!data || !data.board) return null;
+    if (raw === REJECTED) return 'rejected';
+    const data = raw;
+    if (!data || !data.board) return 'retry';
     return {
         board: parseBoard(data.board),
         results: parseResults(data.results)
     };
+}
+async function submitRun(levelId, name, run, fetchFn) {
+    const r = await trySubmit(levelId, name, run, fetchFn);
+    return typeof r === 'string' ? null : r;
 }
 function loadPending(store = browserStore()) {
     try {
@@ -4204,16 +4206,16 @@ async function flushPending(store = browserStore(), fetchFn) {
     let sent = 0;
     while(list.length){
         const next = list[0];
-        const ok = await submitRun(next.levelId, next.name, next.run, fetchFn);
-        if (!ok) break;
+        const r = await trySubmit(next.levelId, next.name, next.run, fetchFn);
+        if (r === 'retry') break;
         list.shift();
-        sent++;
+        if (r !== 'rejected') sent++;
     }
     savePending(list, store);
     return sent;
 }
 
-return { ENDPOINT, PENDING_KEY, fetchCommunity, submitRun, loadPending, savePending, flushPending };
+return { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending };
 })();
 
 // ---- game/builds.ts ----
@@ -5716,84 +5718,6 @@ class Simulation {
 return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
 })();
 
-// ---- game/selftest.ts ----
-const { testLevel, testAllLevels } = (() => {
-
-
-const MAX_STEPS = 60 * 30;
-function run(level, withSolution) {
-    let id = 1;
-    const nextId = ()=>id++;
-    const parts = [
-        ...levelToParts(level, nextId),
-        ...withSolution ? solutionToParts(level, nextId) : []
-    ];
-    const sim = new Simulation();
-    sim.goalEnabled = true;
-    sim.goalTargets = level.goalTargets ?? [
-        'ball'
-    ];
-    sim.load(parts, true);
-    let steps = 0;
-    while(!sim.solved && steps < MAX_STEPS){
-        sim.step();
-        steps++;
-    }
-    return {
-        solved: sim.solved,
-        seconds: steps / 60
-    };
-}
-function solutionProblem(level) {
-    const used = {};
-    for (const p of level.solution ?? []){
-        if (p.props || p.power !== undefined || p.w !== undefined || p.h !== undefined) {
-            return `solution sets attributes on a ${p.type} (attributes are locked outside the Sandbox; use Level.presets)`;
-        }
-        used[p.type] = (used[p.type] ?? 0) + 1;
-    }
-    if (level.inventory) {
-        for (const [type, n] of Object.entries(used)){
-            const have = level.inventory[type] ?? 0;
-            if (n > have) return `solution uses ${n} ${type}, the inventory has ${have}`;
-        }
-    }
-    return '';
-}
-function testLevel(level) {
-    if (!level.hasGoal || !level.solution) {
-        return {
-            id: level.id,
-            name: level.name,
-            skipped: true,
-            solutionSolves: false,
-            seconds: 0,
-            solvesAlone: false,
-            problem: '',
-            ok: true
-        };
-    }
-    const problem = solutionProblem(level);
-    const good = run(level, true);
-    const empty = run(level, false);
-    return {
-        id: level.id,
-        name: level.name,
-        skipped: false,
-        solutionSolves: good.solved,
-        seconds: good.seconds,
-        solvesAlone: empty.solved,
-        problem,
-        ok: good.solved && !empty.solved && problem === ''
-    };
-}
-function testAllLevels() {
-    return LEVELS.map(testLevel);
-}
-
-return { testLevel, testAllLevels };
-})();
-
 // ---- game/ui.ts ----
 const { UI } = (() => {
 
@@ -6280,7 +6204,6 @@ return { UI };
 
 
 
-
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -6423,8 +6346,9 @@ sim.onSolved = (info)=>{
     if (player && level.hasGoal) {
         const id = level.id;
         const name = player;
-        void submitRun(id, name, run).then((sub)=>{
-            if (!sub) {
+        void trySubmit(id, name, run).then((sub)=>{
+            if (sub === 'rejected') return;
+            if (sub === 'retry') {
                 savePending([
                     ...loadPending(),
                     {
@@ -6497,7 +6421,7 @@ function loadCommunity() {
     if (!level.hasGoal) return;
     const id = level.id;
     communityStatus = 'loading';
-    void fetchCommunity(id).then((board)=>{
+    void flushPending().then(()=>fetchCommunity(id)).then((board)=>{
         if (board) community[id] = board;
         if (level.id !== id) return;
         communityStatus = board ? 'ok' : 'offline';
@@ -7990,33 +7914,6 @@ soundBtn.addEventListener('click', ()=>{
     setMuted(!isMuted());
     paintSound();
     playSound('click');
-});
-const testerEl = document.getElementById('tester');
-const testerList = document.getElementById('tester-list');
-const testerSub = document.getElementById('tester-sub');
-testerEl.addEventListener('keydown', (e)=>e.stopPropagation());
-document.getElementById('tester-close')?.addEventListener('click', ()=>{
-    testerEl.hidden = true;
-});
-document.getElementById('run-selftest')?.addEventListener('click', ()=>{
-    testerEl.hidden = false;
-    testerList.innerHTML = '';
-    testerSub.textContent = 'Running every level…';
-    window.setTimeout(()=>{
-        try {
-            const results = testAllLevels().filter((r)=>!r.skipped);
-            for (const r of results){
-                const li = document.createElement('li');
-                li.className = r.ok ? 'ok' : 'bad';
-                li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.problem ? `, ${r.problem}` : '') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
-                testerList.appendChild(li);
-            }
-            const bad = results.filter((r)=>!r.ok).length;
-            testerSub.textContent = bad ? `${bad} of ${results.length} levels need attention.` : `All ${results.length} levels pass.`;
-        } catch (err) {
-            testerSub.textContent = 'The test could not run: ' + String(err);
-        }
-    }, 60);
 });
 let booted = false;
 loadLevel(Math.max(0, LEVELS.findIndex((l)=>l.hasGoal && !solvedLevels.has(l.id))), true);

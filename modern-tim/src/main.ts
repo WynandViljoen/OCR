@@ -19,11 +19,10 @@ import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
-import { testAllLevels } from './game/selftest';
 import { burst } from './game/confetti';
 import { CATEGORIES } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
+import { fetchCommunity, flushPending, loadPending, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -188,8 +187,9 @@ sim.onSolved = (info) => {
   if (player && level.hasGoal) {
     const id = level.id;
     const name = player;
-    void submitRun(id, name, run).then((sub) => {
-      if (!sub) {
+    void trySubmit(id, name, run).then((sub) => {
+      if (sub === 'rejected') return; // the server will never take it, so do not queue it
+      if (sub === 'retry') {
         savePending([...loadPending(), { levelId: id, name, run }]);
         if (level.id === id) {
           communityStatus = 'offline';
@@ -264,7 +264,7 @@ function loadCommunity() {
   if (!level.hasGoal) return;
   const id = level.id;
   communityStatus = 'loading';
-  void fetchCommunity(id).then((board) => {
+  void flushPending().then(() => fetchCommunity(id)).then((board) => {
     if (board) community[id] = board;
     if (level.id !== id) return;
     communityStatus = board ? 'ok' : 'offline';
@@ -1698,35 +1698,6 @@ soundBtn.addEventListener('click', () => {
   setMuted(!isMuted());
   paintSound();
   playSound('click');
-});
-
-// "Test all levels": runs every recorded solution on a separate simulation.
-const testerEl = document.getElementById('tester') as HTMLElement;
-const testerList = document.getElementById('tester-list') as HTMLElement;
-const testerSub = document.getElementById('tester-sub') as HTMLElement;
-testerEl.addEventListener('keydown', (e) => e.stopPropagation());
-document.getElementById('tester-close')?.addEventListener('click', () => {
-  testerEl.hidden = true;
-});
-document.getElementById('run-selftest')?.addEventListener('click', () => {
-  testerEl.hidden = false;
-  testerList.innerHTML = '';
-  testerSub.textContent = 'Running every level…';
-  window.setTimeout(() => {
-    try {
-      const results = testAllLevels().filter((r) => !r.skipped);
-      for (const r of results) {
-        const li = document.createElement('li');
-        li.className = r.ok ? 'ok' : 'bad';
-        li.textContent = `${r.ok ? '✅' : '❌'} ${r.name}: ` + (r.solutionSolves ? `solution works (${r.seconds.toFixed(1)} s)` : 'solution FAILS') + (r.problem ? `, ${r.problem}` : '') + (r.solvesAlone ? ', but it also solves itself!' : r.solutionSolves ? ', needs your parts' : '');
-        testerList.appendChild(li);
-      }
-      const bad = results.filter((r) => !r.ok).length;
-      testerSub.textContent = bad ? `${bad} of ${results.length} levels need attention.` : `All ${results.length} levels pass.`;
-    } catch (err) {
-      testerSub.textContent = 'The test could not run: ' + String(err);
-    }
-  }, 60);
 });
 
 let booted = false;

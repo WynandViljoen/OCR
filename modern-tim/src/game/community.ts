@@ -28,7 +28,7 @@ export interface PendingRun {
   run: Run;
 }
 
-type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; json(): Promise<unknown> }>;
+type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
 interface StoreLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -42,12 +42,18 @@ function browserStore(): StoreLike | null {
   }
 }
 
-async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike>[1]): Promise<unknown | null> {
+/** 'rejected' = the server understood and said no (a 4xx such as an unknown level): retrying cannot help. */
+const REJECTED = Symbol('rejected');
+
+async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike>[1]): Promise<unknown | null | typeof REJECTED> {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
   try {
     const res = await fetchFn(url, { ...init, signal: ctl?.signal });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const st = res.status ?? 0;
+      return st >= 400 && st < 500 && st !== 408 && st !== 429 ? REJECTED : null;
+    }
     return await res.json();
   } catch {
     return null;
@@ -57,7 +63,8 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
 }
 
 export async function fetchCommunity(levelId: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Board | null> {
-  const data = (await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`)) as { board?: unknown } | null;
+  const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`);
+  const data = raw === REJECTED ? null : (raw as { board?: unknown } | null);
   return data && data.board ? parseBoard(data.board) : null;
 }
 
@@ -75,11 +82,19 @@ function parseResults(raw: unknown): Record<Category, CommunityResult> {
   return out;
 }
 
-export async function submitRun(levelId: string, name: string, run: Run, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Submission | null> {
+/** 'retry' = could not reach the server (or it errored): keep the run and try later. 'rejected' = never going to be accepted. */
+export async function trySubmit(levelId: string, name: string, run: Run, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Submission | 'retry' | 'rejected'> {
   const body = JSON.stringify({ level: levelId, name: sanitizeName(name), pathMeters: run.pathMeters, seconds: run.seconds, spare: run.spare });
-  const data = (await call(fetchFn, ENDPOINT, { method: 'POST', body, headers: { 'Content-Type': 'application/json' } })) as { board?: unknown; results?: unknown } | null;
-  if (!data || !data.board) return null;
+  const raw = await call(fetchFn, ENDPOINT, { method: 'POST', body, headers: { 'Content-Type': 'application/json' } });
+  if (raw === REJECTED) return 'rejected';
+  const data = raw as { board?: unknown; results?: unknown } | null;
+  if (!data || !data.board) return 'retry';
   return { board: parseBoard(data.board), results: parseResults(data.results) };
+}
+
+export async function submitRun(levelId: string, name: string, run: Run, fetchFn?: FetchLike): Promise<Submission | null> {
+  const r = await trySubmit(levelId, name, run, fetchFn);
+  return typeof r === 'string' ? null : r;
 }
 
 // --- runs waiting for a connection ------------------------------------------
@@ -104,16 +119,17 @@ export function savePending(list: PendingRun[], store: StoreLike | null = browse
   }
 }
 
-/** Send every waiting run. Stops at the first failure and keeps the rest. Returns how many were sent. */
+/** Send every waiting run. Stops at the first run that could not be delivered (to retry later) and keeps the rest;
+ *  a run the server refuses for good is dropped so it cannot block the ones behind it. Returns how many were sent. */
 export async function flushPending(store: StoreLike | null = browserStore(), fetchFn?: FetchLike): Promise<number> {
   const list = loadPending(store);
   let sent = 0;
   while (list.length) {
     const next = list[0];
-    const ok = await submitRun(next.levelId, next.name, next.run, fetchFn);
-    if (!ok) break;
+    const r = await trySubmit(next.levelId, next.name, next.run, fetchFn);
+    if (r === 'retry') break;
     list.shift();
-    sent++;
+    if (r !== 'rejected') sent++;
   }
   savePending(list, store);
   return sent;
