@@ -105,6 +105,19 @@ try {
     assert.ok(html.includes('<b>Ana</b> 2 m'), 'new shortest record row');
     assert.ok(html.includes('Ben 3 m'), 'the record it beat');
     assert.ok(html.includes('Current community boards'));
+    // Several clicks in a row stay signed in, and every page tells caches to keep out.
+    for (const v of ['players', 'levels', 'log', 'scores']) {
+      const r = await fetch(`${base}/admin.php?view=${v}`, { headers: { cookie: cookie() } });
+      const t = await r.text();
+      assert.ok(!t.includes('name="password"'), `${v}: asked for the password again`);
+      assert.ok(t.includes('Refresh') && t.includes('id="clock"'), `${v}: refresh button and clock`);
+      assert.equal(r.headers.get('x-litespeed-cache-control'), 'no-cache', `${v}: LiteSpeed header`);
+      assert.match(r.headers.get('cache-control') ?? '', /no-store/);
+      const nonce = /script-src 'nonce-([a-f0-9]+)'/.exec(r.headers.get('content-security-policy') ?? '')?.[1];
+      assert.ok(nonce && t.includes(`<script nonce="${nonce}">`), `${v}: clock script allowed by its nonce`);
+    }
+    const login = await fetch(`${base}/admin.php`);
+    assert.equal(login.headers.get('x-litespeed-cache-control'), 'no-cache', 'login page is not cacheable either');
     const filtered = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();
     assert.ok(filtered.includes('No broken records yet.'));
   });

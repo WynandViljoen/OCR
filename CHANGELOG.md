@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.3f
+
+- **Fix: the admin dashboard kept asking for the password.** The host's page cache (the same one that delayed the community scores) was keeping a copy of the admin pages and serving the login page again. `admin.php` now sends the full no-cache header set (including LiteSpeed and CDN ones) on every response, the login page and the tracking API included. The session cookie is also simpler and more compatible: SameSite=Lax (was Strict), and no path trick on old PHP.
+- **Dashboard: Refresh button and clock.** A **Refresh** button reloads the current page with the newest data (filters kept). The top right shows a live clock in the viewer's own local time and "Page built HH:MM:SS" in Vancouver time. A small script allowed by a one-time nonce drives the clock; everything else on the page stays script-free.
+- `check-records` now clicks through all four dashboard pages while signed in and checks the headers, the Refresh button and the clock.
+- Copy the updated `admin.php` to the server (the cron line does it).
+
 ## Modern TIM 0.3e
 
 - **New community scores show up straight away.** A new record could take minutes to appear because something between the server and the browser kept an old copy of the board. `scores.php` and `share.php` now send the full set of no-cache headers (including the LiteSpeed, Cloudflare and Varnish ones), and the game asks for fresh data every time (`cache: no-store` plus a unique number on each request). The boards also refresh when you come back to the game tab. Copy the updated `scores.php` and `share.php` to the server (the cron line does it).

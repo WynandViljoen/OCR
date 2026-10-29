@@ -194,8 +194,7 @@ function api_track() {
     if (PHP_VERSION_ID >= 70300) {
         setcookie('tim_device', $id, ['expires' => time() + 86400 * 730, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $secure]);
     } else {
-        // PHP 7.0 to 7.2 have no options array: the SameSite flag rides on the path.
-        setcookie('tim_device', $id, time() + 86400 * 730, '/; samesite=Lax', '', $secure, true);
+        setcookie('tim_device', $id, time() + 86400 * 730, '/', '', $secure, true);
     }
 
     $ev = clean($in['ev'] ?? '', 12);
@@ -285,13 +284,23 @@ function api_track() {
 // Admin: login, session, throttle
 // ---------------------------------------------------------------------------
 
+/** Tell the browser, the host's page cache (LiteSpeed) and any CDN never to keep a copy: admin pages depend on who is asking. */
+function no_cache_headers() {
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('X-LiteSpeed-Cache-Control: no-cache');
+    header('CDN-Cache-Control: no-store');
+    header('Surrogate-Control: no-store');
+}
+
 function start_session() {
     $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     session_name('timadmin');
     if (PHP_VERSION_ID >= 70300) {
-        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => $secure]);
+        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $secure]);
     } else {
-        session_set_cookie_params(0, '/; samesite=Strict', '', $secure, true);
+        session_set_cookie_params(0, '/', '', $secure, true);
     }
     session_start();
     if (empty($_SESSION['csrf'])) {
@@ -343,10 +352,11 @@ function h($v): string {
 
 function page_head(string $title, bool $refresh = false) {
     header('Content-Type: text/html; charset=utf-8');
-    header('Cache-Control: no-store');
+    no_cache_headers();
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Frame-Options: DENY');
-    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'");
+    $GLOBALS['tim_nonce'] = bin2hex(random_bytes(12));
+    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-" . $GLOBALS['tim_nonce'] . "'; form-action 'self'; frame-ancestors 'none'");
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">';
     if ($refresh) {
         echo '<meta http-equiv="refresh" content="30">';
@@ -358,7 +368,7 @@ function page_head(string $title, bool $refresh = false) {
 main{max-width:1100px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0}h2{font-size:16px;margin:22px 0 8px}
 header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
 nav{display:flex;gap:6px;flex-wrap:wrap}nav a,button,.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:8px;text-decoration:none;font:inherit;cursor:pointer}
-nav a.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+header .stamp{text-align:right;font-size:13px;line-height:1.3}nav a.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 .card b{display:block;font-size:24px}.card span{color:var(--mute);font-size:13px}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%;min-width:640px}
@@ -517,7 +527,10 @@ function dashboard() {
     }
 
     page_head('Modern TIM admin', $auto);
-    echo '<main><header><h1>Modern TIM admin</h1><nav>';
+    $stamp = new DateTime('@' . $now);
+    $stamp->setTimezone(new DateTimeZone(DISPLAY_TZ));
+    echo '<main><header><h1>Modern TIM admin</h1><div class="stamp"><span id="clock" class="mono"></span><br><span class="mute">Page built ' . h($stamp->format('H:i:s T')) . '</span></div><nav>';
+    echo '<a class="btn" href="' . h($_SERVER['REQUEST_URI'] ?? 'admin.php') . '" title="Load the newest data">&#8635; Refresh</a>';
     foreach (['players' => 'Players', 'levels' => 'Levels', 'scores' => 'High scores', 'log' => 'Log'] as $k => $label) {
         echo '<a class="' . ($view === $k ? 'on' : '') . '" href="admin.php?view=' . $k . ($auto ? '&amp;auto=1' : '') . '">' . $label . '</a>';
     }
@@ -525,6 +538,7 @@ function dashboard() {
         . '<a href="admin.php?api=export">Export JSON</a>'
         . '<form method="post" action="admin.php" style="display:inline"><input type="hidden" name="csrf" value="' . h($_SESSION['csrf']) . '"><button name="do" value="logout">Sign out</button></form>'
         . '</nav></header>';
+    echo '<script nonce="' . h($GLOBALS['tim_nonce']) . '">(function(){var c=document.getElementById("clock");function t(){c.textContent=new Date().toLocaleString([],{weekday:"short",month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",second:"2-digit"});}t();setInterval(t,1000);})();</script>';
 
     echo '<div class="cards">'
         . '<div class="card"><b>' . $online . '</b><span>online now (last 5 min)</span></div>'
@@ -608,6 +622,8 @@ function dashboard() {
 // Routing
 // ---------------------------------------------------------------------------
 
+no_cache_headers();
+
 if (($_GET['api'] ?? '') === 'track') {
     api_track();
     exit;
@@ -656,7 +672,6 @@ if (!is_admin()) {
 if (($_GET['api'] ?? '') === 'export') {
     header('Content-Type: application/json; charset=utf-8');
     header('Content-Disposition: attachment; filename="modern-tim-players.json"');
-    header('Cache-Control: no-store');
     echo json_encode(array_values(read_json('players.json')), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
     exit;
 }
