@@ -28,6 +28,8 @@ declare(strict_types=1);
 const ADMIN_HASH = '$2y$10$2o0urLzMO6zfm0hP2RyzzOnQJjd3oaH8mC5vT.fUgrKrn8aegDCyO';
 const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
+/** Shown on the login page so you can tell which copy of this file the server is running. */
+const ADMIN_BUILD = '0.3g';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -302,7 +304,7 @@ function start_session() {
     } else {
         session_set_cookie_params(0, '/', '', $secure, true);
     }
-    session_start();
+    $GLOBALS['tim_session_ok'] = @session_start();
     if (empty($_SESSION['csrf'])) {
         $_SESSION['csrf'] = bin2hex(random_bytes(16));
     }
@@ -387,9 +389,10 @@ function login_page(string $msg) {
     if ($msg !== '') {
         echo '<p class="err">' . h($msg) . '</p>';
     }
-    echo '<form method="post" action="admin.php"><input type="hidden" name="csrf" value="' . h($_SESSION['csrf']) . '">'
+    echo '<form method="post" action="admin.php"><input type="hidden" name="csrf" value="' . h($_SESSION['csrf']) . '"><input type="hidden" name="view" value="' . h(preg_replace('/[^a-z]/', '', (string) ($_GET['view'] ?? 'players'))) . '">'
         . '<p><input type="password" name="password" placeholder="Password" autocomplete="current-password" autofocus required style="width:100%"></p>'
-        . '<button type="submit" name="do" value="login">Sign in</button></form></div></body></html>';
+        . '<button type="submit" name="do" value="login">Sign in</button></form>'
+        . '<p class="mute" style="font-size:12px;margin:14px 0 0">Admin build ' . h(ADMIN_BUILD) . ' &middot; <a href="admin.php?diag=1" style="color:inherit">connection check</a></p></div></body></html>';
 }
 
 // ---------------------------------------------------------------------------
@@ -631,6 +634,28 @@ if (($_GET['api'] ?? '') === 'track') {
 
 start_session();
 
+if (($_GET['diag'] ?? '') === '1') {
+    // Open to anyone: it only reports whether this browser and the server keep a session, nothing private.
+    $path = (string) session_save_path();
+    $rows = [
+        'Admin build' => ADMIN_BUILD,
+        'PHP version' => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
+        'Session started' => !empty($GLOBALS['tim_session_ok']) ? 'yes' : 'NO (the server cannot start sessions)',
+        'Session folder writable' => $path === '' ? 'default folder' : (is_writable($path) ? 'yes' : 'NO'),
+        'Your browser sent the session cookie' => isset($_COOKIE['timadmin']) ? 'yes' : 'no (normal on the very first visit; reload this page once)',
+        'Server sees HTTPS' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'yes' : 'no',
+        'Page cache header sent' => 'X-LiteSpeed-Cache-Control: no-cache',
+        'Server time' => (new DateTime('now', new DateTimeZone(DISPLAY_TZ)))->format('Y-m-d H:i:s T'),
+    ];
+    page_head('Modern TIM admin: connection check');
+    echo '<div class="login" style="max-width:520px"><h1>Connection check</h1><table>';
+    foreach ($rows as $k => $v) {
+        echo '<tr><td>' . h($k) . '</td><td><b>' . h($v) . '</b></td></tr>';
+    }
+    echo '</table><p class="mute">Reload this page: the cookie line should say yes the second time. <a href="admin.php">Back to sign in</a></p></div></body></html>';
+    exit;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $ok = hash_equals($_SESSION['csrf'], (string) ($_POST['csrf'] ?? ''));
     $do = $_POST['do'] ?? '';
@@ -651,7 +676,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
             session_regenerate_id(true);
             $_SESSION['admin'] = time();
             log_event(['t' => time(), 'id' => '', 'name' => '', 'ev' => 'admin_login', 'level' => '', 'ip' => $iph]);
-            header('Location: admin.php');
+            // A one-off address, so no page cache can answer it with an old copy of the login page.
+            header('Location: admin.php?go=' . time() . bin2hex(random_bytes(2)) . '&view=' . urlencode((string) ($_POST['view'] ?? 'players')));
             exit;
         }
         note_failure($iph);
@@ -660,12 +686,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         login_page('Wrong password.');
         exit;
     }
+    if ($do === 'login' && !$ok) {
+        login_page('Your session was lost before you signed in. Reload this page and try again (the connection check below shows why).');
+        exit;
+    }
     header('Location: admin.php');
     exit;
 }
 
 if (!is_admin()) {
-    login_page('');
+    if (isset($_GET['go'])) {
+        // We only get here straight after a correct password, so the session did not survive the redirect.
+        login_page('The password was right, but this server did not keep your sign-in. Open the connection check below and tell me what it says.');
+    } else {
+        login_page('');
+    }
     exit;
 }
 

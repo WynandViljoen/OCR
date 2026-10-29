@@ -97,6 +97,7 @@ try {
       body: new URLSearchParams({ csrf, password: 'HappyCampers', do: 'login' }),
     });
     take(res);
+    assert.match(res.headers.get('location') ?? '', /^admin\.php\?go=\w+&view=players$/, 'login redirects to a one-off address');
     const html = await (await fetch(`${base}/admin.php?view=scores`, { headers: { cookie: cookie() } })).text();
     assert.ok(html.includes('High scores'));
     assert.ok(html.includes('Records broken'));
@@ -116,6 +117,11 @@ try {
       const nonce = /script-src 'nonce-([a-f0-9]+)'/.exec(r.headers.get('content-security-policy') ?? '')?.[1];
       assert.ok(nonce && t.includes(`<script nonce="${nonce}">`), `${v}: clock script allowed by its nonce`);
     }
+    // Without a session cookie the page explains itself instead of silently showing the login again.
+    const lost = await (await fetch(`${base}/admin.php?go=123&view=scores`)).text();
+    assert.ok(lost.includes('did not keep your sign-in'), 'lost session after redirect is explained');
+    const diag = await (await fetch(`${base}/admin.php?diag=1`)).text();
+    assert.ok(diag.includes('Admin build') && diag.includes('Session started') && diag.includes('<b>yes</b>'), 'connection check page');
     const login = await fetch(`${base}/admin.php`);
     assert.equal(login.headers.get('x-litespeed-cache-control'), 'no-cache', 'login page is not cacheable either');
     const filtered = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();

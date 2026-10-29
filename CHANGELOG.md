@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.3g
+
+- **Admin sign-in is now self-diagnosing.** After a correct password you are sent to a one-off address (`admin.php?go=…&view=…`) that no page cache can answer with an old copy, and you land on the page you asked for (for example High scores). If the server still loses the session, the page now says so in plain words instead of silently showing the login again.
+- The login page shows its **build number** (so you can see whether the server has the newest `admin.php`) and a **connection check** link (`admin.php?diag=1`). It reports PHP version, whether sessions start, whether the session folder is writable and whether your browser sent the cookie. Nothing private is shown.
+- `check-records` covers the redirect, the lost-session message and the connection check.
+
 ## Modern TIM 0.3f
 
 - **Fix: the admin dashboard kept asking for the password.** The host's page cache (the same one that delayed the community scores) was keeping a copy of the admin pages and serving the login page again. `admin.php` now sends the full no-cache header set (including LiteSpeed and CDN ones) on every response, the login page and the tracking API included. The session cookie is also simpler and more compatible: SameSite=Lax (was Strict), and no path trick on old PHP.
