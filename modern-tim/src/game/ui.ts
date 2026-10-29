@@ -77,7 +77,7 @@ export interface ToolbarOptions {
 
 export class UI {
   private paletteEl = $('palette');
-  private levelsEl = $('levels');
+
   private runBtn = $('btn-run') as HTMLButtonElement;
   private undoBtn = $('btn-undo') as HTMLButtonElement;
   private statusEl = $('status');
@@ -126,24 +126,10 @@ export class UI {
     });
   }
 
-  setLevels(levels: Level[], current: number, solved: Set<string>) {
-    this.levelsEl.innerHTML = '';
-    levels.forEach((l, i) => {
-      const b = document.createElement('button');
-      b.className = 'level-chip';
-      b.type = 'button';
-      if (i === current) b.classList.add('current');
-      if (solved.has(l.id)) b.classList.add('done');
-      const label = l.hasGoal ? String(i + 1) : '★';
-      b.innerHTML = `<span class="num">${label}</span><span class="name">${l.name}</span>`;
-      b.title = `${l.name}: ${l.science.topic}`;
-      b.setAttribute('aria-label', `Level ${label}: ${l.name}${solved.has(l.id) ? ' (solved)' : ''}`);
-      b.addEventListener('click', () => this.handlers.onSelectLevel(i));
-      this.levelsEl.appendChild(b);
-    });
-    // With many levels the strip scrolls sideways, so keep the current one in view.
-    const cur = this.levelsEl.querySelector<HTMLElement>('.current');
-    if (cur) this.levelsEl.scrollLeft = Math.max(0, cur.offsetLeft - (this.levelsEl.clientWidth - cur.offsetWidth) / 2);
+  /** The top bar only names the current level; the full list lives on the Campaign screen. */
+  setLevels(levels: Level[], current: number, _solved: Set<string>) {
+    const l = levels[current];
+    $('level-now-text').textContent = l.hasGoal ? `Level ${current + 1} · ${l.name}` : l.name;
   }
 
   setLevelInfo(level: Level, hasNext: boolean) {

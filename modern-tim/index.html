@@ -27,7 +27,10 @@
             <span>Machine lab · v<span id="version-tag"></span></span>
           </div>
         </div>
-        <nav id="levels" class="levels" aria-label="Levels"></nav>
+        <nav id="levels" class="levels" aria-label="Levels">
+          <button id="btn-home" class="btn" type="button" title="Home" aria-label="Home">🏠</button>
+          <button id="btn-campaign" class="btn level-now" type="button" title="Choose a level"><span id="level-now-text">Level</span> <span aria-hidden="true">▾</span></button>
+        </nav>
         <div class="controls">
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
@@ -141,6 +144,30 @@
       </main>
     </div>
 
+    <div id="home" class="screen" aria-labelledby="home-title" hidden>
+      <div class="screen-card home-card">
+        <img class="home-gear" src="" alt="" hidden />
+        <h1 id="home-title">Modern TIM</h1>
+        <p class="home-sub">Machine lab · build it, run it, learn how it works</p>
+        <p id="home-hello" class="home-hello"></p>
+        <div class="home-buttons">
+          <button id="home-campaign" class="btn btn-go home-btn" type="button"><span class="home-emoji">🧩</span><span><strong>Campaign</strong><small id="home-progress">18 levels</small></span></button>
+          <button id="home-sandbox" class="btn home-btn" type="button"><span class="home-emoji">🛠️</span><span><strong>Sandbox</strong><small>Build anything, no goal</small></span></button>
+        </div>
+      </div>
+    </div>
+    <div id="campaign" class="screen" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
+      <div class="screen-card campaign-card">
+        <div class="campaign-head">
+          <button id="campaign-back" class="btn" type="button">← Home</button>
+          <h2 id="campaign-title">Campaign</h2>
+          <span id="campaign-summary" class="campaign-summary"></span>
+        </div>
+        <p class="campaign-legend">★ = you hold the community best for <b>Shortest path</b>, <b>Fastest solve</b> and <b>Most spare tools</b> (one star each).</p>
+        <p id="campaign-note" class="campaign-note" hidden></p>
+        <ol id="campaign-grid" class="campaign-grid"></ol>
+      </div>
+    </div>
     <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
       <form id="gate-form" class="gate-card" novalidate>
         <h2 id="gate-title">Welcome to Modern TIM!</h2>

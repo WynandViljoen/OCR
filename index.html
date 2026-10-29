@@ -681,6 +681,36 @@ kbd {
 .build-link { display: flex; gap: 6px; }
 .build-link input { flex: 1; min-width: 0; font-size: 0.85rem; }
 
+/* Home and Campaign screens */
+.level-now { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.levels { align-items: center; gap: 8px; }
+.screen { position: fixed; inset: 0; z-index: 40; background: var(--paper); overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 24px 16px; }
+.screen-card { width: 100%; }
+.home-card { max-width: 520px; margin: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.home-card h1 { font-size: clamp(2.2rem, 6vw, 3.4rem); }
+.home-sub { margin: 0; color: var(--muted); font-weight: 800; }
+.home-hello { margin: 0; font-weight: 800; min-height: 1.2em; }
+.home-buttons { display: flex; flex-direction: column; gap: 14px; width: 100%; margin-top: 8px; }
+.home-btn { display: flex; align-items: center; gap: 16px; padding: 16px 20px; font-size: 1.2rem; text-align: left; justify-content: flex-start; }
+.home-btn small { display: block; font-weight: 700; opacity: 0.8; font-size: 0.85rem; }
+.home-emoji { font-size: 2rem; }
+.campaign-card { max-width: 1000px; }
+.campaign-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.campaign-head h2 { font-size: 1.8rem; margin: 0; }
+.campaign-summary { margin-left: auto; font-weight: 800; color: var(--muted); }
+.campaign-legend, .campaign-note { margin: 10px 0; font-weight: 700; color: var(--muted); font-size: 0.9rem; }
+.campaign-note { color: var(--danger); }
+.campaign-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.camp-card { width: 100%; height: 100%; display: grid; grid-template-columns: 38px 1fr; grid-template-areas: "num name" "num topic" "stars stars"; column-gap: 10px; row-gap: 2px; align-items: center; text-align: left; border: 2px solid var(--ink); background: var(--panel); border-radius: var(--radius); padding: 10px 12px; cursor: pointer; font: inherit; color: var(--ink); box-shadow: var(--press); }
+.camp-card:hover { background: var(--blue-soft); }
+.camp-card.current { outline: 3px solid var(--yellow); outline-offset: 2px; }
+.camp-num { grid-area: num; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--blue-soft); font-family: var(--font-display); font-weight: 700; font-size: 1.05rem; }
+.camp-card.done .camp-num { background: var(--go); color: #fff; }
+.camp-name { grid-area: name; font-weight: 800; font-size: 1.05rem; }
+.camp-topic { grid-area: topic; color: var(--muted); font-size: 0.8rem; font-weight: 700; }
+.camp-stars { grid-area: stars; color: #e0a800; font-size: 1.25rem; letter-spacing: 3px; min-height: 1.5rem; margin-top: 4px; text-align: right; }
+@media (max-width: 600px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } .campaign-grid { grid-template-columns: 1fr 1fr; } }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -697,7 +727,10 @@ kbd {
             <span>Machine lab · v<span id="version-tag"></span></span>
           </div>
         </div>
-        <nav id="levels" class="levels" aria-label="Levels"></nav>
+        <nav id="levels" class="levels" aria-label="Levels">
+          <button id="btn-home" class="btn" type="button" title="Home" aria-label="Home">🏠</button>
+          <button id="btn-campaign" class="btn level-now" type="button" title="Choose a level"><span id="level-now-text">Level</span> <span aria-hidden="true">▾</span></button>
+        </nav>
         <div class="controls">
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
@@ -811,6 +844,30 @@ kbd {
       </main>
     </div>
 
+    <div id="home" class="screen" aria-labelledby="home-title" hidden>
+      <div class="screen-card home-card">
+        <img class="home-gear" src="" alt="" hidden />
+        <h1 id="home-title">Modern TIM</h1>
+        <p class="home-sub">Machine lab · build it, run it, learn how it works</p>
+        <p id="home-hello" class="home-hello"></p>
+        <div class="home-buttons">
+          <button id="home-campaign" class="btn btn-go home-btn" type="button"><span class="home-emoji">🧩</span><span><strong>Campaign</strong><small id="home-progress">18 levels</small></span></button>
+          <button id="home-sandbox" class="btn home-btn" type="button"><span class="home-emoji">🛠️</span><span><strong>Sandbox</strong><small>Build anything, no goal</small></span></button>
+        </div>
+      </div>
+    </div>
+    <div id="campaign" class="screen" role="dialog" aria-modal="true" aria-labelledby="campaign-title" hidden>
+      <div class="screen-card campaign-card">
+        <div class="campaign-head">
+          <button id="campaign-back" class="btn" type="button">← Home</button>
+          <h2 id="campaign-title">Campaign</h2>
+          <span id="campaign-summary" class="campaign-summary"></span>
+        </div>
+        <p class="campaign-legend">★ = you hold the community best for <b>Shortest path</b>, <b>Fastest solve</b> and <b>Most spare tools</b> (one star each).</p>
+        <p id="campaign-note" class="campaign-note" hidden></p>
+        <ol id="campaign-grid" class="campaign-grid"></ol>
+      </div>
+    </div>
     <div id="gate" class="gate" role="dialog" aria-modal="true" aria-labelledby="gate-title" hidden>
       <form id="gate-form" class="gate-card" novalidate>
         <h2 id="gate-title">Welcome to Modern TIM!</h2>
@@ -3622,7 +3679,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3';
+const VERSION = '0.3a';
 
 return { VERSION };
 })();
@@ -5777,7 +5834,6 @@ function $(id) {
 class UI {
     handlers;
     paletteEl = $('palette');
-    levelsEl = $('levels');
     runBtn = $('btn-run');
     undoBtn = $('btn-undo');
     statusEl = $('status');
@@ -5818,23 +5874,9 @@ class UI {
             if (b) b.blur();
         });
     }
-    setLevels(levels, current, solved) {
-        this.levelsEl.innerHTML = '';
-        levels.forEach((l, i)=>{
-            const b = document.createElement('button');
-            b.className = 'level-chip';
-            b.type = 'button';
-            if (i === current) b.classList.add('current');
-            if (solved.has(l.id)) b.classList.add('done');
-            const label = l.hasGoal ? String(i + 1) : '★';
-            b.innerHTML = `<span class="num">${label}</span><span class="name">${l.name}</span>`;
-            b.title = `${l.name}: ${l.science.topic}`;
-            b.setAttribute('aria-label', `Level ${label}: ${l.name}${solved.has(l.id) ? ' (solved)' : ''}`);
-            b.addEventListener('click', ()=>this.handlers.onSelectLevel(i));
-            this.levelsEl.appendChild(b);
-        });
-        const cur = this.levelsEl.querySelector('.current');
-        if (cur) this.levelsEl.scrollLeft = Math.max(0, cur.offsetLeft - (this.levelsEl.clientWidth - cur.offsetWidth) / 2);
+    setLevels(levels, current, _solved) {
+        const l = levels[current];
+        $('level-now-text').textContent = l.hasGoal ? `Level ${current + 1} · ${l.name}` : l.name;
     }
     setLevelInfo(level, hasNext) {
         $('goal-text').textContent = level.goal;
@@ -6244,6 +6286,7 @@ return { UI };
 
 // ---- main.ts ----
 (() => {
+
 
 
 
@@ -8270,6 +8313,7 @@ sharedOpen.addEventListener('click', ()=>{
     if (!pendingShared) return;
     const incoming = importParts(pendingShared.parts);
     const title = pendingShared.title;
+    hideScreens();
     loadLevel(sandboxIndex(), true);
     pushUndo();
     parts = [
@@ -8311,6 +8355,123 @@ async function openSharedFromAddress() {
     }
 }
 void openSharedFromAddress();
+const homeEl = document.getElementById('home');
+const campaignEl = document.getElementById('campaign');
+const campaignGrid = document.getElementById('campaign-grid');
+const campaignNote = document.getElementById('campaign-note');
+const campaignSummary = document.getElementById('campaign-summary');
+const sameWho = (a, b)=>a.trim().toLowerCase() === b.trim().toLowerCase();
+function starsFor(levelId) {
+    const board = community[levelId];
+    if (!board || !player) return null;
+    return CATEGORIES.filter((c)=>board[c][0] && sameWho(board[c][0].name, player)).length;
+}
+function campaignLevels() {
+    return LEVELS.map((level, index)=>({
+            level,
+            index
+        })).filter((x)=>x.level.hasGoal);
+}
+function renderCampaign() {
+    const list = campaignLevels();
+    campaignGrid.innerHTML = '';
+    let stars = 0;
+    let known = 0;
+    for (const { level: l, index } of list){
+        const li = document.createElement('li');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'camp-card';
+        const done = solvedLevels.has(l.id);
+        if (done) btn.classList.add('done');
+        if (index === levelIndex && level.id !== 'sandbox') btn.classList.add('current');
+        const st = starsFor(l.id);
+        if (st !== null) {
+            stars += st;
+            known++;
+        }
+        const starText = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
+        const num = document.createElement('span');
+        num.className = 'camp-num';
+        num.textContent = done ? '✓' : String(index + 1);
+        const name = document.createElement('span');
+        name.className = 'camp-name';
+        name.textContent = l.name;
+        const topic = document.createElement('span');
+        topic.className = 'camp-topic';
+        topic.textContent = l.science.topic;
+        const star = document.createElement('span');
+        star.className = 'camp-stars';
+        star.textContent = starText || (done ? '–––' : '');
+        star.title = st === null ? 'Stars need the internet' : `Community best: ${st} of 3`;
+        btn.append(num, name, topic, star);
+        btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);
+        btn.addEventListener('click', ()=>{
+            hideScreens();
+            loadLevel(index, true);
+        });
+        li.appendChild(btn);
+        campaignGrid.appendChild(li);
+    }
+    const solved = list.filter((x)=>solvedLevels.has(x.level.id)).length;
+    campaignSummary.textContent = `${solved} of ${list.length} solved` + (known ? ` · ★ ${stars} of ${list.length * 3}` : '');
+    campaignNote.hidden = known > 0 || !list.length;
+    campaignNote.textContent = 'Stars could not be loaded (no connection to the score server).';
+}
+async function loadAllCommunity() {
+    const list = campaignLevels();
+    await Promise.all(list.map(async ({ level: l })=>{
+        const b = await fetchCommunity(l.id);
+        if (b) community[l.id] = b;
+    }));
+    if (!campaignEl.hidden) renderCampaign();
+    else if (!homeEl.hidden) renderHome();
+}
+function hideScreens() {
+    homeEl.hidden = true;
+    campaignEl.hidden = true;
+}
+function renderHome() {
+    const list = campaignLevels();
+    const solved = list.filter((x)=>solvedLevels.has(x.level.id)).length;
+    const prog = document.getElementById('home-progress');
+    if (prog) prog.textContent = `${solved} of ${list.length} levels solved`;
+    const hello = document.getElementById('home-hello');
+    if (hello) hello.textContent = player ? `Hi, ${player}!` : '';
+}
+function showHome() {
+    closeBuilds();
+    campaignEl.hidden = true;
+    renderHome();
+    homeEl.hidden = false;
+    document.getElementById('home-campaign').focus();
+}
+function showCampaign() {
+    homeEl.hidden = true;
+    renderCampaign();
+    campaignEl.hidden = false;
+    document.getElementById('campaign-back').focus();
+    void loadAllCommunity();
+}
+for (const el of [
+    homeEl,
+    campaignEl
+]){
+    el.addEventListener('keydown', (e)=>{
+        e.stopPropagation();
+        if (e.key === 'Escape' && el === campaignEl) showHome();
+    });
+}
+document.getElementById('btn-home')?.addEventListener('click', showHome);
+document.getElementById('btn-campaign')?.addEventListener('click', showCampaign);
+document.getElementById('home-campaign')?.addEventListener('click', showCampaign);
+document.getElementById('campaign-back')?.addEventListener('click', showHome);
+document.getElementById('home-sandbox')?.addEventListener('click', ()=>{
+    hideScreens();
+    loadLevel(sandboxIndex(), true);
+});
+showHome();
+if (player) void loadAllCommunity();
 window.tim = {
     sim,
     levels: LEVELS,

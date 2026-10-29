@@ -21,6 +21,7 @@ import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { testAllLevels } from './game/selftest';
 import { burst } from './game/confetti';
+import { CATEGORIES } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
@@ -2010,6 +2011,7 @@ sharedOpen.addEventListener('click', () => {
   if (!pendingShared) return;
   const incoming = importParts(pendingShared.parts);
   const title = pendingShared.title;
+  hideScreens();
   loadLevel(sandboxIndex(), true);
   pushUndo();
   parts = [...parts.filter((p) => p.locked), ...incoming];
@@ -2047,6 +2049,136 @@ async function openSharedFromAddress() {
 }
 
 void openSharedFromAddress();
+
+
+// ---------------------------------------------------------------------------
+// Home and Campaign screens
+// ---------------------------------------------------------------------------
+const homeEl = document.getElementById('home') as HTMLElement;
+const campaignEl = document.getElementById('campaign') as HTMLElement;
+const campaignGrid = document.getElementById('campaign-grid') as HTMLElement;
+const campaignNote = document.getElementById('campaign-note') as HTMLElement;
+const campaignSummary = document.getElementById('campaign-summary') as HTMLElement;
+
+const sameWho = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** How many of the 3 community boards (shortest, fastest, spare) this player leads on a level. */
+function starsFor(levelId: string): number | null {
+  const board = community[levelId];
+  if (!board || !player) return null;
+  return CATEGORIES.filter((c) => board[c][0] && sameWho(board[c][0].name, player)).length;
+}
+
+function campaignLevels(): { level: Level; index: number }[] {
+  return LEVELS.map((level, index) => ({ level, index })).filter((x) => x.level.hasGoal);
+}
+
+function renderCampaign() {
+  const list = campaignLevels();
+  campaignGrid.innerHTML = '';
+  let stars = 0;
+  let known = 0;
+  for (const { level: l, index } of list) {
+    const li = document.createElement('li');
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'camp-card';
+    const done = solvedLevels.has(l.id);
+    if (done) btn.classList.add('done');
+    if (index === levelIndex && level.id !== 'sandbox') btn.classList.add('current');
+    const st = starsFor(l.id);
+    if (st !== null) {
+      stars += st;
+      known++;
+    }
+    const starText = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
+    const num = document.createElement('span');
+    num.className = 'camp-num';
+    num.textContent = done ? '✓' : String(index + 1);
+    const name = document.createElement('span');
+    name.className = 'camp-name';
+    name.textContent = l.name;
+    const topic = document.createElement('span');
+    topic.className = 'camp-topic';
+    topic.textContent = l.science.topic;
+    const star = document.createElement('span');
+    star.className = 'camp-stars';
+    star.textContent = starText || (done ? '–––' : '');
+    star.title = st === null ? 'Stars need the internet' : `Community best: ${st} of 3`;
+    btn.append(num, name, topic, star);
+    btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);
+    btn.addEventListener('click', () => {
+      hideScreens();
+      loadLevel(index, true);
+    });
+    li.appendChild(btn);
+    campaignGrid.appendChild(li);
+  }
+  const solved = list.filter((x) => solvedLevels.has(x.level.id)).length;
+  campaignSummary.textContent = `${solved} of ${list.length} solved` + (known ? ` · ★ ${stars} of ${list.length * 3}` : '');
+  campaignNote.hidden = known > 0 || !list.length;
+  campaignNote.textContent = 'Stars could not be loaded (no connection to the score server).';
+}
+
+/** Fetch every level's community board (cached ones are reused), then redraw. */
+async function loadAllCommunity() {
+  const list = campaignLevels();
+  await Promise.all(
+    list.map(async ({ level: l }) => {
+      const b = await fetchCommunity(l.id);
+      if (b) community[l.id] = b;
+    }),
+  );
+  if (!campaignEl.hidden) renderCampaign();
+  else if (!homeEl.hidden) renderHome();
+}
+
+function hideScreens() {
+  homeEl.hidden = true;
+  campaignEl.hidden = true;
+}
+
+function renderHome() {
+  const list = campaignLevels();
+  const solved = list.filter((x) => solvedLevels.has(x.level.id)).length;
+  const prog = document.getElementById('home-progress');
+  if (prog) prog.textContent = `${solved} of ${list.length} levels solved`;
+  const hello = document.getElementById('home-hello');
+  if (hello) hello.textContent = player ? `Hi, ${player}!` : '';
+}
+
+function showHome() {
+  closeBuilds();
+  campaignEl.hidden = true;
+  renderHome();
+  homeEl.hidden = false;
+  (document.getElementById('home-campaign') as HTMLElement).focus();
+}
+
+function showCampaign() {
+  homeEl.hidden = true;
+  renderCampaign();
+  campaignEl.hidden = false;
+  (document.getElementById('campaign-back') as HTMLElement).focus();
+  void loadAllCommunity();
+}
+
+for (const el of [homeEl, campaignEl]) {
+  el.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape' && el === campaignEl) showHome();
+  });
+}
+document.getElementById('btn-home')?.addEventListener('click', showHome);
+document.getElementById('btn-campaign')?.addEventListener('click', showCampaign);
+document.getElementById('home-campaign')?.addEventListener('click', showCampaign);
+document.getElementById('campaign-back')?.addEventListener('click', showHome);
+document.getElementById('home-sandbox')?.addEventListener('click', () => {
+  hideScreens();
+  loadLevel(sandboxIndex(), true);
+});
+
+showHome();
+if (player) void loadAllCommunity();
 
 // Small hook for automated tests and for curious engineers in the console.
 (window as unknown as { tim: unknown }).tim = {

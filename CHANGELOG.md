@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.3a
+
+- **Home screen.** The game now opens on a home screen with two buttons: **Campaign** and **Sandbox**. The 🏠 button in the top bar comes back to it.
+- **Campaign screen** replaces the long level strip. All 18 levels are shown as cards: a green tick for solved levels, the current level outlined, and **three stars per level** (one each for Shortest path, Fastest solve and Most spare tools) for every community board where the player holds number one. Stars are loaded from the score server; offline, the screen says so. The top bar now shows only the current level ("Level 3 · Springs"); tapping it opens the Campaign screen.
+- Esc on the Campaign screen goes back to Home. Opening a shared build link goes straight to the Sandbox.
+
 ## Modern TIM 0.3
 
 - **Sandbox builds.** In the Sandbox a new **📁 My builds** button opens a list of up to 10 saved builds per player. Save the board (with an optional name), **Load** a build back, **Replace with current**, **Rename** (Enter saves, Esc cancels) or **Delete**. Loading puts your previous board on the Undo stack. Builds are kept in this browser, separately for each player name, and are not synced to other devices.
