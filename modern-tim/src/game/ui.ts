@@ -126,10 +126,13 @@ export class UI {
     });
   }
 
-  /** The top bar only names the current level; the full list lives on the Campaign screen. */
+  /** The top bar names the current level (a dropdown lists them all) and lights the Sandbox button. */
   setLevels(levels: Level[], current: number, _solved: Set<string>) {
     const l = levels[current];
-    $('level-now-text').textContent = l.hasGoal ? `Level ${current + 1} · ${l.name}` : l.name;
+    const sandbox = !l.hasGoal;
+    $('level-now-text').textContent = sandbox ? 'Campaign levels' : `Level ${current + 1} · ${l.name}`;
+    $('btn-campaign').classList.toggle('dim', sandbox);
+    $('btn-sandbox').classList.toggle('active', sandbox);
   }
 
   setLevelInfo(level: Level, hasNext: boolean) {

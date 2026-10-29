@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.3b
+
+- **No home screen any more.** The game opens straight into the campaign, on your first unsolved level. The top bar has a **level dropdown** (all 18 levels with a green tick for solved ones and up to 3 stars each) and a **🛠️ Sandbox** button next to it. The Sandbox button lights up while you are in the Sandbox; pick any level from the dropdown to go back.
+- Stars: one for each community board (Shortest path, Fastest solve, Most spare tools) where you are number one. They load from the score server when the dropdown opens; if it cannot be reached the dropdown says so.
+- The 0.3a Home and Campaign screens were removed.
+
 ## Modern TIM 0.3a
 
 - **Home screen.** The game now opens on a home screen with two buttons: **Campaign** and **Sandbox**. The 🏠 button in the top bar comes back to it.

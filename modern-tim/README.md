@@ -56,8 +56,8 @@ The High scores card has two tabs: **Community** (shared by everyone, kept by `s
 Finished runs are posted to `scores.php`; if the server can't be reached they wait in localStorage (`modern-tim:pending`) and are sent next visit.
 Names are not passwords: anyone can type any name, and the server only rejects impossible numbers. `npm run check-community` tests the client with a fake server.
 
-### Home and Campaign
-The game opens on a home screen (Campaign / Sandbox). The Campaign screen lists the 18 levels with a tick for solved ones and up to 3 stars each: one for every community board (shortest, fastest, most spare tools) where the player is number one.
+### Levels and the Sandbox
+The game opens in the campaign. The level dropdown in the top bar lists the 18 levels with a tick for solved ones and up to 3 stars each (one per community board where the player is number one); the 🛠️ Sandbox button next to it switches to the free-build Sandbox.
 
 ### Sandbox builds and sharing
 In the Sandbox, **📁 My builds** keeps up to 10 saved builds per player (stored in this browser under the player's name). You can save, load, replace, rename and delete them. **Share** makes a short link (`?s=CODE`) through `share.php`; whoever opens it is asked first, and the build loads into their Sandbox as an unsaved copy. Code: `src/game/builds.ts` (storage and share client) and the builds section of `src/main.ts`.

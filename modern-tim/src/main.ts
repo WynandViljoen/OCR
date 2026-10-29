@@ -1730,7 +1730,7 @@ document.getElementById('run-selftest')?.addEventListener('click', () => {
 });
 
 let booted = false;
-loadLevel(0, true);
+loadLevel(Math.max(0, LEVELS.findIndex((l) => l.hasGoal && !solvedLevels.has(l.id))), true);
 booted = true;
 track('visit', player, level.id);
 track('level', player, level.id);
@@ -2011,7 +2011,6 @@ sharedOpen.addEventListener('click', () => {
   if (!pendingShared) return;
   const incoming = importParts(pendingShared.parts);
   const title = pendingShared.title;
-  hideScreens();
   loadLevel(sandboxIndex(), true);
   pushUndo();
   parts = [...parts.filter((p) => p.locked), ...incoming];
@@ -2052,13 +2051,13 @@ void openSharedFromAddress();
 
 
 // ---------------------------------------------------------------------------
-// Home and Campaign screens
+// Level dropdown (campaign) and Sandbox button
 // ---------------------------------------------------------------------------
-const homeEl = document.getElementById('home') as HTMLElement;
-const campaignEl = document.getElementById('campaign') as HTMLElement;
-const campaignGrid = document.getElementById('campaign-grid') as HTMLElement;
-const campaignNote = document.getElementById('campaign-note') as HTMLElement;
-const campaignSummary = document.getElementById('campaign-summary') as HTMLElement;
+const menuBtn = document.getElementById('btn-campaign') as HTMLButtonElement;
+const menuEl = document.getElementById('level-menu') as HTMLElement;
+const menuList = document.getElementById('level-menu-list') as HTMLElement;
+const menuNote = document.getElementById('level-menu-note') as HTMLElement;
+const menuSummary = document.getElementById('level-menu-summary') as HTMLElement;
 
 const sameWho = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 /** How many of the 3 community boards (shortest, fastest, spare) this player leads on a level. */
@@ -2069,115 +2068,95 @@ function starsFor(levelId: string): number | null {
 }
 
 function campaignLevels(): { level: Level; index: number }[] {
-  return LEVELS.map((level, index) => ({ level, index })).filter((x) => x.level.hasGoal);
+  return LEVELS.map((l, index) => ({ level: l, index })).filter((x) => x.level.hasGoal);
 }
 
-function renderCampaign() {
+function renderMenu() {
   const list = campaignLevels();
-  campaignGrid.innerHTML = '';
+  menuList.innerHTML = '';
   let stars = 0;
   let known = 0;
   for (const { level: l, index } of list) {
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'camp-card';
+    btn.className = 'menu-item';
+    btn.setAttribute('role', 'option');
     const done = solvedLevels.has(l.id);
+    const here = l.id === level.id;
     if (done) btn.classList.add('done');
-    if (index === levelIndex && level.id !== 'sandbox') btn.classList.add('current');
+    if (here) btn.classList.add('current');
+    btn.setAttribute('aria-selected', String(here));
     const st = starsFor(l.id);
     if (st !== null) {
       stars += st;
       known++;
     }
-    const starText = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
     const num = document.createElement('span');
-    num.className = 'camp-num';
+    num.className = 'menu-num';
     num.textContent = done ? '✓' : String(index + 1);
     const name = document.createElement('span');
-    name.className = 'camp-name';
+    name.className = 'menu-name';
     name.textContent = l.name;
-    const topic = document.createElement('span');
-    topic.className = 'camp-topic';
-    topic.textContent = l.science.topic;
     const star = document.createElement('span');
-    star.className = 'camp-stars';
-    star.textContent = starText || (done ? '–––' : '');
-    star.title = st === null ? 'Stars need the internet' : `Community best: ${st} of 3`;
-    btn.append(num, name, topic, star);
+    star.className = 'menu-stars';
+    star.textContent = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
+    star.title = st === null ? '' : `You hold the community best for ${st} of 3 boards`;
+    btn.append(num, name, star);
     btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);
     btn.addEventListener('click', () => {
-      hideScreens();
+      closeMenu();
       loadLevel(index, true);
     });
     li.appendChild(btn);
-    campaignGrid.appendChild(li);
+    menuList.appendChild(li);
   }
   const solved = list.filter((x) => solvedLevels.has(x.level.id)).length;
-  campaignSummary.textContent = `${solved} of ${list.length} solved` + (known ? ` · ★ ${stars} of ${list.length * 3}` : '');
-  campaignNote.hidden = known > 0 || !list.length;
-  campaignNote.textContent = 'Stars could not be loaded (no connection to the score server).';
+  menuSummary.textContent = `${solved} of ${list.length} solved` + (known ? ` · ★ ${stars} of ${list.length * 3}` : '');
+  menuNote.hidden = !(communityLoaded && known === 0);
+  menuNote.textContent = 'Stars need the score server, which could not be reached.';
 }
 
-/** Fetch every level's community board (cached ones are reused), then redraw. */
+let communityLoaded = false;
+/** Fetch every level's community board, then redraw the menu if it is open. */
 async function loadAllCommunity() {
-  const list = campaignLevels();
   await Promise.all(
-    list.map(async ({ level: l }) => {
+    campaignLevels().map(async ({ level: l }) => {
       const b = await fetchCommunity(l.id);
       if (b) community[l.id] = b;
     }),
   );
-  if (!campaignEl.hidden) renderCampaign();
-  else if (!homeEl.hidden) renderHome();
+  communityLoaded = true;
+  if (!menuEl.hidden) renderMenu();
 }
 
-function hideScreens() {
-  homeEl.hidden = true;
-  campaignEl.hidden = true;
+function closeMenu() {
+  menuEl.hidden = true;
+  menuBtn.setAttribute('aria-expanded', 'false');
 }
-
-function renderHome() {
-  const list = campaignLevels();
-  const solved = list.filter((x) => solvedLevels.has(x.level.id)).length;
-  const prog = document.getElementById('home-progress');
-  if (prog) prog.textContent = `${solved} of ${list.length} levels solved`;
-  const hello = document.getElementById('home-hello');
-  if (hello) hello.textContent = player ? `Hi, ${player}!` : '';
-}
-
-function showHome() {
-  closeBuilds();
-  campaignEl.hidden = true;
-  renderHome();
-  homeEl.hidden = false;
-  (document.getElementById('home-campaign') as HTMLElement).focus();
-}
-
-function showCampaign() {
-  homeEl.hidden = true;
-  renderCampaign();
-  campaignEl.hidden = false;
-  (document.getElementById('campaign-back') as HTMLElement).focus();
+function openMenu() {
+  renderMenu();
+  menuEl.hidden = false;
+  menuBtn.setAttribute('aria-expanded', 'true');
+  menuEl.querySelector<HTMLElement>('.menu-item.current')?.scrollIntoView({ block: 'nearest' });
   void loadAllCommunity();
 }
-
-for (const el of [homeEl, campaignEl]) {
-  el.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Escape' && el === campaignEl) showHome();
-  });
-}
-document.getElementById('btn-home')?.addEventListener('click', showHome);
-document.getElementById('btn-campaign')?.addEventListener('click', showCampaign);
-document.getElementById('home-campaign')?.addEventListener('click', showCampaign);
-document.getElementById('campaign-back')?.addEventListener('click', showHome);
-document.getElementById('home-sandbox')?.addEventListener('click', () => {
-  hideScreens();
-  loadLevel(sandboxIndex(), true);
+menuBtn.addEventListener('click', () => (menuEl.hidden ? openMenu() : closeMenu()));
+menuEl.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Escape') {
+    closeMenu();
+    menuBtn.focus();
+  }
+});
+document.addEventListener('pointerdown', (e) => {
+  if (!menuEl.hidden && !(e.target as HTMLElement).closest('.level-pick')) closeMenu();
+});
+document.getElementById('btn-sandbox')?.addEventListener('click', () => {
+  closeMenu();
+  if (level.id !== 'sandbox') loadLevel(sandboxIndex(), true);
 });
 
-showHome();
 if (player) void loadAllCommunity();
 
 // Small hook for automated tests and for curious engineers in the console.
