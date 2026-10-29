@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.3c
+
+- **Fix: the server files now run on old PHP.** The host's error log showed `syntax error, unexpected '=>'` in `scores.php` (line 64) and `admin.php` (line 259): the host runs PHP older than 7.4, which cannot read `fn() =>` arrow functions. That broke the community scores, the stars and the admin dashboard. `scores.php`, `admin.php` and `share.php` were rewritten with plain PHP 7.0 syntax (no arrow functions, no `mixed`, nullable or `void` types), and the cookie code falls back to the old call style below PHP 7.3.
+- New guard: `npm run check-php-compat` fails if any of the three files gets newer-than-7.0 syntax again.
+- The game itself is unchanged.
+
 ## Modern TIM 0.3b
 
 - **No home screen any more.** The game opens straight into the campaign, on your first unsolved level. The top bar has a **level dropdown** (all 18 levels with a green tick for solved ones and up to 3 stars each) and a **🛠️ Sandbox** button next to it. The Sandbox button lights up while you are in the Sandbox; pick any level from the dropdown to go back.

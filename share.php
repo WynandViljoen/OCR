@@ -32,13 +32,13 @@ const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DATA_DIR = __DIR__ . '/tim-data';
 const SHARE_DIR = DATA_DIR . '/shares';
 
-function fail(int $code, string $message): void {
+function fail(int $code, string $message) {
     http_response_code($code);
     echo json_encode(['error' => $message]);
     exit;
 }
 
-function ensure_dirs(): void {
+function ensure_dirs() {
     foreach ([DATA_DIR, SHARE_DIR] as $d) {
         if (!is_dir($d)) {
             @mkdir($d, 0750, true);
@@ -51,14 +51,14 @@ function ensure_dirs(): void {
     }
 }
 
-function clean_text(mixed $raw, int $max): string {
+function clean_text($raw, int $max): string {
     $s = is_string($raw) || is_numeric($raw) ? (string) $raw : '';
     $s = preg_replace('/[\x00-\x1f\x7f<>]/u', ' ', $s) ?? '';
     $s = trim(preg_replace('/\s+/u', ' ', $s) ?? '');
     return trim(mb_substr($s, 0, $max));
 }
 
-function num(mixed $v, float $min, float $max): ?float {
+function num($v, float $min, float $max) {
     if (!is_int($v) && !is_float($v)) return null;
     $f = (float) $v;
     if (!is_finite($f) || $f < $min || $f > $max) return null;
@@ -66,7 +66,7 @@ function num(mixed $v, float $min, float $max): ?float {
 }
 
 /** Rebuild one part from known fields only. Returns null if it is not a usable part. */
-function clean_part(mixed $p): ?array {
+function clean_part($p) {
     if (!is_array($p) || !isset($p['type']) || !in_array($p['type'], PART_TYPES, true)) return null;
     $id = isset($p['id']) && is_int($p['id']) && $p['id'] >= 0 && $p['id'] < 100000 ? $p['id'] : null;
     if ($id === null) return null;
@@ -144,7 +144,9 @@ function rate_limited(): bool {
     $all = is_array($all) ? $all : [];
     $now = time();
     foreach ($all as $k => $times) {
-        $all[$k] = array_values(array_filter(is_array($times) ? $times : [], fn($t) => is_int($t) && $now - $t < 3600));
+        $all[$k] = array_values(array_filter(is_array($times) ? $times : [], function ($t) use ($now) {
+            return is_int($t) && $now - $t < 3600;
+        }));
         if (!$all[$k]) unset($all[$k]);
     }
     $limited = count($all[$key] ?? []) >= MAX_PER_HOUR;

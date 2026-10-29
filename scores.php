@@ -34,7 +34,7 @@ const DATA_FILE = __DIR__ . '/scores-data.json';
 const RECORD_DIR = __DIR__ . '/tim-data';
 const RECORD_LOG_MAX_BYTES = 1500000;
 
-function fail(int $code, string $message): void {
+function fail(int $code, string $message) {
     http_response_code($code);
     echo json_encode(['error' => $message]);
     exit;
@@ -59,9 +59,11 @@ function better(string $category, float $a, float $b): bool {
     return isset(LOWER_IS_BETTER[$category]) ? $a < $b : $a > $b;
 }
 
-function sortBoard(string $category, array &$list): void {
+function sortBoard(string $category, array &$list) {
     $dir = isset(LOWER_IS_BETTER[$category]) ? 1 : -1;
-    usort($list, fn($x, $y) => ($dir * ($x['value'] <=> $y['value'])) ?: ($x['at'] <=> $y['at']));
+    usort($list, function ($x, $y) use ($dir) {
+        return ($dir * ($x['value'] <=> $y['value'])) ?: ($x['at'] <=> $y['at']);
+    });
 }
 
 /** Add one run to $board (in place). Returns results per category. */
@@ -100,7 +102,7 @@ function recordRun(array &$board, string $name, array $values, int $now): array 
 }
 
 /** Best effort: a record that cannot be logged must never stop the score from being saved. */
-function logRecord(array $entry): void {
+function logRecord(array $entry) {
     if (!is_dir(RECORD_DIR)) {
         @mkdir(RECORD_DIR, 0750, true);
     }

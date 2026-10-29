@@ -16,7 +16,8 @@
     "check-ropes": "tsx scripts/check-ropes.ts",
     "check-records": "node scripts/check-records.mjs",
     "check-builds": "tsx scripts/check-builds.ts",
-    "check-share": "node scripts/check-share.mjs"
+    "check-share": "node scripts/check-share.mjs",
+    "check-php-compat": "node scripts/check-php-compat.mjs"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

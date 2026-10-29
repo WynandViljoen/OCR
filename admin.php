@@ -48,7 +48,7 @@ date_default_timezone_set('UTC');
 // Storage helpers
 // ---------------------------------------------------------------------------
 
-function ensure_dir(): void {
+function ensure_dir() {
     if (!is_dir(DATA_DIR)) {
         @mkdir(DATA_DIR, 0750, true);
     }
@@ -69,7 +69,7 @@ function secret(): string {
 }
 
 /** Run $fn(array &$data) under an exclusive lock on a JSON file. */
-function with_json(string $name, callable $fn): void {
+function with_json(string $name, callable $fn) {
     ensure_dir();
     $fh = @fopen(DATA_DIR . '/' . $name, 'c+');
     if (!$fh) {
@@ -96,7 +96,7 @@ function read_json(string $name): array {
     return is_array($d) ? $d : [];
 }
 
-function log_event(array $e): void {
+function log_event(array $e) {
     ensure_dir();
     $p = DATA_DIR . '/events.log';
     if (is_file($p) && filesize($p) > LOG_MAX_BYTES) {
@@ -109,7 +109,7 @@ function ip_hash(): string {
     return substr(hash_hmac('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? ''), secret()), 0, 10);
 }
 
-function clean(mixed $v, int $max): string {
+function clean($v, int $max): string {
     $s = is_string($v) || is_numeric($v) ? (string) $v : '';
     $s = preg_replace('/[\x00-\x1f\x7f<>]/u', '', $s) ?? '';
     return trim(mb_substr($s, 0, $max));
@@ -123,7 +123,7 @@ function sign_id(string $raw): string {
     return $raw . '.' . substr(hash_hmac('sha256', $raw, secret()), 0, 12);
 }
 
-function valid_id(mixed $id): bool {
+function valid_id($id): bool {
     if (!is_string($id) || !preg_match('/^[a-f0-9]{16}\.[a-f0-9]{12}$/', $id)) {
         return false;
     }
@@ -162,7 +162,7 @@ function describe_agent(string $ua): array {
 // Tracking API
 // ---------------------------------------------------------------------------
 
-function api_track(): void {
+function api_track() {
     header('Content-Type: application/json; charset=utf-8');
     header('Cache-Control: no-store');
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -191,7 +191,12 @@ function api_track(): void {
         $id = new_id();
     }
     $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
-    setcookie('tim_device', $id, ['expires' => time() + 86400 * 730, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $secure]);
+    if (PHP_VERSION_ID >= 70300) {
+        setcookie('tim_device', $id, ['expires' => time() + 86400 * 730, 'path' => '/', 'httponly' => true, 'samesite' => 'Lax', 'secure' => $secure]);
+    } else {
+        // PHP 7.0 to 7.2 have no options array: the SameSite flag rides on the path.
+        setcookie('tim_device', $id, time() + 86400 * 730, '/; samesite=Lax', '', $secure, true);
+    }
 
     $ev = clean($in['ev'] ?? '', 12);
     if (!in_array($ev, EVENTS, true)) {
@@ -210,7 +215,7 @@ function api_track(): void {
     $iph = ip_hash();
     $accepted = false;
 
-    with_json('players.json', function (array &$all) use ($id, $ev, $name, $level, $version, $secs, $now, $ua, $iph, &$accepted): void {
+    with_json('players.json', function (array &$all) use ($id, $ev, $name, $level, $version, $secs, $now, $ua, $iph, &$accepted) {
         $p = $all[$id] ?? ['id' => $id, 'name' => '', 'names' => [], 'first' => $now, 'last' => $now, 'visits' => 0, 'plays' => 0, 'solves' => 0, 'levels' => [], 'hour' => $now, 'hourCount' => 0];
         if ($now - (int) $p['hour'] > 3600) {
             $p['hour'] = $now;
@@ -256,7 +261,9 @@ function api_track(): void {
         $all[$id] = $p;
         // Keep the file bounded: drop the least recently seen players beyond 5000.
         if (count($all) > 5000) {
-            uasort($all, fn($a, $b) => ($b['last'] ?? 0) <=> ($a['last'] ?? 0));
+            uasort($all, function ($a, $b) {
+                return ($b['last'] ?? 0) <=> ($a['last'] ?? 0);
+            });
             $all = array_slice($all, 0, 5000, true);
         }
     });
@@ -278,10 +285,14 @@ function api_track(): void {
 // Admin: login, session, throttle
 // ---------------------------------------------------------------------------
 
-function start_session(): void {
+function start_session() {
     $secure = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     session_name('timadmin');
-    session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => $secure]);
+    if (PHP_VERSION_ID >= 70300) {
+        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'httponly' => true, 'samesite' => 'Strict', 'secure' => $secure]);
+    } else {
+        session_set_cookie_params(0, '/; samesite=Strict', '', $secure, true);
+    }
     session_start();
     if (empty($_SESSION['csrf'])) {
         $_SESSION['csrf'] = bin2hex(random_bytes(16));
@@ -294,8 +305,10 @@ function is_admin(): bool {
 
 function locked_out(string $iph): int {
     $wait = 0;
-    with_json('login.json', function (array &$d) use ($iph, &$wait): void {
-        $fails = array_values(array_filter($d[$iph] ?? [], fn($t) => time() - $t < 900));
+    with_json('login.json', function (array &$d) use ($iph, &$wait) {
+        $fails = array_values(array_filter($d[$iph] ?? [], function ($t) {
+            return time() - $t < 900;
+        }));
         $d[$iph] = $fails;
         if (count($fails) >= 5) {
             $wait = 900 - (time() - $fails[0]);
@@ -304,8 +317,8 @@ function locked_out(string $iph): int {
     return max(0, $wait);
 }
 
-function note_failure(string $iph): void {
-    with_json('login.json', function (array &$d) use ($iph): void {
+function note_failure(string $iph) {
+    with_json('login.json', function (array &$d) use ($iph) {
         $d[$iph][] = time();
     });
 }
@@ -324,11 +337,11 @@ function ago(int $t): string {
     return intdiv($s, 86400) . ' d ago';
 }
 
-function h(mixed $v): string {
+function h($v): string {
     return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function page_head(string $title, bool $refresh = false): void {
+function page_head(string $title, bool $refresh = false) {
     header('Content-Type: text/html; charset=utf-8');
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex, nofollow');
@@ -358,7 +371,7 @@ input[type=password],input[type=text],select{padding:7px 10px;border-radius:8px;
 </style></head><body>';
 }
 
-function login_page(string $msg): void {
+function login_page(string $msg) {
     page_head('Modern TIM admin');
     echo '<div class="login"><h1>Modern TIM admin</h1><p class="mute">Players, devices and logs.</p>';
     if ($msg !== '') {
@@ -397,7 +410,7 @@ function level_label(string $id): string {
     return LEVEL_NAMES[$id] ?? $id;
 }
 
-function format_score(string $category, mixed $v): string {
+function format_score(string $category, $v): string {
     $n = (float) $v;
     if ($category === 'shortest') return rtrim(rtrim(number_format($n, 2, '.', ''), '0'), '.') . ' m';
     if ($category === 'fastest') return number_format($n, 1, '.', '') . ' s';
@@ -427,7 +440,7 @@ function read_boards(): array {
     return is_array($d) ? $d : [];
 }
 
-function scores_view(): void {
+function scores_view() {
     $level = (string) ($_GET['level'] ?? '');
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
     $cat = (string) ($_GET['cat'] ?? '');
@@ -435,7 +448,9 @@ function scores_view(): void {
     $rows = read_records(300, $level, $cat);
     $all = read_records(100000, '', '');
     $weekAgo = time() - 7 * 86400;
-    $week = count(array_filter($all, fn($e) => (int) $e['t'] >= $weekAgo));
+    $week = count(array_filter($all, function ($e) use ($weekAgo) {
+        return (int) $e['t'] >= $weekAgo;
+    }));
 
     echo '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. '
         . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
@@ -484,7 +499,7 @@ function scores_view(): void {
     echo '</table></div><p class="mute">Top 5 per board, one row per name. The bold line is the current record.</p>';
 }
 
-function dashboard(): void {
+function dashboard() {
     $view = in_array($_GET['view'] ?? '', ['players', 'levels', 'scores', 'log'], true) ? $_GET['view'] : 'players';
     $auto = !empty($_GET['auto']);
     $players = read_json('players.json');
@@ -518,12 +533,16 @@ function dashboard(): void {
         . '<div class="card"><b>' . $solves . '</b><span>puzzles solved in total</span></div></div>';
 
     if ($view === 'players') {
-        uasort($players, fn($a, $b) => ($b['last'] ?? 0) <=> ($a['last'] ?? 0));
+        uasort($players, function ($a, $b) {
+                return ($b['last'] ?? 0) <=> ($a['last'] ?? 0);
+            });
         echo '<h2>Players</h2><div class="wrap"><table><tr><th>Name</th><th>Device id</th><th>Device</th><th>Visits</th><th>Plays</th><th>Solved</th><th>Version</th><th>First seen</th><th>Last seen</th></tr>';
         foreach ($players as $p) {
             $on = $now - (int) $p['last'] < ONLINE_SECONDS;
             $others = count($byNet[$p['ip'] ?? ''] ?? []) - 1;
-            $names = array_filter($p['names'] ?? [], fn($n) => $n !== ($p['name'] ?? ''));
+            $names = array_filter($p['names'] ?? [], function ($n) use ($p) {
+                return $n !== ($p['name'] ?? '');
+            });
             $ua = $p['ua'] ?? ['os' => '?', 'browser' => '?', 'kind' => '?'];
             echo '<tr><td><span class="dot ' . ($on ? 'on' : '') . '"></span><b>' . h($p['name'] ?: '(no name yet)') . '</b>'
                 . ($names ? ' <span class="mute">also: ' . h(implode(', ', $names)) . '</span>' : '') . '</td>'
