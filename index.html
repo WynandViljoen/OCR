@@ -3644,7 +3644,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3d';
+const VERSION = '0.3e';
 
 return { VERSION };
 })();
@@ -4125,6 +4125,7 @@ async function call(fetchFn, url, init) {
     try {
         const res = await fetchFn(url, {
             ...init,
+            cache: 'no-store',
             signal: ctl?.signal
         });
         if (!res.ok) {
@@ -4139,7 +4140,7 @@ async function call(fetchFn, url, init) {
     }
 }
 async function fetchCommunity(levelId, fetchFn = (u, i)=>fetch(u, i)) {
-    const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`);
+    const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
     const data = raw === REJECTED ? null : raw;
     return data && data.board ? parseBoard(data.board) : null;
 }
@@ -4324,6 +4325,7 @@ async function call(fetchFn, url, init) {
     try {
         const res = await fetchFn(url, {
             ...init,
+            cache: 'no-store',
             signal: ctl?.signal
         });
         let data = null;
@@ -8328,6 +8330,13 @@ document.getElementById('btn-sandbox')?.addEventListener('click', ()=>{
     if (level.id !== 'sandbox') loadLevel(sandboxIndex(), true);
 });
 if (player) void loadAllCommunity();
+let lastBoardRefresh = Date.now();
+document.addEventListener('visibilitychange', ()=>{
+    if (document.visibilityState !== 'visible' || Date.now() - lastBoardRefresh < 15000) return;
+    lastBoardRefresh = Date.now();
+    loadCommunity();
+    if (!menuEl.hidden) void loadAllCommunity();
+});
 window.tim = {
     sim,
     levels: LEVELS,

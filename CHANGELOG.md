@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.3e
+
+- **New community scores show up straight away.** A new record could take minutes to appear because something between the server and the browser kept an old copy of the board. `scores.php` and `share.php` now send the full set of no-cache headers (including the LiteSpeed, Cloudflare and Varnish ones), and the game asks for fresh data every time (`cache: no-store` plus a unique number on each request). The boards also refresh when you come back to the game tab. Copy the updated `scores.php` and `share.php` to the server (the cron line does it).
+
 ## Modern TIM 0.3d
 
 - **Removed the "Test all levels" button** (and its dialog) from the game. The same check still runs from the command line: `npm run check-levels`.

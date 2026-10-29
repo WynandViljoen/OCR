@@ -17,7 +17,13 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
-header('Cache-Control: no-store');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+// Some hosts and CDNs keep their own copy; these tell them (LiteSpeed, Cloudflare, Varnish) not to.
+header('X-LiteSpeed-Cache-Control: no-cache');
+header('CDN-Cache-Control: no-store');
+header('Surrogate-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
 const PART_TYPES = ['ball', 'heavyBall', 'plank', 'wall', 'basket', 'conveyor', 'spring', 'domino', 'seesaw', 'wheel', 'motorGear', 'gear', 'bigGear', 'paddleGear', 'mouse', 'string', 'crate', 'pulley', 'rope'];

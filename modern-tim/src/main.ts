@@ -2130,6 +2130,15 @@ document.getElementById('btn-sandbox')?.addEventListener('click', () => {
 
 if (player) void loadAllCommunity();
 
+// Other players keep setting records while this page is open: refresh the board when the tab comes back into view.
+let lastBoardRefresh = Date.now();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || Date.now() - lastBoardRefresh < 15000) return;
+  lastBoardRefresh = Date.now();
+  loadCommunity();
+  if (!menuEl.hidden) void loadAllCommunity();
+});
+
 // Small hook for automated tests and for curious engineers in the console.
 (window as unknown as { tim: unknown }).tim = {
   sim,

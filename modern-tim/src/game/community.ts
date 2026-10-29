@@ -28,7 +28,7 @@ export interface PendingRun {
   run: Run;
 }
 
-type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
+type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string>; cache?: 'no-store' }) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
 interface StoreLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -49,7 +49,7 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
   try {
-    const res = await fetchFn(url, { ...init, signal: ctl?.signal });
+    const res = await fetchFn(url, { ...init, cache: 'no-store', signal: ctl?.signal });
     if (!res.ok) {
       const st = res.status ?? 0;
       return st >= 400 && st < 500 && st !== 408 && st !== 429 ? REJECTED : null;
@@ -63,7 +63,7 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
 }
 
 export async function fetchCommunity(levelId: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Board | null> {
-  const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}`);
+  const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
   const data = raw === REJECTED ? null : (raw as { board?: unknown } | null);
   return data && data.board ? parseBoard(data.board) : null;
 }

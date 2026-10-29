@@ -128,7 +128,7 @@ export interface SharedBuild {
   parts: unknown[];
 }
 
-type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string> }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string>; cache?: 'no-store' }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 
 type Reply<T> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -136,7 +136,7 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;
   try {
-    const res = await fetchFn(url, { ...init, signal: ctl?.signal });
+    const res = await fetchFn(url, { ...init, cache: 'no-store', signal: ctl?.signal });
     let data: Record<string, unknown> | null = null;
     try {
       const j = await res.json();
