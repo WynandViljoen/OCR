@@ -1,7 +1,7 @@
 # Modern TIM
 
 A browser physics puzzle game in the spirit of *The Incredible Machine*, built to teach
-kids (about 8 to 13) how simple machines work. Version 0.2o: eighteen science levels plus a sandbox, player names and per-level high scores.
+kids (about 8 to 13) how simple machines work. Version 0.3: eighteen science levels plus a sandbox with 10 saved builds per player and share links, player names and per-level high scores.
 
 This repo replaced the earlier Snap OCR page (its history is still in git).
 
@@ -13,10 +13,13 @@ This repo replaced the earlier Snap OCR page (its history is still in git).
 | `.cpanel.yml` | cPanel deploy settings. Leave as is. |
 | `modern-tim/` | The full project source (Vite + TypeScript + Matter.js): `src/`, `scripts/`, its own `README.md` and `HANDOFF.md`. `modern-tim/modern-tim.html` is the same game without the page wrapper (for pasting into viewers that add their own). |
 
+## Sharing Sandbox builds (share.php)
+`share.php` stores a shared Sandbox build as a small JSON file in `tim-data/shares/` and gives back an 8-character code, so a link looks like `index.html?s=Ab3xYz9K`. It sits beside `index.html` like `scores.php`. Saved builds themselves (10 per player name) stay in the browser; only Share talks to the server.
+
 ## Community scores (scores.php)
 `scores.php` is the only server code. It must sit in the same web folder as `index.html` (for example `public_html/ocr/`).
 Add it to the deploy copy step, for example the cron command ends with
-`... && cp index.html scores.php /home/<user>/public_html/ocr/` (or upload it once in cPanel File Manager).
+`... && cp index.html scores.php admin.php share.php /home/<user>/public_html/ocr/` (or upload it once in cPanel File Manager).
 It creates `scores-data.json` beside itself; copying `scores.php` again never touches that data. Without it the game still works with
 scores kept in each browser only.
 

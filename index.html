@@ -661,6 +661,26 @@ kbd {
   .part-info { display: none; }
 }
 
+/* Sandbox builds */
+.btn-small { padding: 4px 10px; font-size: 0.85rem; min-height: 0; }
+.btn-danger { color: var(--danger); }
+.builds-card { max-width: 560px; width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
+.builds-sub { font-weight: 600; font-size: 0.95rem; }
+.builds-save { display: flex; gap: 8px; }
+.builds-save input { flex: 1; min-width: 0; }
+.builds-msg { font-size: 0.9rem; color: var(--ink, inherit); word-break: break-all; }
+.builds-msg.bad { color: var(--danger); }
+.builds-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.builds-empty { opacity: 0.7; font-weight: 600; }
+.build-row { border: 2px solid rgba(0, 0, 0, 0.15); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.build-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.build-name { overflow-wrap: anywhere; }
+.build-meta { font-size: 0.8rem; opacity: 0.7; }
+.build-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.build-rename { flex: 1; min-width: 0; }
+.build-link { display: flex; gap: 6px; }
+.build-link input { flex: 1; min-width: 0; font-size: 0.85rem; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -682,6 +702,7 @@ kbd {
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-builds" class="btn" type="button" title="Save, load and share your Sandbox builds" hidden>📁 My builds</button>
           <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
@@ -809,6 +830,33 @@ kbd {
         <p id="tester-sub">Running every level's solution…</p>
         <ul id="tester-list" class="tester-list"></ul>
         <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
+      </div>
+    </div>
+    <div id="builds" class="gate" role="dialog" aria-modal="true" aria-labelledby="builds-title" hidden>
+      <div class="gate-card builds-card">
+        <h2 id="builds-title">My builds</h2>
+        <p class="builds-sub">Save up to 10 Sandbox builds on this device. <span id="builds-count"></span></p>
+        <form id="builds-form" class="builds-save" novalidate>
+          <label class="sr-only" for="builds-name">Name for this build</label>
+          <input id="builds-name" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Build 1" />
+          <button id="builds-save" class="btn btn-go" type="submit">Save current</button>
+        </form>
+        <p id="builds-msg" class="builds-msg" role="status" hidden></p>
+        <ul id="builds-list" class="builds-list"></ul>
+        <div class="gate-actions">
+          <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
+          <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="shared" class="gate" role="dialog" aria-modal="true" aria-labelledby="shared-title" hidden>
+      <div class="gate-card">
+        <h2 id="shared-title">A shared build</h2>
+        <p id="shared-text"></p>
+        <div class="gate-actions">
+          <button id="shared-no" class="btn" type="button">Not now</button>
+          <button id="shared-open" class="btn btn-go" type="button">Open it ▶</button>
+        </div>
       </div>
     </div>
     <div id="hint-box" class="hint-box" hidden></div>
@@ -3574,7 +3622,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.2o';
+const VERSION = '0.3';
 
 return { VERSION };
 })();
@@ -4135,6 +4183,193 @@ async function flushPending(store = browserStore(), fetchFn) {
 }
 
 return { ENDPOINT, PENDING_KEY, fetchCommunity, submitRun, loadPending, savePending, flushPending };
+})();
+
+// ---- game/builds.ts ----
+const { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl } = (() => {
+const MAX_BUILDS = 10;
+const MAX_BUILD_NAME = 24;
+const MAX_PARTS = 300;
+const SHARE_ENDPOINT = 'share.php';
+const SHARE_CODE = /^[A-Za-z0-9]{8}$/;
+const TIMEOUT_MS = 8000;
+function browserStore() {
+    try {
+        return window.localStorage;
+    } catch  {
+        return null;
+    }
+}
+function buildsKey(player) {
+    const who = player.trim().toLowerCase().slice(0, 16);
+    return `modern-tim:builds:${who || '_'}`;
+}
+function cleanBuildName(raw) {
+    const s = String(raw ?? '').replace(/[\u0000-\u001f\u007f<>]/g, ' ').replace(/\s+/g, ' ').trim();
+    return s.slice(0, MAX_BUILD_NAME).trim();
+}
+function defaultBuildName(builds) {
+    const used = new Set(builds.map((b)=>b.name.toLowerCase()));
+    for(let n = 1; n <= MAX_BUILDS + 1; n++){
+        if (!used.has(`build ${n}`)) return `Build ${n}`;
+    }
+    return 'Build';
+}
+function loadBuilds(player, store = browserStore()) {
+    try {
+        const raw = JSON.parse(store?.getItem(buildsKey(player)) ?? '[]');
+        if (!Array.isArray(raw)) return [];
+        const out = [];
+        const seen = new Set();
+        for (const item of raw){
+            if (out.length >= MAX_BUILDS) break;
+            if (!item || typeof item !== 'object') continue;
+            const b = item;
+            const name = cleanBuildName(typeof b.name === 'string' ? b.name : '');
+            if (typeof b.id !== 'string' || !b.id || seen.has(b.id) || !name || !Array.isArray(b.parts) || b.parts.length > MAX_PARTS) continue;
+            seen.add(b.id);
+            out.push({
+                id: b.id.slice(0, 40),
+                name,
+                savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0,
+                parts: b.parts
+            });
+        }
+        return out;
+    } catch  {
+        return [];
+    }
+}
+function saveBuilds(player, builds, store = browserStore()) {
+    try {
+        if (!store) return false;
+        store.setItem(buildsKey(player), JSON.stringify(builds.slice(0, MAX_BUILDS)));
+        return true;
+    } catch  {
+        return false;
+    }
+}
+let counter = 0;
+function newBuildId(now) {
+    counter = (counter + 1) % 1000;
+    return `${now.toString(36)}${counter.toString(36)}${Math.floor(Math.random() * 1679616).toString(36)}`;
+}
+function addBuild(builds, name, parts, now) {
+    if (builds.length >= MAX_BUILDS) return null;
+    const clean = cleanBuildName(name) || defaultBuildName(builds);
+    return [
+        ...builds,
+        {
+            id: newBuildId(now),
+            name: clean,
+            savedAt: now,
+            parts
+        }
+    ];
+}
+function replaceBuild(builds, id, parts, now) {
+    return builds.map((b)=>b.id === id ? {
+            ...b,
+            parts,
+            savedAt: now
+        } : b);
+}
+function renameBuild(builds, id, name) {
+    const clean = cleanBuildName(name);
+    if (!clean) return builds;
+    return builds.map((b)=>b.id === id ? {
+            ...b,
+            name: clean
+        } : b);
+}
+function deleteBuild(builds, id) {
+    return builds.filter((b)=>b.id !== id);
+}
+async function call(fetchFn, url, init) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(()=>ctl.abort(), TIMEOUT_MS) : null;
+    try {
+        const res = await fetchFn(url, {
+            ...init,
+            signal: ctl?.signal
+        });
+        let data = null;
+        try {
+            const j = await res.json();
+            data = j && typeof j === 'object' ? j : null;
+        } catch  {
+            data = null;
+        }
+        return {
+            ok: res.ok,
+            data
+        };
+    } catch  {
+        return null;
+    } finally{
+        if (timer) clearTimeout(timer);
+    }
+}
+const OFFLINE = 'Sharing needs the internet. Check your connection and try again.';
+async function shareBuild(payload, fetchFn = (u, i)=>fetch(u, i)) {
+    const r = await call(fetchFn, SHARE_ENDPOINT, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!r) return {
+        ok: false,
+        error: OFFLINE
+    };
+    const code = r.data?.code;
+    if (r.ok && typeof code === 'string' && SHARE_CODE.test(code)) return {
+        ok: true,
+        value: code
+    };
+    const msg = typeof r.data?.error === 'string' ? r.data.error : 'Sharing is not available on this site right now.';
+    return {
+        ok: false,
+        error: msg
+    };
+}
+async function fetchShared(code, fetchFn = (u, i)=>fetch(u, i)) {
+    if (!SHARE_CODE.test(code)) return {
+        ok: false,
+        error: 'That link does not look right.'
+    };
+    const r = await call(fetchFn, `${SHARE_ENDPOINT}?c=${encodeURIComponent(code)}`);
+    if (!r) return {
+        ok: false,
+        error: OFFLINE
+    };
+    const d = r.data;
+    if (!r.ok || !d || !Array.isArray(d.parts)) {
+        return {
+            ok: false,
+            error: typeof d?.error === 'string' ? d.error : 'This build could not be opened.'
+        };
+    }
+    return {
+        ok: true,
+        value: {
+            title: cleanBuildName(typeof d.title === 'string' ? d.title : '') || 'A shared build',
+            author: cleanBuildName(typeof d.author === 'string' ? d.author : '').slice(0, 16),
+            parts: d.parts.slice(0, MAX_PARTS)
+        }
+    };
+}
+function shareCodeFromSearch(search) {
+    const m = /[?&]s=([^&#]*)/.exec(search);
+    const code = m ? decodeURIComponent(m[1]) : '';
+    return SHARE_CODE.test(code) ? code : null;
+}
+function shareUrl(code, loc) {
+    return `${loc.origin}${loc.pathname}?s=${code}`;
+}
+
+return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
 })();
 
 // ---- game/tracker.ts ----
@@ -6025,6 +6260,7 @@ return { UI };
 
 
 
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -6282,36 +6518,72 @@ function cleanProps(type, raw) {
     }
     return Object.keys(out).length ? out : undefined;
 }
-function restoreSandbox() {
-    try {
-        const saved = JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]');
-        const ids = new Map();
-        const fresh = saved.filter((p)=>p && p.type in PART_DEFS).map((p)=>{
-            const id = nextId();
-            ids.set(p.id, id);
-            return {
-                ...p,
-                id,
-                locked: false,
-                props: cleanProps(p.type, p.props),
-                belt: undefined
-            };
-        });
-        for (const p of fresh){
-            if (p.link) p.link = {
-                a: ids.get(p.link.a) ?? -1,
-                b: ids.get(p.link.b) ?? -1,
-                via: p.link.via === undefined ? undefined : ids.get(p.link.via) ?? -1
+function importParts(raw) {
+    if (!Array.isArray(raw)) return [];
+    const num = (v, lo, hi)=>typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : undefined;
+    const ids = new Map();
+    const fresh = [];
+    for (const item of raw.slice(0, MAX_PARTS)){
+        if (!item || typeof item !== 'object') continue;
+        const p = item;
+        if (typeof p.type !== 'string' || !Object.prototype.hasOwnProperty.call(PART_DEFS, p.type)) continue;
+        const type = p.type;
+        const x = num(p.x, -200, 1200);
+        const y = num(p.y, -200, 900);
+        if (x === undefined || y === undefined) continue;
+        const id = nextId();
+        if (typeof p.id === 'number') ids.set(p.id, id);
+        const part = {
+            id,
+            type,
+            x,
+            y,
+            angle: num(p.angle, -100, 100) ?? 0,
+            locked: false,
+            props: cleanProps(type, p.props)
+        };
+        const w = num(p.w, 1, 1200);
+        const h = num(p.h, 1, 1200);
+        if (w !== undefined) part.w = w;
+        if (h !== undefined) part.h = h;
+        if (p.flip === true) part.flip = true;
+        const power = num(p.power, 1, 3);
+        if (power !== undefined) part.power = Math.round(power);
+        const l = p.link;
+        if (l && typeof l === 'object' && typeof l.a === 'number' && typeof l.b === 'number') {
+            part.link = {
+                a: l.a,
+                b: l.b,
+                via: typeof l.via === 'number' ? l.via : undefined
             };
         }
-        return fresh.filter((p)=>{
-            if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
-            if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
-            return true;
-        });
+        fresh.push(part);
+    }
+    for (const p of fresh){
+        if (p.link) p.link = {
+            a: ids.get(p.link.a) ?? -1,
+            b: ids.get(p.link.b) ?? -1,
+            via: p.link.via === undefined ? undefined : ids.get(p.link.via) ?? -1
+        };
+    }
+    return fresh.filter((p)=>{
+        if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
+        if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
+        return true;
+    });
+}
+function restoreSandbox() {
+    try {
+        return importParts(JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]'));
     } catch  {
         return [];
     }
+}
+function exportParts() {
+    return clone(parts.filter((p)=>!p.locked)).map((p)=>{
+        delete p.belt;
+        return p;
+    });
 }
 function remaining() {
     const out = {};
@@ -6541,6 +6813,8 @@ function updateToolbar() {
     });
 }
 function loadLevel(index, restore) {
+    const buildsDialog = document.getElementById('builds');
+    if (buildsDialog) buildsDialog.hidden = true;
     levelIndex = index;
     level = LEVELS[index];
     if (booted) track('level', player, level.id);
@@ -6562,6 +6836,8 @@ function loadLevel(index, restore) {
     rebuild();
     persistSandbox();
     ui.setLevels(LEVELS, levelIndex, solvedLevels);
+    const buildsButton = document.getElementById('btn-builds');
+    if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
     ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
     ui.setSolvedScores([]);
     refreshScores();
@@ -7735,6 +8011,306 @@ void flushPending().then((n)=>{
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
+const buildsEl = document.getElementById('builds');
+const buildsBtn = document.getElementById('btn-builds');
+const buildsList = document.getElementById('builds-list');
+const buildsCount = document.getElementById('builds-count');
+const buildsName = document.getElementById('builds-name');
+const buildsSave = document.getElementById('builds-save');
+const buildsMsg = document.getElementById('builds-msg');
+const sharedEl = document.getElementById('shared');
+const sharedText = document.getElementById('shared-text');
+const sharedOpen = document.getElementById('shared-open');
+let buildList = [];
+let renamingId = null;
+let sharedLinkFor = null;
+let sharedLink = '';
+let pendingShared = null;
+function sandboxIndex() {
+    return LEVELS.findIndex((l)=>l.id === 'sandbox');
+}
+function buildsSay(text, bad = false) {
+    buildsMsg.textContent = text;
+    buildsMsg.classList.toggle('bad', bad);
+    buildsMsg.hidden = !text;
+}
+function persistBuilds(list) {
+    if (!saveBuilds(player, list)) {
+        buildsSay('Your browser would not save this. Is private browsing on?', true);
+        return false;
+    }
+    buildList = list;
+    return true;
+}
+function renderBuilds() {
+    buildList = loadBuilds(player);
+    buildsCount.textContent = `${buildList.length} of ${MAX_BUILDS} used`;
+    buildsSave.disabled = buildList.length >= MAX_BUILDS;
+    buildsName.placeholder = defaultBuildName(buildList);
+    buildsList.innerHTML = '';
+    if (!buildList.length) {
+        const li = document.createElement('li');
+        li.className = 'builds-empty';
+        li.textContent = 'Nothing saved yet. Build something, then press Save.';
+        buildsList.appendChild(li);
+    }
+    for (const b of buildList){
+        const li = document.createElement('li');
+        li.className = 'build-row';
+        li.dataset.id = b.id;
+        const top = document.createElement('div');
+        top.className = 'build-top';
+        if (renamingId === b.id) {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.maxLength = 24;
+            input.value = b.name;
+            input.className = 'build-rename';
+            input.setAttribute('aria-label', 'New name');
+            const done = (save)=>{
+                if (save) persistBuilds(renameBuild(buildList, b.id, input.value));
+                renamingId = null;
+                renderBuilds();
+            };
+            input.addEventListener('keydown', (e)=>{
+                e.stopPropagation();
+                if (e.key === 'Enter') done(true);
+                else if (e.key === 'Escape') done(false);
+            });
+            top.appendChild(input);
+            const ok = document.createElement('button');
+            ok.type = 'button';
+            ok.className = 'btn btn-small btn-go';
+            ok.textContent = 'Done';
+            ok.addEventListener('click', ()=>done(true));
+            top.appendChild(ok);
+            window.setTimeout(()=>{
+                input.focus();
+                input.select();
+            }, 0);
+        } else {
+            const name = document.createElement('strong');
+            name.className = 'build-name';
+            name.textContent = b.name;
+            const meta = document.createElement('span');
+            meta.className = 'build-meta';
+            const n = b.parts.length;
+            meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() : ''}`;
+            top.append(name, meta);
+        }
+        li.appendChild(top);
+        if (renamingId !== b.id) {
+            const row = document.createElement('div');
+            row.className = 'build-actions';
+            const mk = (label, act)=>{
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-small' + (act === 'load' ? ' btn-go' : act === 'delete' ? ' btn-danger' : '');
+                btn.dataset.act = act;
+                btn.textContent = label;
+                btn.addEventListener('click', ()=>buildAction(act, b.id));
+                row.appendChild(btn);
+            };
+            mk('Load', 'load');
+            mk('Replace with current', 'replace');
+            mk('Rename', 'rename');
+            mk('Share', 'share');
+            mk('Delete', 'delete');
+            li.appendChild(row);
+        }
+        if (sharedLinkFor === b.id && sharedLink) {
+            const box = document.createElement('div');
+            box.className = 'build-link';
+            const field = document.createElement('input');
+            field.type = 'text';
+            field.readOnly = true;
+            field.value = sharedLink;
+            field.setAttribute('aria-label', 'Share link');
+            field.addEventListener('focus', ()=>field.select());
+            field.addEventListener('keydown', (e)=>e.stopPropagation());
+            const copy = document.createElement('button');
+            copy.type = 'button';
+            copy.className = 'btn btn-small btn-go';
+            copy.textContent = 'Copy link';
+            copy.addEventListener('click', async ()=>{
+                try {
+                    await navigator.clipboard.writeText(sharedLink);
+                    copy.textContent = 'Copied ✓';
+                } catch  {
+                    field.focus();
+                    field.select();
+                    copy.textContent = 'Press Ctrl+C';
+                }
+            });
+            box.append(field, copy);
+            li.appendChild(box);
+        }
+        buildsList.appendChild(li);
+    }
+}
+async function shareParts(title, partsToShare, forId) {
+    if (!partsToShare.length) {
+        buildsSay('There is nothing on the board to share yet.', true);
+        return;
+    }
+    buildsSay('Making a link…');
+    const r = await shareBuild({
+        title,
+        author: player,
+        version: VERSION,
+        parts: partsToShare
+    });
+    if (!r.ok) {
+        buildsSay(r.error, true);
+        return;
+    }
+    sharedLinkFor = forId;
+    sharedLink = shareUrl(r.value, window.location);
+    buildsSay('Link ready! Copy it and send it to a friend.');
+    renderBuilds();
+}
+function buildAction(act, id) {
+    const b = buildList.find((x)=>x.id === id);
+    if (!b) return;
+    buildsSay('');
+    if (act === 'load') {
+        const mine = importParts(b.parts);
+        loadLevel(sandboxIndex(), true);
+        pushUndo();
+        parts = [
+            ...parts.filter((p)=>p.locked),
+            ...mine
+        ];
+        changed();
+        closeBuilds();
+        ui.toast(`Loaded “${b.name}”. Undo brings your last board back.`);
+    } else if (act === 'replace') {
+        if (!exportParts().length) {
+            buildsSay('The board is empty, so there is nothing to put in this slot.', true);
+            return;
+        }
+        if (persistBuilds(replaceBuild(buildList, id, exportParts(), Date.now()))) {
+            renderBuilds();
+            buildsSay(`“${b.name}” now holds what is on the board.`);
+        }
+    } else if (act === 'rename') {
+        renamingId = id;
+        renderBuilds();
+    } else if (act === 'delete') {
+        if (persistBuilds(deleteBuild(buildList, id))) {
+            if (sharedLinkFor === id) sharedLinkFor = null;
+            renderBuilds();
+            buildsSay(`Deleted “${b.name}”.`);
+        }
+    } else if (act === 'share') {
+        void shareParts(b.name, importParts(b.parts), id);
+    }
+}
+function openBuilds() {
+    if (level.id !== 'sandbox') return;
+    renamingId = null;
+    sharedLinkFor = null;
+    sharedLink = '';
+    buildsName.value = '';
+    buildsSay('');
+    renderBuilds();
+    buildsEl.hidden = false;
+    buildsName.focus();
+}
+function closeBuilds() {
+    buildsEl.hidden = true;
+}
+buildsEl.addEventListener('keydown', (e)=>{
+    e.stopPropagation();
+    if (e.key === 'Escape') closeBuilds();
+});
+buildsBtn.addEventListener('click', openBuilds);
+document.getElementById('builds-close')?.addEventListener('click', closeBuilds);
+document.getElementById('builds-form')?.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    buildsSay('');
+    if (!exportParts().length) {
+        buildsSay('The board is empty. Add some parts first.', true);
+        return;
+    }
+    const next = addBuild(buildList, buildsName.value, exportParts(), Date.now());
+    if (!next) {
+        buildsSay('All 10 slots are used. Delete one, or use “Replace with current”.', true);
+        return;
+    }
+    if (persistBuilds(next)) {
+        const saved = next[next.length - 1].name;
+        buildsName.value = '';
+        renderBuilds();
+        buildsSay(`Saved as “${saved}”.`);
+    }
+});
+document.getElementById('builds-share-current')?.addEventListener('click', ()=>{
+    void shareParts('Sandbox build', exportParts(), null).then(()=>{
+        if (!sharedLinkFor && sharedLink) buildsSay(`Link ready: ${sharedLink}`);
+    });
+});
+function showShared() {
+    if (!pendingShared) return;
+    const who = pendingShared.author ? `${pendingShared.author} shared` : 'Someone shared';
+    sharedText.textContent = `${who} a build called “${pendingShared.title}” (${pendingShared.parts.length} parts). Open it in the Sandbox? Your own board stays safe: Undo brings it back.`;
+    sharedEl.hidden = false;
+    sharedOpen.focus();
+}
+function closeShared() {
+    sharedEl.hidden = true;
+    pendingShared = null;
+}
+sharedEl.addEventListener('keydown', (e)=>{
+    e.stopPropagation();
+    if (e.key === 'Escape') closeShared();
+});
+document.getElementById('shared-no')?.addEventListener('click', closeShared);
+sharedOpen.addEventListener('click', ()=>{
+    if (!pendingShared) return;
+    const incoming = importParts(pendingShared.parts);
+    const title = pendingShared.title;
+    loadLevel(sandboxIndex(), true);
+    pushUndo();
+    parts = [
+        ...parts.filter((p)=>p.locked),
+        ...incoming
+    ];
+    changed();
+    closeShared();
+    ui.toast(`Opened “${title}”. Press 📁 My builds to save it.`);
+});
+async function openSharedFromAddress() {
+    const code = shareCodeFromSearch(window.location.search);
+    if (!code) return;
+    try {
+        window.history.replaceState(null, '', window.location.pathname);
+    } catch  {}
+    const r = await fetchShared(code);
+    if (!r.ok) {
+        ui.toast(r.error);
+        return;
+    }
+    pendingShared = r.value;
+    const gate = document.getElementById('gate');
+    if (!gate.hidden) {
+        const watch = new MutationObserver(()=>{
+            if (gate.hidden) {
+                watch.disconnect();
+                showShared();
+            }
+        });
+        watch.observe(gate, {
+            attributes: true,
+            attributeFilter: [
+                'hidden'
+            ]
+        });
+    } else {
+        showShared();
+    }
+}
+void openSharedFromAddress();
 window.tim = {
     sim,
     levels: LEVELS,

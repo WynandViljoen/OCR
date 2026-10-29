@@ -14,7 +14,9 @@
     "check-community": "tsx scripts/check-community.ts",
     "check-belts": "tsx scripts/check-belts.ts",
     "check-ropes": "tsx scripts/check-ropes.ts",
-    "check-records": "node scripts/check-records.mjs"
+    "check-records": "node scripts/check-records.mjs",
+    "check-builds": "tsx scripts/check-builds.ts",
+    "check-share": "node scripts/check-share.mjs"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

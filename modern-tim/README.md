@@ -56,6 +56,9 @@ The High scores card has two tabs: **Community** (shared by everyone, kept by `s
 Finished runs are posted to `scores.php`; if the server can't be reached they wait in localStorage (`modern-tim:pending`) and are sent next visit.
 Names are not passwords: anyone can type any name, and the server only rejects impossible numbers. `npm run check-community` tests the client with a fake server.
 
+### Sandbox builds and sharing
+In the Sandbox, **📁 My builds** keeps up to 10 saved builds per player (stored in this browser under the player's name). You can save, load, replace, rename and delete them. **Share** makes a short link (`?s=CODE`) through `share.php`; whoever opens it is asked first, and the build loads into their Sandbox as an unsaved copy. Code: `src/game/builds.ts` (storage and share client) and the builds section of `src/main.ts`.
+
 ### Name and high scores
 - The first time you open the game it asks for your name. It is stored in this browser; click the name chip in the top bar to change player.
 - Every level has three boards (top 5 each, one row per name): **Shortest path** (how far the winning ball travelled, in metres, 100 px = 1 m), **Fastest solve** (seconds from Start to goal) and **Most spare tools** (inventory parts left unused; 0 spare is not scored).
@@ -140,6 +143,7 @@ src/game/levels.ts       level data and science text
 src/game/props.ts        tinker-lab numbers per part: ranges, defaults, kid-friendly text
 src/game/space.ts        solid-space rule: footprints, overlap test, nearest free spot
 src/game/community.ts  talks to scores.php (fetch board, send run, retry later)
+src/game/builds.ts     saved Sandbox builds (10 per player) and the share.php client
 src/game/version.ts      the on-screen version number (bump each release)
 src/game/profile.ts      player name and high-score rules and storage (no DOM, no Matter)
 src/game/ui.ts           DOM: palette, level chips, toolbar, science corner, solved card

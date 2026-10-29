@@ -1,5 +1,14 @@
 # Changelog
 
+## Modern TIM 0.3
+
+- **Sandbox builds.** In the Sandbox a new **📁 My builds** button opens a list of up to 10 saved builds per player. Save the board (with an optional name), **Load** a build back, **Replace with current**, **Rename** (Enter saves, Esc cancels) or **Delete**. Loading puts your previous board on the Undo stack. Builds are kept in this browser, separately for each player name, and are not synced to other devices.
+- **Share links.** **Share** on a saved build (or 🔗 Share the board) makes a short link like `index.html?s=Ab3xYz9K` with a Copy button. When someone opens a link the game asks "Ana shared a build called ...: open it?" and, if they say yes, loads it into their Sandbox as an unsaved copy that Undo can take back. They can then save it to one of their 10 slots. Missing or wrong links show a friendly message.
+- New server file `share.php` (copy it beside `index.html`). It rebuilds every part from known part types and numbers, so nothing a player sends is stored as is. Limits: 64 KB, 300 parts, 20 new links per hour per visitor, 20000 links in all. Data lives in `tim-data/shares/` (closed to the web).
+- Loading saved or shared parts is stricter now: only known part types, numbers kept in range, at most 300 parts, broken strings dropped.
+- New checks: `npm run check-builds` (slots, rename, damaged storage, share client) and `npm run check-share` (needs php).
+- Deploy: the cron line must also copy `share.php` (see README).
+
 ## Modern TIM 0.2o
 
 - **Attributes are locked outside the Sandbox.** In the 18 puzzle levels there is no Tinker lab card and no spring Strength buttons. Players use basic tools only. Levels that need a strong spring, a heavy crate, a multi-strand rope or a motor pulley now hand those out already set, and the part card says so ("In this level: 15 kg, 4 strands"). Rotate and flip still work. The Sandbox keeps every slider.

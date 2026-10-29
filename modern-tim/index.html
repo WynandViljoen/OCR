@@ -32,6 +32,7 @@
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-builds" class="btn" type="button" title="Save, load and share your Sandbox builds" hidden>📁 My builds</button>
           <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
           <button id="btn-reset" class="btn" type="button" title="Clear your parts and start this level again">↺ Reset</button>
@@ -159,6 +160,33 @@
         <p id="tester-sub">Running every level's solution…</p>
         <ul id="tester-list" class="tester-list"></ul>
         <div class="gate-actions"><button id="tester-close" class="btn btn-go" type="button">Close</button></div>
+      </div>
+    </div>
+    <div id="builds" class="gate" role="dialog" aria-modal="true" aria-labelledby="builds-title" hidden>
+      <div class="gate-card builds-card">
+        <h2 id="builds-title">My builds</h2>
+        <p class="builds-sub">Save up to 10 Sandbox builds on this device. <span id="builds-count"></span></p>
+        <form id="builds-form" class="builds-save" novalidate>
+          <label class="sr-only" for="builds-name">Name for this build</label>
+          <input id="builds-name" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Build 1" />
+          <button id="builds-save" class="btn btn-go" type="submit">Save current</button>
+        </form>
+        <p id="builds-msg" class="builds-msg" role="status" hidden></p>
+        <ul id="builds-list" class="builds-list"></ul>
+        <div class="gate-actions">
+          <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
+          <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="shared" class="gate" role="dialog" aria-modal="true" aria-labelledby="shared-title" hidden>
+      <div class="gate-card">
+        <h2 id="shared-title">A shared build</h2>
+        <p id="shared-text"></p>
+        <div class="gate-actions">
+          <button id="shared-no" class="btn" type="button">Not now</button>
+          <button id="shared-open" class="btn btn-go" type="button">Open it ▶</button>
+        </div>
       </div>
     </div>
     <div id="hint-box" class="hint-box" hidden></div>

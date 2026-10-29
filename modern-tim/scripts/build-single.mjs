@@ -8,7 +8,7 @@ import path from 'node:path';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = process.argv[2] ?? path.join(root, 'dist-single', 'modern-tim.html');
 const matterArg = process.argv.find((a) => a.startsWith('--matter='));
-const order = ['game/props.ts', 'game/parts.ts', 'game/mechanics.ts', 'game/rope.ts', 'game/levels.ts', 'game/version.ts', 'game/space.ts', 'game/profile.ts', 'game/community.ts', 'game/tracker.ts', 'game/sound.ts', 'game/confetti.ts', 'game/draw.ts', 'game/world.ts', 'game/selftest.ts', 'game/ui.ts', 'main.ts'];
+const order = ['game/props.ts', 'game/parts.ts', 'game/mechanics.ts', 'game/rope.ts', 'game/levels.ts', 'game/version.ts', 'game/space.ts', 'game/profile.ts', 'game/community.ts', 'game/builds.ts', 'game/tracker.ts', 'game/sound.ts', 'game/confetti.ts', 'game/draw.ts', 'game/world.ts', 'game/selftest.ts', 'game/ui.ts', 'main.ts'];
 
 let js = '';
 for (const f of order) {

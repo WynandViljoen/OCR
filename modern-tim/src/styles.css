@@ -646,3 +646,23 @@ kbd {
   .tray-test { width: auto; padding: 6px 12px; font-size: 0.88rem; }
   .part-info { display: none; }
 }
+
+/* Sandbox builds */
+.btn-small { padding: 4px 10px; font-size: 0.85rem; min-height: 0; }
+.btn-danger { color: var(--danger); }
+.builds-card { max-width: 560px; width: calc(100vw - 32px); max-height: calc(100vh - 32px); overflow: auto; }
+.builds-sub { font-weight: 600; font-size: 0.95rem; }
+.builds-save { display: flex; gap: 8px; }
+.builds-save input { flex: 1; min-width: 0; }
+.builds-msg { font-size: 0.9rem; color: var(--ink, inherit); word-break: break-all; }
+.builds-msg.bad { color: var(--danger); }
+.builds-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.builds-empty { opacity: 0.7; font-weight: 600; }
+.build-row { border: 2px solid rgba(0, 0, 0, 0.15); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+.build-top { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.build-name { overflow-wrap: anywhere; }
+.build-meta { font-size: 0.8rem; opacity: 0.7; }
+.build-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.build-rename { flex: 1; min-width: 0; }
+.build-link { display: flex; gap: 6px; }
+.build-link input { flex: 1; min-width: 0; font-size: 0.85rem; }

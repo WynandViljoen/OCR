@@ -21,6 +21,7 @@ import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { testAllLevels } from './game/selftest';
 import { burst } from './game/confetti';
+import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
 import { fetchCommunity, flushPending, loadPending, savePending, submitRun, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
@@ -314,29 +315,61 @@ function cleanProps(type: PartType, raw: unknown): Record<string, number> | unde
   return Object.keys(out).length ? out : undefined;
 }
 
+/** Turn saved or shared data into safe parts: known types, bounded numbers, fresh ids, valid strings. */
+function importParts(raw: unknown): PlacedPart[] {
+  if (!Array.isArray(raw)) return [];
+  const num = (v: unknown, lo: number, hi: number): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? clamp(v, lo, hi) : undefined);
+  const ids = new Map<number, number>();
+  const fresh: PlacedPart[] = [];
+  for (const item of raw.slice(0, MAX_PARTS)) {
+    if (!item || typeof item !== 'object') continue;
+    const p = item as Record<string, unknown>;
+    if (typeof p.type !== 'string' || !Object.prototype.hasOwnProperty.call(PART_DEFS, p.type)) continue;
+    const type = p.type as PartType;
+    const x = num(p.x, -200, 1200);
+    const y = num(p.y, -200, 900);
+    if (x === undefined || y === undefined) continue;
+    const id = nextId();
+    if (typeof p.id === 'number') ids.set(p.id, id);
+    const part: PlacedPart = { id, type, x, y, angle: num(p.angle, -100, 100) ?? 0, locked: false, props: cleanProps(type, p.props) };
+    const w = num(p.w, 1, 1200);
+    const h = num(p.h, 1, 1200);
+    if (w !== undefined) part.w = w;
+    if (h !== undefined) part.h = h;
+    if (p.flip === true) part.flip = true;
+    const power = num(p.power, 1, 3);
+    if (power !== undefined) part.power = Math.round(power);
+    const l = p.link as Record<string, unknown> | undefined;
+    if (l && typeof l === 'object' && typeof l.a === 'number' && typeof l.b === 'number') {
+      part.link = { a: l.a, b: l.b, via: typeof l.via === 'number' ? l.via : undefined };
+    }
+    fresh.push(part);
+  }
+  // Strings point at gears by id, and every part got a new id.
+  for (const p of fresh) {
+    if (p.link) p.link = { a: ids.get(p.link.a) ?? -1, b: ids.get(p.link.b) ?? -1, via: p.link.via === undefined ? undefined : (ids.get(p.link.via) ?? -1) };
+  }
+  return fresh.filter((p) => {
+    if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
+    if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
+    return true;
+  });
+}
+
 function restoreSandbox(): PlacedPart[] {
   try {
-    const saved = JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]') as PlacedPart[];
-    const ids = new Map<number, number>();
-    const fresh = saved
-      .filter((p) => p && p.type in PART_DEFS)
-      .map((p) => {
-        const id = nextId();
-        ids.set(p.id, id);
-        return { ...p, id, locked: false, props: cleanProps(p.type, p.props), belt: undefined };
-      });
-    // Strings point at gears by id, and every part got a new id.
-    for (const p of fresh) {
-      if (p.link) p.link = { a: ids.get(p.link.a) ?? -1, b: ids.get(p.link.b) ?? -1, via: p.link.via === undefined ? undefined : (ids.get(p.link.via) ?? -1) };
-    }
-    return fresh.filter((p) => {
-      if (p.type === 'string') return !!p.link && p.link.a > 0 && p.link.b > 0;
-      if (p.type === 'rope') return !!p.link && p.link.a > 0 && p.link.b > 0 && (p.link.via ?? -1) > 0;
-      return true;
-    });
+    return importParts(JSON.parse(localStorage.getItem(SANDBOX_KEY) ?? '[]'));
   } catch {
     return [];
   }
+}
+
+/** The player's own parts as plain data, for saving or sharing. */
+function exportParts(): PlacedPart[] {
+  return clone(parts.filter((p) => !p.locked)).map((p) => {
+    delete p.belt;
+    return p;
+  });
 }
 
 /** Parts left to place per type (null = unlimited). Only listed types appear in the palette. */
@@ -583,6 +616,8 @@ function updateToolbar() {
 
 /** `restore` brings back a saved sandbox build; Reset passes false to clear it. */
 function loadLevel(index: number, restore: boolean) {
+  const buildsDialog = document.getElementById('builds');
+  if (buildsDialog) buildsDialog.hidden = true;
   levelIndex = index;
   level = LEVELS[index];
   if (booted) track('level', player, level.id);
@@ -606,6 +641,8 @@ function loadLevel(index: number, restore: boolean) {
   persistSandbox();
 
   ui.setLevels(LEVELS, levelIndex, solvedLevels);
+  const buildsButton = document.getElementById('btn-builds');
+  if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
   ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
   ui.setSolvedScores([]);
   refreshScores();
@@ -1706,6 +1743,310 @@ void flushPending().then((n) => {
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
+
+
+// ---------------------------------------------------------------------------
+// Sandbox builds: 10 saves per player in this browser, and short share links.
+// ---------------------------------------------------------------------------
+const buildsEl = document.getElementById('builds') as HTMLElement;
+const buildsBtn = document.getElementById('btn-builds') as HTMLButtonElement;
+const buildsList = document.getElementById('builds-list') as HTMLElement;
+const buildsCount = document.getElementById('builds-count') as HTMLElement;
+const buildsName = document.getElementById('builds-name') as HTMLInputElement;
+const buildsSave = document.getElementById('builds-save') as HTMLButtonElement;
+const buildsMsg = document.getElementById('builds-msg') as HTMLElement;
+const sharedEl = document.getElementById('shared') as HTMLElement;
+const sharedText = document.getElementById('shared-text') as HTMLElement;
+const sharedOpen = document.getElementById('shared-open') as HTMLButtonElement;
+let buildList: Build[] = [];
+let renamingId: string | null = null;
+let sharedLinkFor: string | null = null;
+let sharedLink = '';
+let pendingShared: SharedBuild | null = null;
+
+function sandboxIndex(): number {
+  return LEVELS.findIndex((l) => l.id === 'sandbox');
+}
+
+function buildsSay(text: string, bad = false) {
+  buildsMsg.textContent = text;
+  buildsMsg.classList.toggle('bad', bad);
+  buildsMsg.hidden = !text;
+}
+
+function persistBuilds(list: Build[]): boolean {
+  if (!saveBuilds(player, list)) {
+    buildsSay('Your browser would not save this. Is private browsing on?', true);
+    return false;
+  }
+  buildList = list;
+  return true;
+}
+
+function renderBuilds() {
+  buildList = loadBuilds(player);
+  buildsCount.textContent = `${buildList.length} of ${MAX_BUILDS} used`;
+  buildsSave.disabled = buildList.length >= MAX_BUILDS;
+  buildsName.placeholder = defaultBuildName(buildList);
+  buildsList.innerHTML = '';
+  if (!buildList.length) {
+    const li = document.createElement('li');
+    li.className = 'builds-empty';
+    li.textContent = 'Nothing saved yet. Build something, then press Save.';
+    buildsList.appendChild(li);
+  }
+  for (const b of buildList) {
+    const li = document.createElement('li');
+    li.className = 'build-row';
+    li.dataset.id = b.id;
+    const top = document.createElement('div');
+    top.className = 'build-top';
+    if (renamingId === b.id) {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 24;
+      input.value = b.name;
+      input.className = 'build-rename';
+      input.setAttribute('aria-label', 'New name');
+      const done = (save: boolean) => {
+        if (save) persistBuilds(renameBuild(buildList, b.id, input.value));
+        renamingId = null;
+        renderBuilds();
+      };
+      input.addEventListener('keydown', (e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') done(true);
+        else if (e.key === 'Escape') done(false);
+      });
+      top.appendChild(input);
+      const ok = document.createElement('button');
+      ok.type = 'button';
+      ok.className = 'btn btn-small btn-go';
+      ok.textContent = 'Done';
+      ok.addEventListener('click', () => done(true));
+      top.appendChild(ok);
+      window.setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    } else {
+      const name = document.createElement('strong');
+      name.className = 'build-name';
+      name.textContent = b.name;
+      const meta = document.createElement('span');
+      meta.className = 'build-meta';
+      const n = b.parts.length;
+      meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() : ''}`;
+      top.append(name, meta);
+    }
+    li.appendChild(top);
+    if (renamingId !== b.id) {
+      const row = document.createElement('div');
+      row.className = 'build-actions';
+      const mk = (label: string, act: string) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-small' + (act === 'load' ? ' btn-go' : act === 'delete' ? ' btn-danger' : '');
+        btn.dataset.act = act;
+        btn.textContent = label;
+        btn.addEventListener('click', () => buildAction(act, b.id));
+        row.appendChild(btn);
+      };
+      mk('Load', 'load');
+      mk('Replace with current', 'replace');
+      mk('Rename', 'rename');
+      mk('Share', 'share');
+      mk('Delete', 'delete');
+      li.appendChild(row);
+    }
+    if (sharedLinkFor === b.id && sharedLink) {
+      const box = document.createElement('div');
+      box.className = 'build-link';
+      const field = document.createElement('input');
+      field.type = 'text';
+      field.readOnly = true;
+      field.value = sharedLink;
+      field.setAttribute('aria-label', 'Share link');
+      field.addEventListener('focus', () => field.select());
+      field.addEventListener('keydown', (e) => e.stopPropagation());
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'btn btn-small btn-go';
+      copy.textContent = 'Copy link';
+      copy.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(sharedLink);
+          copy.textContent = 'Copied ✓';
+        } catch {
+          field.focus();
+          field.select();
+          copy.textContent = 'Press Ctrl+C';
+        }
+      });
+      box.append(field, copy);
+      li.appendChild(box);
+    }
+    buildsList.appendChild(li);
+  }
+}
+
+async function shareParts(title: string, partsToShare: PlacedPart[], forId: string | null) {
+  if (!partsToShare.length) {
+    buildsSay('There is nothing on the board to share yet.', true);
+    return;
+  }
+  buildsSay('Making a link…');
+  const r = await shareBuild({ title, author: player, version: VERSION, parts: partsToShare });
+  if (!r.ok) {
+    buildsSay(r.error, true);
+    return;
+  }
+  sharedLinkFor = forId;
+  sharedLink = shareUrl(r.value, window.location);
+  buildsSay('Link ready! Copy it and send it to a friend.');
+  renderBuilds();
+}
+
+function buildAction(act: string, id: string) {
+  const b = buildList.find((x) => x.id === id);
+  if (!b) return;
+  buildsSay('');
+  if (act === 'load') {
+    const mine = importParts(b.parts);
+    loadLevel(sandboxIndex(), true);
+    pushUndo();
+    parts = [...parts.filter((p) => p.locked), ...mine];
+    changed();
+    closeBuilds();
+    ui.toast(`Loaded “${b.name}”. Undo brings your last board back.`);
+  } else if (act === 'replace') {
+    if (!exportParts().length) {
+      buildsSay('The board is empty, so there is nothing to put in this slot.', true);
+      return;
+    }
+    if (persistBuilds(replaceBuild(buildList, id, exportParts(), Date.now()))) {
+      renderBuilds();
+      buildsSay(`“${b.name}” now holds what is on the board.`);
+    }
+  } else if (act === 'rename') {
+    renamingId = id;
+    renderBuilds();
+  } else if (act === 'delete') {
+    if (persistBuilds(deleteBuild(buildList, id))) {
+      if (sharedLinkFor === id) sharedLinkFor = null;
+      renderBuilds();
+      buildsSay(`Deleted “${b.name}”.`);
+    }
+  } else if (act === 'share') {
+    void shareParts(b.name, importParts(b.parts), id);
+  }
+}
+
+function openBuilds() {
+  if (level.id !== 'sandbox') return;
+  renamingId = null;
+  sharedLinkFor = null;
+  sharedLink = '';
+  buildsName.value = '';
+  buildsSay('');
+  renderBuilds();
+  buildsEl.hidden = false;
+  buildsName.focus();
+}
+function closeBuilds() {
+  buildsEl.hidden = true;
+}
+
+buildsEl.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Escape') closeBuilds();
+});
+buildsBtn.addEventListener('click', openBuilds);
+document.getElementById('builds-close')?.addEventListener('click', closeBuilds);
+document.getElementById('builds-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  buildsSay('');
+  if (!exportParts().length) {
+    buildsSay('The board is empty. Add some parts first.', true);
+    return;
+  }
+  const next = addBuild(buildList, buildsName.value, exportParts(), Date.now());
+  if (!next) {
+    buildsSay('All 10 slots are used. Delete one, or use “Replace with current”.', true);
+    return;
+  }
+  if (persistBuilds(next)) {
+    const saved = next[next.length - 1].name;
+    buildsName.value = '';
+    renderBuilds();
+    buildsSay(`Saved as “${saved}”.`);
+  }
+});
+document.getElementById('builds-share-current')?.addEventListener('click', () => {
+  void shareParts('Sandbox build', exportParts(), null).then(() => {
+    // A link made from the board itself has no row, so show it in the message instead.
+    if (!sharedLinkFor && sharedLink) buildsSay(`Link ready: ${sharedLink}`);
+  });
+});
+
+// A friend's link (?s=CODE): ask first, then load into the Sandbox as an unsaved copy.
+function showShared() {
+  if (!pendingShared) return;
+  const who = pendingShared.author ? `${pendingShared.author} shared` : 'Someone shared';
+  sharedText.textContent = `${who} a build called “${pendingShared.title}” (${pendingShared.parts.length} parts). Open it in the Sandbox? Your own board stays safe: Undo brings it back.`;
+  sharedEl.hidden = false;
+  sharedOpen.focus();
+}
+function closeShared() {
+  sharedEl.hidden = true;
+  pendingShared = null;
+}
+sharedEl.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Escape') closeShared();
+});
+document.getElementById('shared-no')?.addEventListener('click', closeShared);
+sharedOpen.addEventListener('click', () => {
+  if (!pendingShared) return;
+  const incoming = importParts(pendingShared.parts);
+  const title = pendingShared.title;
+  loadLevel(sandboxIndex(), true);
+  pushUndo();
+  parts = [...parts.filter((p) => p.locked), ...incoming];
+  changed();
+  closeShared();
+  ui.toast(`Opened “${title}”. Press 📁 My builds to save it.`);
+});
+async function openSharedFromAddress() {
+  const code = shareCodeFromSearch(window.location.search);
+  if (!code) return;
+  try {
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {
+    /* ignore */
+  }
+  const r = await fetchShared(code);
+  if (!r.ok) {
+    ui.toast(r.error);
+    return;
+  }
+  pendingShared = r.value;
+  const gate = document.getElementById('gate') as HTMLElement;
+  if (!gate.hidden) {
+    // Wait until the name box has been dealt with.
+    const watch = new MutationObserver(() => {
+      if (gate.hidden) {
+        watch.disconnect();
+        showShared();
+      }
+    });
+    watch.observe(gate, { attributes: true, attributeFilter: ['hidden'] });
+  } else {
+    showShared();
+  }
+}
+
+void openSharedFromAddress();
 
 // Small hook for automated tests and for curious engineers in the console.
 (window as unknown as { tim: unknown }).tim = {
