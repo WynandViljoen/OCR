@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.3i
+
+- **Touch screens: holding a finger on a part no longer deletes it.** A long press on a touch screen fires the browser's right-click event, which the game used to treat as "remove this part". Touch and pen presses are now ignored for that, so a part is removed on a touch screen only with the **✕** button (or Delete for a selected group). Mouse users are unchanged: right-click still removes a part (or drops the tool in your hand), and Delete/Backspace still work. A touch laptop switches automatically depending on whether you last used the mouse or a finger.
+
 ## Modern TIM 0.3h
 
 - **Tying a community record now earns the star.** A player gets a star for a board when their score equals the community best, not only when they beat it. The player who reached the score first stays at the top of the board (ties are ordered by who got there first), so the name shown as #1 does not change.

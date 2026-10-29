@@ -1046,7 +1046,11 @@ function setSelectMode(mode: 'select' | 'pan') {
 document.getElementById('mode-select')?.addEventListener('click', () => setSelectMode('select'));
 document.getElementById('mode-pan')?.addEventListener('click', () => setSelectMode('pan'));
 
+/** What the last press on the board was made with. A finger held on a part also fires "contextmenu" (the right-click event), which must never delete. */
+let lastPointerType = 'mouse';
+
 canvas.addEventListener('pointerdown', (e) => {
+  lastPointerType = e.pointerType || 'mouse';
   if (e.button === 1) {
     // Middle mouse button always pans the view.
     e.preventDefault();
@@ -1331,6 +1335,9 @@ canvas.addEventListener(
 
 canvas.addEventListener('contextmenu', (e) => {
   e.preventDefault();
+  // Touch and pen: a long press is not a right-click. On a touch screen a part is removed with the ✕ button only.
+  const type = (e as PointerEvent).pointerType || lastPointerType;
+  if (type === 'touch' || type === 'pen') return;
   if (playing) return;
   const p = worldPoint(e.clientX, e.clientY);
   const id = sim.partNear(p.x, p.y, 16 / view.z, ownParts);

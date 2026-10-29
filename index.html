@@ -3644,7 +3644,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3h';
+const VERSION = '0.3i';
 
 return { VERSION };
 })();
@@ -7193,7 +7193,9 @@ function setSelectMode(mode) {
 }
 document.getElementById('mode-select')?.addEventListener('click', ()=>setSelectMode('select'));
 document.getElementById('mode-pan')?.addEventListener('click', ()=>setSelectMode('pan'));
+let lastPointerType = 'mouse';
 canvas.addEventListener('pointerdown', (e)=>{
+    lastPointerType = e.pointerType || 'mouse';
     if (e.button === 1) {
         e.preventDefault();
         canvas.setPointerCapture(e.pointerId);
@@ -7514,6 +7516,8 @@ canvas.addEventListener('wheel', (e)=>{
 });
 canvas.addEventListener('contextmenu', (e)=>{
     e.preventDefault();
+    const type = e.pointerType || lastPointerType;
+    if (type === 'touch' || type === 'pen') return;
     if (playing) return;
     const p = worldPoint(e.clientX, e.clientY);
     const id = sim.partNear(p.x, p.y, 16 / view.z, ownParts);
