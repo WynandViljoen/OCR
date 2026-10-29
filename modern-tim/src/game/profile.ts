@@ -153,6 +153,21 @@ export function recordRun(scores: AllScores, levelId: string, rawName: string, r
   });
 }
 
+/**
+ * Does this player hold the best score on a board? 'first' = they are number one (they got there first),
+ * 'tied' = their score equals number one's but someone reached it earlier (the board keeps the earlier
+ * player on top), null = they are behind or not on the board.
+ */
+export function holdsBest(board: Board, category: Category, rawName: string): 'first' | 'tied' | null {
+  const list = board[category];
+  const top = list[0];
+  if (!top || !rawName) return null;
+  const mine = list.find((e) => sameName(e.name, rawName));
+  if (!mine) return null;
+  if (mine === top) return 'first';
+  return Math.abs(mine.value - top.value) < 1e-9 ? 'tied' : null;
+}
+
 // ---------------------------------------------------------------------------
 // Saving and loading
 // ---------------------------------------------------------------------------

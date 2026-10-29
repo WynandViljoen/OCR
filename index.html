@@ -722,7 +722,7 @@ kbd {
             <button id="btn-campaign" class="btn level-now" type="button" title="Choose a level" aria-haspopup="listbox" aria-expanded="false"><span id="level-now-text">Level</span> <span aria-hidden="true">▾</span></button>
             <div id="level-menu" class="level-menu" role="listbox" aria-label="Levels" hidden>
               <p id="level-menu-summary" class="level-menu-summary"></p>
-              <p class="level-menu-legend">★ = you hold the community best (shortest, fastest, most spare tools)</p>
+              <p class="level-menu-legend">★ = you hold or tie the community best (shortest, fastest, most spare tools)</p>
               <p id="level-menu-note" class="level-menu-note" hidden></p>
               <ol id="level-menu-list" class="level-menu-list"></ol>
             </div>
@@ -3644,7 +3644,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3g';
+const VERSION = '0.3h';
 
 return { VERSION };
 })();
@@ -3945,7 +3945,7 @@ return { OVERLAP_TOLERANCE, footprint, shapesOverlap, footprintBounds, overlapsA
 })();
 
 // ---- game/profile.ts ----
-const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, parseBoard, loadScores, saveScores } = (() => {
+const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores } = (() => {
 const NAME_KEY = 'modern-tim:player';
 const SCORES_KEY = 'modern-tim:scores';
 const MAX_NAME = 16;
@@ -4049,6 +4049,15 @@ function recordRun(scores, levelId, rawName, run, now = Date.now()) {
         };
     });
 }
+function holdsBest(board, category, rawName) {
+    const list = board[category];
+    const top = list[0];
+    if (!top || !rawName) return null;
+    const mine = list.find((e)=>sameName(e.name, rawName));
+    if (!mine) return null;
+    if (mine === top) return 'first';
+    return Math.abs(mine.value - top.value) < 1e-9 ? 'tied' : null;
+}
 function loadPlayer(store = browserStore()) {
     try {
         return sanitizeName(store?.getItem(NAME_KEY) ?? '');
@@ -4101,7 +4110,7 @@ function saveScores(scores, store = browserStore()) {
     } catch  {}
 }
 
-return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, loadPlayer, savePlayer, parseBoard, loadScores, saveScores };
+return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores };
 })();
 
 // ---- game/community.ts ----
@@ -6369,7 +6378,7 @@ sim.onSolved = (info)=>{
             if (level.id === id) {
                 communityStatus = 'ok';
                 refreshScores();
-                if (sim.solved) ui.setSolvedScores(describeRun(run, results, sub.results));
+                if (sim.solved) ui.setSolvedScores(describeRun(run, results, sub.results, sub.board));
             }
         });
     }
@@ -6382,7 +6391,7 @@ function spareTools() {
     for (const left of Object.values(remaining()))if (typeof left === 'number') total += left;
     return total;
 }
-function describeRun(run, results, shared) {
+function describeRun(run, results, shared, board = null) {
     return results.map((r)=>{
         const notes = [];
         let kind = 'plain';
@@ -6395,6 +6404,9 @@ function describeRun(run, results, shared) {
         const c = shared?.[r.category];
         if (c?.record) {
             notes.push('New community record!');
+            kind = 'record';
+        } else if (board && holdsBest(board, r.category, player) === 'tied') {
+            notes.push('Tied for #1 in the community!');
             kind = 'record';
         } else if (c?.rank) {
             notes.push(`#${c.rank} in the community`);
@@ -8235,11 +8247,10 @@ const menuEl = document.getElementById('level-menu');
 const menuList = document.getElementById('level-menu-list');
 const menuNote = document.getElementById('level-menu-note');
 const menuSummary = document.getElementById('level-menu-summary');
-const sameWho = (a, b)=>a.trim().toLowerCase() === b.trim().toLowerCase();
 function starsFor(levelId) {
     const board = community[levelId];
     if (!board || !player) return null;
-    return CATEGORIES.filter((c)=>board[c][0] && sameWho(board[c][0].name, player)).length;
+    return CATEGORIES.filter((c)=>holdsBest(board, c, player) !== null).length;
 }
 function campaignLevels() {
     return LEVELS.map((l, index)=>({

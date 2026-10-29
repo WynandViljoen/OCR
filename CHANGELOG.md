@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.3h
+
+- **Tying a community record now earns the star.** A player gets a star for a board when their score equals the community best, not only when they beat it. The player who reached the score first stays at the top of the board (ties are ordered by who got there first), so the name shown as #1 does not change.
+- After a run that ties the record, the Solved card says **"Tied for #1 in the community!"**.
+- The level dropdown legend now reads "you hold or tie the community best".
+- Only the game changed (no server files). New check in `check-scores` for ties and name matching.
+
 ## Modern TIM 0.3g
 
 - **Admin sign-in is now self-diagnosing.** After a correct password you are sent to a one-off address (`admin.php?go=…&view=…`) that no page cache can answer with an old copy, and you land on the page you asked for (for example High scores). If the server still loses the session, the page now says so in plain words instead of silently showing the login again.

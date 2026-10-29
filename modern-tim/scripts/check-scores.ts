@@ -9,6 +9,7 @@ import {
   MAX_NAME,
   emptyBoard,
   formatValue,
+  holdsBest,
   loadPlayer,
   loadScores,
   pathMeters,
@@ -168,6 +169,23 @@ check('boards saved before time scores existed still load', () => {
   const loaded = loadScores(store);
   assert.deepEqual(loaded.L.fastest, []);
   assert.equal(loaded.L.shortest[0].name, 'Old');
+});
+
+check('a tie earns the star and the first player stays on top', () => {
+  const scores: AllScores = {};
+  recordRun(scores, 'L', 'Ana', { pathMeters: 5, seconds: 4, spare: 2 }, 1000);
+  recordRun(scores, 'L', 'Ben', { pathMeters: 5, seconds: 6, spare: 2 }, 2000); // ties Ana on path and spare, slower on time
+  recordRun(scores, 'L', 'Cy', { pathMeters: 7, seconds: 9, spare: 1 }, 3000);
+  const b = scores.L;
+  assert.deepEqual(b.shortest.map((e) => e.name), ['Ana', 'Ben', 'Cy']); // Ana got there first, so she stays #1
+  assert.equal(holdsBest(b, 'shortest', 'Ana'), 'first');
+  assert.equal(holdsBest(b, 'shortest', 'ben'), 'tied'); // names match ignoring case
+  assert.equal(holdsBest(b, 'spare', 'Ben'), 'tied');
+  assert.equal(holdsBest(b, 'fastest', 'Ben'), null); // slower than Ana
+  assert.equal(holdsBest(b, 'shortest', 'Cy'), null); // behind
+  assert.equal(holdsBest(b, 'shortest', 'Dee'), null); // not on the board
+  assert.equal(holdsBest(b, 'shortest', ''), null);
+  assert.equal(holdsBest(emptyBoard(), 'shortest', 'Ana'), null);
 });
 
 console.log(`\n${passed} checks passed`);

@@ -20,7 +20,7 @@ import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
-import { CATEGORIES } from './game/profile';
+import { CATEGORIES, holdsBest } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
 import { fetchCommunity, flushPending, loadPending, savePending, trySubmit, type Submission } from './game/community';
 import {
@@ -201,7 +201,7 @@ sim.onSolved = (info) => {
       if (level.id === id) {
         communityStatus = 'ok';
         refreshScores();
-        if (sim.solved) ui.setSolvedScores(describeRun(run, results, sub.results));
+        if (sim.solved) ui.setSolvedScores(describeRun(run, results, sub.results, sub.board));
       }
     });
   }
@@ -223,6 +223,7 @@ function describeRun(
   run: { pathMeters: number; seconds: number; spare: number },
   results: RunResult[],
   shared: Submission['results'] | null,
+  board: Board | null = null,
 ): SolvedRow[] {
   return results.map((r) => {
     const notes: string[] = [];
@@ -236,6 +237,9 @@ function describeRun(
     const c = shared?.[r.category];
     if (c?.record) {
       notes.push('New community record!');
+      kind = 'record';
+    } else if (board && holdsBest(board, r.category, player) === 'tied') {
+      notes.push('Tied for #1 in the community!');
       kind = 'record';
     } else if (c?.rank) {
       notes.push(`#${c.rank} in the community`);
@@ -2030,12 +2034,11 @@ const menuList = document.getElementById('level-menu-list') as HTMLElement;
 const menuNote = document.getElementById('level-menu-note') as HTMLElement;
 const menuSummary = document.getElementById('level-menu-summary') as HTMLElement;
 
-const sameWho = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-/** How many of the 3 community boards (shortest, fastest, spare) this player leads on a level. */
+/** How many of the 3 community boards (shortest, fastest, spare) this player leads or ties on a level. */
 function starsFor(levelId: string): number | null {
   const board = community[levelId];
   if (!board || !player) return null;
-  return CATEGORIES.filter((c) => board[c][0] && sameWho(board[c][0].name, player)).length;
+  return CATEGORIES.filter((c) => holdsBest(board, c, player) !== null).length;
 }
 
 function campaignLevels(): { level: Level; index: number }[] {

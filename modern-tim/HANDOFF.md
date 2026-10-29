@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.3h: `holdsBest(board, category, name)` in profile.ts returns 'first' | 'tied' | null; stars count both. Boards order ties by earliest `at`, so the first achiever stays #1 (the 5-row board limit means a 6th tied player would not be listed and gets no star). The admin "records broken" log still ignores ties.
 - v0.3g: admin.php `ADMIN_BUILD` constant (shown on the login page), `?diag=1` connection check, login redirect to `admin.php?go=<time+rand>&view=<view>`, explicit message when the session is lost (bad csrf on login, or `?go` without a session). Use these to debug the host if the login loop returns: it was either a stale cached login page or sessions not persisting.
 - v0.3f: admin.php sends `no_cache_headers()` on every response (the host has an active LiteSpeed page cache that cached admin pages and made the login page reappear); session cookie SameSite=Lax; dashboard header has a Refresh link (REQUEST_URI) and a live browser-local clock (inline script allowed by a CSP nonce, `$GLOBALS['tim_nonce']`). check-records covers it.
 - v0.3e: anti-cache for boards: scores.php/share.php send no-store/no-cache/LiteSpeed/CDN headers; community.ts requests use `cache: 'no-store'` and `&_=<time>`; boards refresh on tab visibility (15 s throttle).
