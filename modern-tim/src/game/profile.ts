@@ -103,9 +103,9 @@ export function formatValue(category: Category, value: number): string {
   return `${value.toFixed(1)} m`;
 }
 
-const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+export const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-function better(category: Category, a: number, b: number): boolean {
+export function better(category: Category, a: number, b: number): boolean {
   return CATEGORY_INFO[category].lowerIsBetter ? a < b : a > b;
 }
 

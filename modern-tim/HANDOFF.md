@@ -6,6 +6,8 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4n: FIXED live bug (0.4h-0.4m): game/level-revs.ts was missing from the `order` list in scripts/build-single.mjs, so trySubmit threw ReferenceError and no score was ever sent. New modules MUST be added to that list; `npm run check-bundle` enforces it. Always smoke-test a real solve in the built index.html (scratchpad solve.js style) before release.
+- v0.4n: community.ts syncLocalBests() runs at every start (after the level-version scrub and the pending flush) and sends local bests that earn a place on the community board.
 - v0.4m: onSolved sends the score first and guards the cosmetic steps; scores.php logs refusals to tim-data/rejects.log (shown on the admin High scores page); client timeout 12 s.
 - v0.4l: admin.php boards table bolds every entry tied with number one (same rule as star_counts()).
 - v0.4k: level list marks are per board (shortest, fastest, spare) and use only boards fetched when the list opens (starBoards in main.ts).

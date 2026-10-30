@@ -3928,9 +3928,38 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4m';
+const VERSION = '0.4n';
 
 return { VERSION };
+})();
+
+// ---- game/level-revs.ts ----
+const { LEVEL_REVS } = (() => {
+const LEVEL_REVS = {
+    ramps: '0.4g',
+    conveyor: '0.4g',
+    springs: '0.4g',
+    levers: '0.4g',
+    dominoes: '0.4g',
+    gears: '0.4g',
+    spin: '0.4g',
+    pulleys2: '0.4g',
+    machine: '0.4g',
+    overtop: '0.4g',
+    bridge: '0.4g',
+    chain: '0.4g',
+    reach: '0.4g',
+    tackle2: '0.4g',
+    tradeoff2: '0.4g',
+    double: '0.4g',
+    crane3: '0.4g',
+    skyhigh: '0.4g',
+    slalom: '0.4g',
+    maze: '0.4g',
+    energy: '0.4g'
+};
+
+return { LEVEL_REVS };
 })();
 
 // ---- game/space.ts ----
@@ -4229,7 +4258,7 @@ return { OVERLAP_TOLERANCE, footprint, shapesOverlap, footprintBounds, overlapsA
 })();
 
 // ---- game/profile.ts ----
-const { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels } = (() => {
+const { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, sameName, better, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels } = (() => {
 const NAME_KEY = 'modern-tim:player';
 const SCORES_KEY = 'modern-tim:scores';
 const REVS_KEY = 'modern-tim:level-revs';
@@ -4420,11 +4449,11 @@ function scrubChangedLevels(serverRevs, scores, store = browserStore()) {
     return scrubbed;
 }
 
-return { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels };
+return { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, sameName, better, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels };
 })();
 
 // ---- game/community.ts ----
-const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
+const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
 
 
 const ENDPOINT = 'scores.php';
@@ -4525,6 +4554,33 @@ async function submitRun(levelId, name, run, fetchFn) {
     const r = await trySubmit(levelId, name, run, fetchFn);
     return typeof r === 'string' ? null : r;
 }
+function earnsPlace(board, category, name, value) {
+    const list = board[category];
+    const mine = list.find((e)=>sameName(e.name, name));
+    if (mine) return better(category, value, mine.value);
+    if (list.length < BOARD_SIZE) return true;
+    return better(category, value, list[list.length - 1].value);
+}
+async function syncLocalBests(scores, player, fetchFn) {
+    const name = sanitizeName(player);
+    if (!name) return 0;
+    const jobs = Object.entries(scores).filter(([id])=>id in LEVEL_REVS).map(async ([id, mine])=>{
+        const best = {};
+        for (const c of CATEGORIES)best[c] = mine[c].find((e)=>sameName(e.name, name))?.value ?? 0;
+        if (!(best.shortest > 0 && best.fastest > 0)) return 0;
+        const board = await fetchCommunity(id, fetchFn);
+        if (!board) return 0;
+        const needed = CATEGORIES.some((c)=>c === 'spare' && best.spare <= 0 ? false : earnsPlace(board, c, name, best[c]));
+        if (!needed) return 0;
+        const sent = await trySubmit(id, name, {
+            pathMeters: best.shortest,
+            seconds: best.fastest,
+            spare: best.spare
+        }, fetchFn);
+        return typeof sent === 'string' ? 0 : 1;
+    });
+    return (await Promise.all(jobs)).reduce((a, b)=>a + b, 0);
+}
 function loadPending(store = browserStore()) {
     try {
         const raw = JSON.parse(store?.getItem(PENDING_KEY) ?? '[]');
@@ -4567,7 +4623,7 @@ function mayBreakRecord(board, run) {
     return shortest !== undefined && run.pathMeters < shortest || fastest !== undefined && run.seconds < fastest || spare !== undefined && run.spare > spare;
 }
 
-return { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord };
+return { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord };
 })();
 
 // ---- game/builds.ts ----
@@ -8330,8 +8386,10 @@ void fetchRevs().then((revs)=>{
         refreshScores();
         ui.toast(gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
     }
-}).then(()=>flushPending()).then((n)=>{
-    if (n > 0) loadCommunity();
+}).then(()=>flushPending()).then(async (n)=>{
+    const added = player ? await syncLocalBests(allScores, player) : 0;
+    if (added > 0) ui.toast(added === 1 ? 'Added one of your scores to the community boards.' : `Added your scores for ${added} levels to the community boards.`);
+    if (n > 0 || added > 0) loadCommunity();
 });
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);

@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4n
+
+- **Fixed: scores were not reaching the community boards since 0.4h.** The standalone page (`index.html`) was bundled without the new level-versions module, so sending a score failed with a "LEVEL_REVS is not defined" error before anything was sent. Solving a level still worked and the personal best was kept, but nothing was posted. 0.4n bundles the module, and the start-up comparison below also adds any scores that were missed in the meantime. A new `npm run check-bundle` fails if any game module is missing from the standalone bundle.
+- **Every time the game starts it compares the player's best scores on this device with the community boards and adds any that belong there.** For each level the player has solved, the game looks at the community board; if one of the player's Shortest path, Fastest solve or Most spare tools scores would earn or improve their place (a free spot in the top 5, or better than their current row, or better than fifth place), it is sent. The server only ever improves a board, so nothing can get worse. A short message says how many levels were added. Scores sent this way carry no game version and no screenshot, because the game that made them is no longer known.
+
 ## Modern TIM 0.4m
 
 - **A solved run is now sent to the community board before anything else happens**, and the sound, confetti, tracking and score-card steps are each guarded, so a problem in one of them (for example sound or canvas trouble on a new device) can no longer stop the score from being sent.

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { LEVEL_REVS } from '../src/game/level-revs';
 import { scrubChangedLevels, loadScores, saveScores, REVS_KEY } from '../src/game/profile';
-import { fetchRevs, scrubPending, fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
+import { syncLocalBests, fetchRevs, scrubPending, fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
 
 let passed = 0;
 async function check(name: string, fn: () => Promise<void>) {
@@ -120,6 +120,35 @@ await check('a changed level loses its local scores and waiting runs; unchanged 
   assert.deepEqual(loadPending(store).map((r) => r.levelId), ['gears']);
   assert.deepEqual(await fetchRevs(okJson({ revs: { ramps: '2', bad: 3 } })), { ramps: '2' });
   assert.equal(await fetchRevs(async () => { throw new Error('offline'); }), null);
+});
+
+await check('on start, local bests that belong on a community board are sent; others are not', async () => {
+  const row = (name: string, value: number) => ({ name, value, at: 1 });
+  const mk = (s: number, f: number, p: number) => ({ shortest: [row('Ana', s)], fastest: [row('Ana', f)], spare: p ? [row('Ana', p)] : [] });
+  const full = (v: number[]) => v.map((x, i) => row('P' + i, x));
+  const boards: Record<string, unknown> = {
+    ramps: { shortest: full([2, 3, 4, 6, 7]), fastest: full([2, 3, 4, 6, 7]), spare: full([3, 3, 2, 2, 1]) },   // Ana 5/5 would be 4th on both
+    gears: { shortest: full([2, 3, 4, 5, 6]), fastest: full([2, 3, 4, 5, 6]), spare: full([3, 3, 2, 2, 2]) },   // Ana 9/9/1 is below fifth everywhere
+    springs: { shortest: [row('Ana', 5)], fastest: [row('Ana', 5)], spare: [] },                              // already there with the same numbers
+  };
+  const posts: Record<string, unknown>[] = [];
+  const f = async (url: string, init?: { body?: string }) => {
+    if (init?.body) {
+      const b = JSON.parse(init.body);
+      posts.push(b);
+      return { ok: true, status: 200, json: async () => ({ board: boards[b.level], results: {} }) };
+    }
+    const level = /level=([a-z0-9]+)/.exec(url)![1];
+    return { ok: true, status: 200, json: async () => ({ board: boards[level] }) };
+  };
+  const scores = { ramps: mk(5, 5, 1), gears: mk(9, 9, 1), springs: mk(5, 5, 0), maze: mk(5, 5, 1), nolevel: mk(1, 1, 1) };
+  boards.maze = { shortest: [], fastest: [], spare: [] };
+  const n = await syncLocalBests(scores, 'ana', f);
+  assert.equal(n, 2);
+  assert.deepEqual(posts.map((p) => p.level).sort(), ['maze', 'ramps']);
+  assert.equal(posts.every((p) => p.name === 'ana' && !('version' in p) && !('shot' in p)), true);
+  assert.equal(await syncLocalBests(scores, '', f), 0);
+  assert.equal(await syncLocalBests(scores, 'Ana', async () => { throw new Error('offline'); }), 0);
 });
 
 console.log(`\n${passed} checks passed`);

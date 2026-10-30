@@ -22,7 +22,7 @@ import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, fetchRevs, flushPending, scrubPending, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
+import { fetchCommunity, fetchRevs, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -1769,8 +1769,11 @@ void fetchRevs()
     }
   })
   .then(() => flushPending())
-  .then((n) => {
-    if (n > 0) loadCommunity();
+  .then(async (n) => {
+    // Every start: anything this player has on this device that belongs on a community board but is not there yet is added.
+    const added = player ? await syncLocalBests(allScores, player) : 0;
+    if (added > 0) ui.toast(added === 1 ? 'Added one of your scores to the community boards.' : `Added your scores for ${added} levels to the community boards.`);
+    if (n > 0 || added > 0) loadCommunity();
   });
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);

@@ -7,7 +7,7 @@
  * scores stored in this browser. Runs that could not be sent are kept and retried.
  */
 import { LEVEL_REVS } from './level-revs';
-import { CATEGORIES, parseBoard, sanitizeName, type Board, type Category, type Run } from './profile';
+import { BOARD_SIZE, CATEGORIES, better, parseBoard, sameName, sanitizeName, type AllScores, type Board, type Category, type Run } from './profile';
 
 export const ENDPOINT = 'scores.php';
 export const PENDING_KEY = 'modern-tim:pending';
@@ -128,6 +128,43 @@ export async function trySubmit(levelId: string, name: string, run: Run, fetchFn
 export async function submitRun(levelId: string, name: string, run: Run, fetchFn?: FetchLike): Promise<Submission | null> {
   const r = await trySubmit(levelId, name, run, fetchFn);
   return typeof r === 'string' ? null : r;
+}
+
+// --- this player's best scores on this device ----------------------------
+
+/** Would this score earn (or improve) the player's place on the community board? */
+function earnsPlace(board: Board, category: Category, name: string, value: number): boolean {
+  const list = board[category];
+  const mine = list.find((e) => sameName(e.name, name));
+  if (mine) return better(category, value, mine.value);
+  if (list.length < BOARD_SIZE) return true;
+  return better(category, value, list[list.length - 1].value);
+}
+
+/**
+ * Compare this player's best scores kept on this device with the community boards and send every level where
+ * one of them belongs on the board but is not there yet (for example a run that was made offline, or on
+ * another browser before the board existed). The server only ever improves a board, so sending is harmless.
+ * Returns how many levels were sent. Quiet when offline.
+ */
+export async function syncLocalBests(scores: AllScores, player: string, fetchFn?: FetchLike): Promise<number> {
+  const name = sanitizeName(player);
+  if (!name) return 0;
+  const jobs = Object.entries(scores)
+    .filter(([id]) => id in LEVEL_REVS)
+    .map(async ([id, mine]) => {
+      const best = {} as Record<Category, number>;
+      for (const c of CATEGORIES) best[c] = mine[c].find((e) => sameName(e.name, name))?.value ?? 0;
+      if (!(best.shortest > 0 && best.fastest > 0)) return 0;
+      const board = await fetchCommunity(id, fetchFn);
+      if (!board) return 0;
+      const needed = CATEGORIES.some((c) => (c === 'spare' && best.spare <= 0 ? false : earnsPlace(board, c, name, best[c])));
+      if (!needed) return 0;
+      // No version and no screenshot: the game that made these runs is not known any more.
+      const sent = await trySubmit(id, name, { pathMeters: best.shortest, seconds: best.fastest, spare: best.spare }, fetchFn);
+      return typeof sent === 'string' ? 0 : 1;
+    });
+  return (await Promise.all(jobs)).reduce<number>((a, b) => a + b, 0);
 }
 
 // --- runs waiting for a connection ------------------------------------------
