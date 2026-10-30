@@ -463,6 +463,35 @@ function shot_cell($file): string {
     return '<a href="' . h($u) . '" target="_blank" rel="noopener">View</a>';
 }
 
+/**
+ * Stars per player name (lower-case): one for every community board (level x Shortest/Fastest/Spare)
+ * where the name holds or ties number one. Same rule as the game's level list.
+ */
+function star_counts(): array {
+    $boards = read_boards();
+    $stars = [];
+    foreach (LEVEL_NAMES as $id => $_) {
+        foreach (BOARDS as $c => $__) {
+            $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
+            $top = null;
+            foreach ($list as $row) {
+                if (is_array($row) && isset($row['name'], $row['value']) && is_numeric($row['value'])) {
+                    $v = (float) $row['value'];
+                    if ($top === null || ($c === 'spare' ? $v > $top : $v < $top)) $top = $v;
+                }
+            }
+            if ($top === null) continue;
+            foreach ($list as $row) {
+                if (is_array($row) && isset($row['name'], $row['value']) && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001) {
+                    $k = mb_strtolower((string) $row['name']);
+                    $stars[$k] = ($stars[$k] ?? 0) + 1;
+                }
+            }
+        }
+    }
+    return $stars;
+}
+
 function scores_view() {
     $level = (string) ($_GET['level'] ?? '');
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
@@ -565,9 +594,17 @@ function dashboard() {
         uasort($players, function ($a, $b) {
                 return ($b['last'] ?? 0) <=> ($a['last'] ?? 0);
             });
-        echo '<h2>Players</h2><div class="wrap"><table><tr><th>Name</th><th>Device id</th><th>Device</th><th>Visits</th><th>Plays</th><th>Solved</th><th>Version</th><th>First seen</th><th>Last seen</th></tr>';
+        echo '<h2>Players</h2><div class="wrap"><table><tr><th>Name</th><th>Device id</th><th>Device</th><th>Visits</th><th>Plays</th><th>Solved</th><th>Stars</th><th>Version</th><th>First seen</th><th>Last seen</th></tr>';
+        $starsByName = star_counts();
+        $maxStars = count(LEVEL_NAMES) * count(BOARDS);
         foreach ($players as $p) {
             $on = $now - (int) $p['last'] < ONLINE_SECONDS;
+            $mine = [];
+            foreach (array_merge([(string) ($p['name'] ?? '')], (array) ($p['names'] ?? [])) as $nm) {
+                if ($nm !== '') $mine[mb_strtolower((string) $nm)] = true;
+            }
+            $stars = 0;
+            foreach (array_keys($mine) as $k) $stars += $starsByName[(string) $k] ?? 0;
             $others = count($byNet[$p['ip'] ?? ''] ?? []) - 1;
             $names = array_filter($p['names'] ?? [], function ($n) use ($p) {
                 return $n !== ($p['name'] ?? '');
@@ -579,11 +616,12 @@ function dashboard() {
                 . ($others > 0 ? ' <span class="mute" title="Other devices seen on the same network">+' . $others . ' on same network</span>' : '') . '</td>'
                 . '<td>' . h($ua['browser'] . ' / ' . $ua['os'] . ' (' . $ua['kind'] . ')') . '</td>'
                 . '<td>' . (int) $p['visits'] . '</td><td>' . (int) $p['plays'] . '</td><td>' . (int) $p['solves'] . '</td>'
+                . '<td title="Boards where this player holds or ties number one, out of ' . $maxStars . '">' . ($stars > 0 ? '<b>★ ' . $stars . '</b>' : '<span class="mute">0</span>') . '</td>'
                 . '<td>' . h($p['version'] ?? '') . '</td><td>' . h(fmt_time((int) $p['first'])) . '</td>'
                 . '<td title="' . h(fmt_time((int) $p['last'])) . '">' . h(ago((int) $p['last'])) . '</td></tr>';
         }
-        if (!$players) echo '<tr><td colspan="9" class="mute">Nobody yet.</td></tr>';
-        echo '</table></div><p class="mute">Times are ' . h(DISPLAY_TZ) . '. Green dot = seen in the last 5 minutes.</p>';
+        if (!$players) echo '<tr><td colspan="10" class="mute">Nobody yet.</td></tr>';
+        echo '</table></div><p class="mute">Times are ' . h(DISPLAY_TZ) . '. Green dot = seen in the last 5 minutes. Stars = community boards where the player holds or ties number one (counted by name, from all the names the device used).</p>';
     } elseif ($view === 'levels') {
         $lv = [];
         foreach ($players as $p) {

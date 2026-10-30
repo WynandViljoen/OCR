@@ -167,6 +167,11 @@ try {
     assert.ok(html.includes(`admin.php?shot=${rec[0].shot}`) && html.includes('>View</a>'));
     const img = await fetch(`${base}/admin.php?shot=${rec[0].shot}`, { headers: { cookie: cookie() } });
     assert.equal(img.headers.get('content-type'), 'image/jpeg');
+    // Stars on the Players page: Fay is number one on the Springs shortest-path board.
+    await fetch(`${base}/admin.php?api=track`, { method: 'POST', body: JSON.stringify({ ev: 'name', name: 'Fay' }) });
+    const players = await (await fetch(`${base}/admin.php?view=players`, { headers: { cookie: cookie() } })).text();
+    assert.ok(players.includes('<th>Stars</th>'));
+    assert.ok(/<b>Fay<\/b>.*?<b>★ 1<\/b>/s.test(players), 'Fay has 1 star (only five rows fit a board, so her tied runs are not on the others)');
     const bad = await fetch(`${base}/admin.php?shot=../scores.php`, { headers: { cookie: cookie() } });
     assert.equal(bad.status, 404);
   });

@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4b
+
+- **The admin Players page now has a Stars column.** A star is one community board (a level times Shortest path, Fastest solve or Most spare tools) where the player holds or ties number one, the same rule as the stars in the game. Stars are matched by name, adding up every name the device has used, and shown as ★ N (hover for the maximum). Server file only: copy `admin.php` (the cron job does); no game change.
+
 ## Modern TIM 0.4a
 
 - **The admin High scores page now shows the game version and a screenshot for each broken record.** The "Records broken" table has the columns *Score*, *Version* and *Screenshot* (a View link to the picture). The current community boards also show the version next to each score.
