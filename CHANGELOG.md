@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4e
+
+- **The Records broken table has a new Now column** showing whether the player is still number one (**#1**), tied for number one (**Tied #1**) or has been passed (Beaten) on the community board today. It is worked out from the current boards each time the page loads. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4d
 
 - **Dates on the admin dashboard now include the year and are written year-month-day** (for example 2026-10-30 06:12) on every page: Players, Records broken, the community boards and the Log. Server file only: copy `admin.php` (the cron job does).

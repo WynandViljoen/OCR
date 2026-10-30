@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4d';
+const ADMIN_BUILD = '0.4e';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -493,6 +493,29 @@ function star_counts(): array {
     return $stars;
 }
 
+/** Where does this name stand on a community board right now? '#1', 'Tied #1', or '' (not number one any more). */
+function standing(array $boards, string $level, string $category, string $name): string {
+    $list = is_array($boards[$level][$category] ?? null) ? $boards[$level][$category] : [];
+    $top = null;
+    foreach ($list as $row) {
+        if (is_array($row) && isset($row['name'], $row['value']) && is_numeric($row['value'])) {
+            $v = (float) $row['value'];
+            if ($top === null || ($category === 'spare' ? $v > $top : $v < $top)) $top = $v;
+        }
+    }
+    if ($top === null) return '';
+    $holders = 0;
+    $mine = false;
+    foreach ($list as $row) {
+        if (is_array($row) && isset($row['name'], $row['value']) && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001) {
+            $holders++;
+            if (mb_strtolower((string) $row['name']) === mb_strtolower($name)) $mine = true;
+        }
+    }
+    if (!$mine) return '';
+    return $holders > 1 ? 'Tied #1' : '#1';
+}
+
 function scores_view() {
     $level = (string) ($_GET['level'] ?? '');
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
@@ -505,7 +528,7 @@ function scores_view() {
         return (int) $e['t'] >= $weekAgo;
     }));
 
-    echo '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. '
+    echo '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. <b>Now</b> says whether the player is still number one (or tied for it) on the community board. '
         . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
     echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="level"><option value="">All levels</option>';
     foreach (LEVEL_NAMES as $id => $label) {
@@ -516,21 +539,24 @@ function scores_view() {
         echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
-    echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
+    echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
+    $boardsNow = read_boards();
     foreach ($rows as $e) {
         $c = (string) $e['category'];
+        $now = standing($boardsNow, (string) $e['level'], $c, (string) $e['name']);
         $gain = isset($e['prevValue']) ? abs((float) $e['value'] - (float) $e['prevValue']) : null;
         $same = isset($e['prevName']) && mb_strtolower((string) $e['prevName']) === mb_strtolower((string) $e['name']);
         echo '<tr><td title="' . h(fmt_time((int) $e['t'])) . '">' . h(fmt_time((int) $e['t'])) . ' <span class="mute">(' . h(ago((int) $e['t'])) . ')</span></td>'
             . '<td><b>' . h(level_label((string) $e['level'])) . '</b></td><td>' . h(BOARDS[$c] ?? $c) . '</td>'
             . '<td><b>' . h($e['name']) . '</b> ' . h(format_score($c, $e['value'])) . '</td>'
+            . '<td>' . ($now === '' ? '<span class="mute">Beaten</span>' : '<b>' . h($now) . '</b>') . '</td>'
             . '<td class="mute">' . (!empty($e['version']) ? 'v' . h($e['version']) : '-') . '</td>'
             . '<td>' . shot_cell($e['shot'] ?? '') . '</td>'
             . '<td class="mute">' . (isset($e['prevName']) ? h($e['prevName']) . ' ' . h(format_score($c, $e['prevValue'] ?? 0)) . ($same ? ' (their own)' : '') : '-') . '</td>'
             . '<td class="mute">' . ($gain === null ? '-' : h(format_score($c, $gain))) . '</td></tr>';
     }
-    if (!$rows) echo '<tr><td colspan="8" class="mute">No broken records yet.</td></tr>';
-    echo '</table></div><p class="mute">Newest first, up to 300 rows. Times are ' . h(DISPLAY_TZ) . '.</p>';
+    if (!$rows) echo '<tr><td colspan="9" class="mute">No broken records yet.</td></tr>';
+    echo '</table></div><p class="mute">Newest first, up to 300 rows. <b>Now</b> = whether the player is still number one (or tied for it) on the community board. Times are ' . h(DISPLAY_TZ) . '.</p>';
 
     $boards = read_boards();
     echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';

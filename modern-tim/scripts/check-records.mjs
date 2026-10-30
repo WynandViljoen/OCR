@@ -131,6 +131,7 @@ try {
     const jpeg = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(400, 7)]).toString('base64');
     const send = async (name, path, extra = {}) =>
       (await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'springs', name, pathMeters: path, seconds: 9, spare: 1, ...extra }) })).json();
+    const send2 = (name, path) => fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'gears', name, pathMeters: path, seconds: 20, spare: 0 }) });
     const shots = () => (existsSync(join(dir, 'tim-data', 'shots')) ? readdirSync(join(dir, 'tim-data', 'shots')) : []);
     await send('Ann', 8, { version: '0.4a', shot: jpeg }); // first score: nothing to break, no picture kept
     assert.equal(shots().length, 0);
@@ -163,6 +164,12 @@ try {
     r = await fetch(`${base}/admin.php`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: cookie() }, body: new URLSearchParams({ csrf, password: 'HappyCampers', do: 'login' }) }); take(r);
     const html = await (await fetch(`${base}/admin.php?view=scores&level=springs`, { headers: { cookie: cookie() } })).text();
     assert.ok(html.includes('<th>Version</th>') && html.includes('<th>Screenshot</th>'));
+    assert.ok(html.includes('<th>Now</th>'));
+    assert.ok(/<b>Fay<\/b> 4 m<\/td><td><b>#1<\/b><\/td>/.test(html), 'Fay is still number one');
+    assert.ok(/<b>Dee<\/b> 6 m<\/td><td><span class="mute">Beaten<\/span><\/td>/.test(html), 'Dee has been passed');
+    for (const [n, v] of [['Gus', 5], ['Hal', 4], ['Ivy', 4]]) await send2(n, v);
+    const gears = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();
+    assert.ok(/<b>Hal<\/b> 4 m<\/td><td><b>Tied #1<\/b><\/td>/.test(gears), 'Hal is tied for number one');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');
