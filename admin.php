@@ -545,7 +545,9 @@ function scores_view() {
             if (!$list) echo '<span class="mute">-</span>';
             foreach (array_slice($list, 0, 5) as $i => $row) {
                 if (!is_array($row) || !isset($row['name'], $row['value'])) continue;
-                echo ($i === 0 ? '<b>' : '') . ($i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value'])) . ($i === 0 ? '</b>' : '') . '<br>';
+                echo ($i === 0 ? '<b>' : '') . ($i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
+                    . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($i === 0 ? '</b>' : '')
+                    . (!empty($row['at']) ? ' <span class="mute">' . h(fmt_time((int) $row['at'])) . '</span>' : '') . '<br>';
             }
             echo '</td>';
         }
