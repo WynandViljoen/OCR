@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4d: admin.php fmt_time() prints Y-m-d H:i.
 - v0.4c: admin.php ADMIN_BUILD must equal VERSION (check-versions); bump both every release.
 - v0.4b: admin.php star_counts() adds a Stars column on the Players page (by name, ties count).
 - v0.4a: scores.php stores row version 'v' and a record-breaking screenshot (tim-data/shots, served by admin.php?shot=); client sends version always, shot only when mayBreakRecord().

@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4d
+
+- **Dates on the admin dashboard now include the year and are written year-month-day** (for example 2026-10-30 06:12) on every page: Players, Records broken, the community boards and the Log. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4c
 
 - **The admin dashboard shows its version number** under the clock ("Dashboard v0.4c"). It is kept equal to the game version, and a new check (`npm run check-versions`) fails if admin.php, the game, the README or the CHANGELOG disagree.

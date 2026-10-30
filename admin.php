@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4c';
+const ADMIN_BUILD = '0.4d';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -338,7 +338,7 @@ function note_failure(string $iph) {
 function fmt_time(int $t): string {
     $d = new DateTime('@' . $t);
     $d->setTimezone(new DateTimeZone(DISPLAY_TZ));
-    return $d->format('M j, H:i');
+    return $d->format('Y-m-d H:i');
 }
 
 function ago(int $t): string {
