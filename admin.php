@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4n';
+const ADMIN_BUILD = '0.4o';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -465,6 +465,18 @@ function shot_cell($file): string {
     return '<a href="' . h($u) . '" target="_blank" rel="noopener">View</a>';
 }
 
+/** The screenshot of a board's number one: kept on the row, or (older records) found in the records log. */
+function board_shot(array $log, string $level, string $category, array $row): string {
+    if (!empty($row['shot'])) return (string) $row['shot'];
+    foreach ($log as $e) {   // newest first
+        if ($e['level'] === $level && $e['category'] === $category && !empty($e['shot']) && isset($row['name'], $row['value'])
+            && mb_strtolower((string) $e['name']) === mb_strtolower((string) $row['name']) && abs((float) $e['value'] - (float) $row['value']) < 0.0001) {
+            return (string) $e['shot'];
+        }
+    }
+    return '';
+}
+
 /**
  * Stars per player name (lower-case): one for every community board (level x Shortest/Fastest/Spare)
  * where the name holds or ties number one. Same rule as the game's level list.
@@ -613,6 +625,7 @@ function scores_view() {
     }
 
     $boards = read_boards();
+    $log = read_records(100000, '', '');
     echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';
     foreach (BOARDS as $label) echo '<th>' . h($label) . '</th>';
     echo '</tr>';
@@ -646,13 +659,14 @@ function scores_view() {
                 $first = $top !== null && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001;
                 echo ($first ? '<b>' : '') . ($first ? 1 : $i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
                     . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($first ? '</b>' : '')
-                    . (!empty($row['at']) ? ' <span class="mute">' . h(fmt_time((int) $row['at'])) . '</span>' : '') . '<br>';
+                    . (!empty($row['at']) ? ' <span class="mute">' . h(fmt_time((int) $row['at'])) . '</span>' : '')
+                    . ($i === 0 ? ' ' . shot_cell(board_shot($log, $id, $c, $row)) : '') . '<br>';
             }
             echo '</td>';
         }
         echo '</tr>';
     }
-    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
+    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). <b>View</b> on the record holder line is the screenshot of the run that set the record; it is replaced, and the old picture deleted, when someone beats it, and it stays empty (-) until a record is broken from the game. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
 }
 
 function dashboard() {

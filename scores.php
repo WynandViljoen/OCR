@@ -182,6 +182,50 @@ function saveShot(string $dataUrl, string $level): string {
     return $name;
 }
 
+const SHOT_PATTERN = '/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/';
+
+/**
+ * The screenshot of a board's number one: the file name kept on the row, or, for a record set before rows kept
+ * it, the newest matching entry in the records log. '' when there is none.
+ */
+function shotOf(string $level, string $category, array $row): string {
+    if (isset($row['shot']) && is_string($row['shot']) && preg_match(SHOT_PATTERN, $row['shot'])) return $row['shot'];
+    if (!isset($row['name'], $row['value'])) return '';
+    $best = '';
+    foreach (['records.old.log', 'records.log'] as $f) {
+        $p = RECORD_DIR . '/' . $f;
+        if (!is_file($p)) continue;
+        foreach (file($p, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+            $e = json_decode($line, true);
+            if (is_array($e) && ($e['level'] ?? '') === $level && ($e['category'] ?? '') === $category && isset($e['name'], $e['value'], $e['shot'])
+                && sameName((string)$e['name'], (string)$row['name']) && abs((float)$e['value'] - (float)$row['value']) < 0.0001
+                && is_string($e['shot']) && preg_match(SHOT_PATTERN, $e['shot'])) {
+                $best = $e['shot'];
+            }
+        }
+    }
+    return $best;
+}
+
+/** The screenshots of a level's three number-one spots (file names). */
+function topShots(array $board, string $level): array {
+    $out = [];
+    foreach (CATEGORIES as $category) {
+        $row = $board[$category][0] ?? null;
+        if (is_array($row)) {
+            $s = shotOf($level, $category, $row);
+            if ($s !== '') $out[$s] = true;
+        }
+    }
+    return array_keys($out);
+}
+
+function deleteShots(array $files) {
+    foreach ($files as $f) {
+        if (is_string($f) && preg_match(SHOT_PATTERN, $f)) @unlink(RECORD_DIR . '/shots/' . $f);
+    }
+}
+
 /** The records that this run broke: category => the old number one (name, value, at). */
 function brokenRecords(array $before, array $after, array $results): array {
     $broken = [];
@@ -216,6 +260,7 @@ function syncRevs(array &$all): bool {
             $stored[$id] = $rev;
             $changed = true;
         } elseif ($stored[$id] !== $rev) {
+            deleteShots(topShots(boardFor($all, $id), $id));
             unset($all[$id]);
             $stored[$id] = $rev;
             $changed = true;
@@ -223,6 +268,14 @@ function syncRevs(array &$all): bool {
     }
     if ($changed) $all['_revs'] = $stored;
     return $changed;
+}
+
+/** What players get to see: the same board without the screenshot names (those are for the admin only). */
+function publicBoard(array $board): array {
+    foreach ($board as $category => $rows) {
+        foreach ($rows as $i => $row) unset($board[$category][$i]['shot']);
+    }
+    return $board;
 }
 
 function saveAll($handle, array $all) {
@@ -241,6 +294,7 @@ function boardFor(array $all, string $level): array {
                 if (isset($row['name'], $row['value']) && is_string($row['name']) && is_numeric($row['value'])) {
                     $entry = ['name' => $row['name'], 'value' => (float)$row['value'], 'at' => (int)($row['at'] ?? 0)];
                     if (isset($row['v']) && is_string($row['v']) && $row['v'] !== '') $entry['v'] = $row['v'];
+                    if (isset($row['shot']) && is_string($row['shot']) && preg_match(SHOT_PATTERN, $row['shot'])) $entry['shot'] = $row['shot'];
                     $board[$category][] = $entry;
                 }
             }
@@ -265,7 +319,7 @@ if ($method === 'GET') {
         echo json_encode(['revs' => LEVEL_REVS]);
         exit;
     }
-    echo json_encode(['board' => boardFor($all, $level), 'rev' => LEVEL_REVS[$level]]);
+    echo json_encode(['board' => publicBoard(boardFor($all, $level)), 'rev' => LEVEL_REVS[$level]]);
     exit;
 }
 
@@ -299,6 +353,9 @@ if (!preg_match('/^[0-9A-Za-z.\-]{1,12}$/', $version)) $version = '';
 
 $values = ['shortest' => $path, 'fastest' => $seconds, 'spare' => (float)$spare];
 
+// The game only sends a picture when the run might break a record. It is kept only if it does.
+$shotFile = saveShot((string)($in['shot'] ?? ''), $level);
+
 $handle = @fopen(DATA_FILE, 'c+');
 if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here.');
 $all = readAll($handle);
@@ -307,12 +364,25 @@ $board = boardFor($all, $level);
 $before = $board;
 $results = recordRun($board, $name, $values, time(), $version);
 $broken = brokenRecords($before, $board, $results);
+// Only a board's number one keeps a screenshot: the new record's picture goes on its row, and the pictures of
+// whoever was number one before (and of anyone no longer first) are deleted.
+if ($broken && $shotFile !== '') {
+    foreach ($broken as $category => $b) $board[$category][0]['shot'] = $shotFile;
+}
+foreach (CATEGORIES as $category) {
+    foreach ($board[$category] as $i => $row) {
+        if ($i > 0) unset($board[$category][$i]['shot']);
+    }
+}
+$oldShots = topShots($before, $level);
+$newShots = topShots($board, $level);
 $all[$level] = $board;
 saveAll($handle, $all);
 flock($handle, LOCK_UN);
 fclose($handle);
 
-$shotFile = $broken ? saveShot((string)($in['shot'] ?? ''), $level) : '';
+deleteShots(array_diff($oldShots, $newShots));
+if ($shotFile !== '' && !in_array($shotFile, $newShots, true)) deleteShots([$shotFile]);   // the run broke nothing
 foreach ($broken as $category => $b) {
     logRecord([
         't' => time(),
@@ -327,4 +397,4 @@ foreach ($broken as $category => $b) {
     ]);
 }
 
-echo json_encode(['board' => $board, 'results' => $results]);
+echo json_encode(['board' => publicBoard($board), 'results' => $results]);

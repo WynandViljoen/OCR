@@ -147,12 +147,17 @@ try {
     assert.equal(rec[0].version, '0.4a');
     assert.match(rec[0].shot, /^\d{8}-\d{6}-springs-[a-f0-9]{6}\.jpg$/);
     assert.equal(res.board.shortest[0].v, '0.4a', 'the board row remembers the version');
-    await send('Eve', 5, { version: '0.4a', shot: 'data:image/jpeg;base64,AAAA' }); // junk picture: score kept, no file
-    assert.equal(shots().length, 1);
+    await send('Eve', 5, { version: '0.4a', shot: 'data:image/jpeg;base64,AAAA' }); // junk picture: score kept, no file; Dee is no longer number one, so her picture goes
+    assert.equal(shots().length, 0);
     assert.equal(records().filter((e) => e.level === 'springs').length, 2);
     await send('Fay', 4, { version: '<script>', shot: jpeg }); // bad version text is dropped, not stored
+    assert.equal(shots().length, 1, 'only the current number one keeps a picture');
     const row = (await (await fetch(`${base}/scores.php?level=springs`)).json()).board.shortest[0];
     assert.equal(row.name, 'Fay');
+    assert.equal(row.shot, undefined, 'players are not told the file name');
+    const stored = JSON.parse(readFileSync(join(dir, 'scores-data.json'), 'utf8')).springs.shortest;
+    assert.equal(stored[0].shot, shots()[0], 'the number one row keeps the picture');
+    assert.equal(stored.slice(1).some((r) => r.shot), false, 'no one else keeps one');
     assert.equal(row.v, undefined);
     // The admin page lists version + screenshot link, and serves the picture only when signed in.
     const jar = {};
@@ -185,8 +190,10 @@ try {
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');
-    assert.ok(html.includes(`admin.php?shot=${rec[0].shot}`) && html.includes('>View</a>'));
-    const img = await fetch(`${base}/admin.php?shot=${rec[0].shot}`, { headers: { cookie: cookie() } });
+    const current = readdirSync(join(dir, 'tim-data', 'shots')).filter((f) => f.includes('-springs-'))[0]; // Fay's: Dee's was scrapped when she was beaten
+    assert.ok(html.includes(`admin.php?shot=${current}`) && html.includes('>View</a>'));
+    assert.ok(!html.includes(`admin.php?shot=${rec[0].shot}`), 'a scrapped picture has no link');
+    const img = await fetch(`${base}/admin.php?shot=${current}`, { headers: { cookie: cookie() } });
     assert.equal(img.headers.get('content-type'), 'image/jpeg');
     // Stars on the Players page: Fay is number one on the Springs shortest-path board.
     await fetch(`${base}/admin.php?api=track`, { method: 'POST', body: JSON.stringify({ ev: 'name', name: 'Fay' }) });
@@ -215,6 +222,24 @@ try {
     assert.equal(fresh.status, 200);
     const page = await (await fetch(`${base}/admin.php?view=scores`, { headers: { cookie: cookie() } })).text();
     assert.ok(page.includes('Scores the server refused') && page.includes('This level has changed'), 'a refused score is listed with its reason');
+  });
+  await check('each number one has a picture link on the dashboard; a new number one replaces it and the old file is deleted', async () => {
+    const jpeg = (n) => 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(400, n)]).toString('base64');
+    const go = (name, path, shot) => fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'slalom', name, pathMeters: path, seconds: 9, spare: 1, shot }) });
+    const files = () => (existsSync(join(dir, 'tim-data', 'shots')) ? readdirSync(join(dir, 'tim-data', 'shots')).filter((f) => f.includes('-slalom-')) : []);
+    const board = async () => await (await fetch(`${base}/admin.php?view=scores&level=slalom`, { headers: { cookie: cookie() } })).text();
+    await go('Hal', 8, jpeg(1));
+    await go('Ida', 7, jpeg(2)); // breaks Hal: shortest, and fastest/spare tie
+    const first = files();
+    assert.equal(first.length, 1);
+    assert.ok((await board()).includes(`admin.php?shot=${first[0]}`), 'the number one line links to its picture');
+    await go('Jo', 6, jpeg(3));
+    const second = files();
+    assert.equal(second.length, 1);
+    assert.notEqual(second[0], first[0], 'the old picture is gone');
+    assert.ok((await board()).includes(`admin.php?shot=${second[0]}`) && !(await board()).includes(first[0]));
+    await go('Kim', 6, jpeg(4)); // a tie breaks nothing: no new picture, the old one stays
+    assert.deepEqual(files(), second);
   });
   console.log(`\n${passed} checks passed`);
 } catch (err) {

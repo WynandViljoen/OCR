@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.4o
+
+- **Every number-one spot on the dashboard's community boards now has a View link** to the screenshot of the run that set the record (a dash while there is none). At most one picture per spot, so 63 at most with 21 levels.
+- **A new number one replaces the picture and the old file is deleted.** The same happens to a level's pictures when its scores are scrubbed. Ties break nothing and keep the old picture. Records set before this version are matched to their picture through the records log, so the ones that already have a screenshot show it too. Pictures of old, beaten records are no longer kept, so the Records broken table shows a dash for them.
+- Players never see the picture file names; they stay on the server for the dashboard only. Needs `scores.php` and `admin.php` (the cron job copies both).
+
 ## Modern TIM 0.4n
 
 - **Fixed: scores were not reaching the community boards since 0.4h.** The standalone page (`index.html`) was bundled without the new level-versions module, so sending a score failed with a "LEVEL_REVS is not defined" error before anything was sent. Solving a level still worked and the personal best was kept, but nothing was posted. 0.4n bundles the module, and the start-up comparison below also adds any scores that were missed in the meantime. A new `npm run check-bundle` fails if any game module is missing from the standalone bundle.
