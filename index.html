@@ -3553,6 +3553,256 @@ const LEVELS = [
         }
     },
     {
+        id: 'slalom',
+        name: 'Spring slalom',
+        goal: 'Weave through the gates: under the first wall, over the second, then under the third and on to the basket. You have one strong spring.',
+        hasGoal: true,
+        hints: [
+            "The ball has to go low, then high, then low again. Break it into three legs and solve one at a time: a ramp to get it under the first wall, the spring to throw it up and over the standing wall, then planks to bring it down under the last gate.",
+            "A ramp on the left feeds the ball under the first hanging wall into the spring. Tilt the spring a little backwards. Then one plank to catch the ball after its flight and one to guide it over the last small wall into the basket."
+        ],
+        fixed: [
+            {
+                type: 'ball',
+                x: 90,
+                y: 50
+            },
+            {
+                type: 'wall',
+                x: 300,
+                y: 150,
+                w: 20,
+                h: 300
+            },
+            {
+                type: 'wall',
+                x: 470,
+                y: 480,
+                w: 20,
+                h: 240
+            },
+            {
+                type: 'wall',
+                x: 650,
+                y: 150,
+                w: 20,
+                h: 300
+            },
+            {
+                type: 'wall',
+                x: 760,
+                y: 515,
+                w: 20,
+                h: 170
+            },
+            {
+                type: 'basket',
+                x: 910,
+                y: 565
+            }
+        ],
+        inventory: {
+            spring: 1,
+            plank: 4
+        },
+        presets: {
+            spring: {
+                power: 3
+            }
+        },
+        solution: [
+            {
+                type: 'plank',
+                x: 105,
+                y: 420,
+                angle: 30
+            },
+            {
+                type: 'spring',
+                x: 390,
+                y: 570,
+                angle: -10
+            },
+            {
+                type: 'plank',
+                x: 590,
+                y: 355,
+                angle: 10
+            },
+            {
+                type: 'plank',
+                x: 760,
+                y: 420,
+                angle: 25
+            }
+        ],
+        science: {
+            topic: 'Springs and energy',
+            text: 'A spring stores the energy of a falling ball and gives it back as a throw. The steeper the throw, the higher the ball goes but the less far it travels. Engineers split a long route into short legs and design each leg for the energy the ball has left.',
+            tryThis: 'Test the spring alone first. How high does the ball rise, and where does it land? Then add the ramp and see how the speed changes the throw.',
+            learned: 'Energy turns from height into speed and back, and a good design spends it one leg at a time.'
+        }
+    },
+    {
+        id: 'cheese',
+        name: 'Cheese maze',
+        goal: 'Get the mouse to its cheese in the basket. The mouse slides along flat tracks, but two walls block the maze. Spring power is set for you.',
+        hasGoal: true,
+        goalTargets: [
+            'mouse'
+        ],
+        hints: [
+            "The mouse cannot jump, so something has to carry it. Let it slide down the start ramp, over a plank, and into the spring so it flies over the first gate.",
+            "Under the hanging wall the mouse needs a low path, then the spring throws it over the standing wall. Use the last two planks to steer it down into the funnel above the cheese."
+        ],
+        fixed: [
+            {
+                type: 'wall',
+                x: 140,
+                y: 150,
+                w: 200,
+                h: 16,
+                angle: 30
+            },
+            {
+                type: 'mouse',
+                x: 80,
+                y: 100
+            },
+            {
+                type: 'wall',
+                x: 450,
+                y: 170,
+                w: 20,
+                h: 340
+            },
+            {
+                type: 'wall',
+                x: 590,
+                y: 495,
+                w: 20,
+                h: 210
+            },
+            ...basketWithFunnel(850)
+        ],
+        inventory: {
+            plank: 3,
+            spring: 1
+        },
+        presets: {
+            spring: {
+                power: 3
+            }
+        },
+        solution: [
+            {
+                type: 'plank',
+                x: 315,
+                y: 370,
+                angle: 35
+            },
+            {
+                type: 'spring',
+                x: 435,
+                y: 570,
+                angle: 10
+            },
+            {
+                type: 'plank',
+                x: 655,
+                y: 360,
+                angle: 30
+            },
+            {
+                type: 'plank',
+                x: 775,
+                y: 270,
+                angle: 10
+            }
+        ],
+        science: {
+            topic: 'Mazes and momentum',
+            text: 'A maze is a puzzle about getting past obstacles. A mouse on a slope gains speed, and a spring can turn that speed into a jump. Engineers test the whole route, then fix the weakest part first.',
+            tryThis: 'Run the mouse with no parts and see where it stops. That is the first problem to solve.',
+            learned: 'Solve a maze one gate at a time, starting with the first one that stops you.'
+        }
+    },
+    {
+        id: 'energy',
+        name: 'Energy transfer',
+        goal: 'The heavy bowling ball must knock the small ball off its ledge, and the small ball must fly over the wall into the basket. Only the small ball counts.',
+        hasGoal: true,
+        goalTargets: [
+            'ball'
+        ],
+        hints: [
+            "The bowling ball needs enough speed to push the small ball off the ledge. Two ramps on the left give it a long, steady run.",
+            "Put a plank tilted upwards at the end of the ledge, like a ski jump, to throw the small ball up and over the tall wall. One last plank near the basket catches it and guides it in."
+        ],
+        fixed: [
+            {
+                type: 'heavyBall',
+                x: 70,
+                y: 70
+            },
+            {
+                type: 'wall',
+                x: 440,
+                y: 400,
+                w: 140,
+                h: 16
+            },
+            {
+                type: 'ball',
+                x: 480,
+                y: 378
+            },
+            {
+                type: 'wall',
+                x: 740,
+                y: 500,
+                w: 20,
+                h: 200
+            },
+            ...basketWithFunnel(890)
+        ],
+        inventory: {
+            plank: 4
+        },
+        solution: [
+            {
+                type: 'plank',
+                x: 110,
+                y: 170,
+                angle: 20
+            },
+            {
+                type: 'plank',
+                x: 300,
+                y: 255,
+                angle: 20
+            },
+            {
+                type: 'plank',
+                x: 625,
+                y: 385,
+                angle: -25
+            },
+            {
+                type: 'plank',
+                x: 810,
+                y: 270,
+                angle: 30
+            }
+        ],
+        science: {
+            topic: 'Energy transfer',
+            text: 'A heavy moving object carries a lot of energy. When it hits a lighter one, it hands some of that energy over, and the light object shoots away much faster. A ramp turns height into speed before the hit.',
+            tryThis: 'Watch the dotted paths. How fast is the bowling ball when it reaches the ledge, and how fast does the small ball leave?',
+            learned: 'Height becomes speed, and a heavy object can pass its energy to a light one.'
+        }
+    },
+    {
         id: 'sandbox',
         name: 'Sandbox',
         goal: 'Free build: every part, no limits. Invent your own machine!',
@@ -3644,7 +3894,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3i';
+const VERSION = '0.3j';
 
 return { VERSION };
 })();
@@ -5448,7 +5698,7 @@ class Simulation {
             }
         }
         for (const body of Composite.allBodies(world)){
-            if (body.label === 'ball' || body.label === 'heavyBall' || body.label === 'crate') {
+            if (body.label === 'ball' || body.label === 'heavyBall' || body.label === 'crate' || body.label === 'mouse') {
                 this.paths.set(body.id, {
                     x: body.position.x,
                     y: body.position.y,

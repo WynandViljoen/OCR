@@ -257,7 +257,7 @@ export class Simulation {
 
     // Balls start their path where the player placed them.
     for (const body of Composite.allBodies(world)) {
-      if (body.label === 'ball' || body.label === 'heavyBall' || body.label === 'crate') {
+      if (body.label === 'ball' || body.label === 'heavyBall' || body.label === 'crate' || body.label === 'mouse') {
         this.paths.set(body.id, { x: body.position.x, y: body.position.y, length: 0 });
       }
     }

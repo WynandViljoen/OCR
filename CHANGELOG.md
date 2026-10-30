@@ -1,5 +1,13 @@
 # Changelog
 
+## Modern TIM 0.3j
+
+- **Three new, very hard levels (19 to 21).** *Spring slalom* (weave under, over and under three gates with a strong spring), *Cheese maze* (carry the mouse past two walls to the cheese; only the mouse counts) and *Energy transfer* (use ramps so the heavy bowling ball knocks the small ball over a tall wall). Each was solved on the real physics engine, with no attributes, within its inventory and with no overlapping parts; none solves with an empty board.
+- Spring power is preset by the level (the attribute lock still applies).
+- **Server files changed:** copy `scores.php` and `admin.php` (the cron job does). The old `scores.php` would reject the new level ids. Stars and boards for the three levels appear once it is updated.
+- The mouse's path is now measured, so Cheese maze can post to the Shortest path board.
+- The level dropdown now lists 21 levels.
+
 ## Modern TIM 0.3i
 
 - **Touch screens: holding a finger on a part no longer deletes it.** A long press on a touch screen fires the browser's right-click event, which the game used to treat as "remove this part". Touch and pen presses are now ignored for that, so a part is removed on a touch screen only with the **✕** button (or Delete for a selected group). Mouse users are unchanged: right-click still removes a part (or drops the tool in your hand), and Delete/Backspace still work. A touch laptop switches automatically depending on whether you last used the mouse or a finger.
