@@ -176,6 +176,10 @@ try {
     const beaten = await only('beaten');
     assert.ok(beaten.includes('<b>Dee</b> 6 m') && !beaten.includes('<b>Fay</b> 4 m'), 'filter: beaten since');
     assert.ok(/<b>Hal<\/b> 4 m/.test(await (await fetch(`${base}/admin.php?view=scores&level=gears&now=tied`, { headers: { cookie: cookie() } })).text()), 'filter: tied');
+    const dee = await (await fetch(`${base}/admin.php?view=scores&level=springs&player=dee`, { headers: { cookie: cookie() } })).text();
+    assert.ok(dee.includes('<b>Dee</b> 6 m') && !dee.includes('<b>Fay</b> 4 m'), 'filter: player');
+    assert.ok(dee.includes('<option value="dee" selected>Dee</option>'), 'player list offers the name');
+    assert.ok(!(await only('top')).includes('value="nobody"'), 'unknown names are ignored');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');

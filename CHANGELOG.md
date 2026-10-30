@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4i
+
+- **The High scores page has a Player filter** next to Level, Board and Now. It lists every name that has a record or a place on a board, narrows the Records broken table to that player, and in Current community boards shows only that player's entries (and only the levels where they have one). Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4h
 
 - **Levels now remember the version they were last changed in, and a change scrubs that level's high scores.** Every level has a version in `modern-tim/src/game/level-revs.ts` (and `scores.php`). When it changes, `scores.php` clears the community boards for that level the next time anyone asks, and each player's game downloads the new versions on load and clears its own copy of that level's scores (and any runs still waiting to be sent), with a short message. A game that still has the old level cannot post scores to the new board. The dashboard's community boards table shows each level's version.

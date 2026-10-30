@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4h';
+const ADMIN_BUILD = '0.4i';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -525,6 +525,23 @@ function scores_view() {
     $now = in_array($now, ['top', 'tied', 'beaten'], true) ? $now : '';
     $boardsNow = read_boards();
     $rows = read_records(100000, $level, $cat);
+    $names = [];
+    foreach (read_records(100000, '', '') as $e) $names[mb_strtolower((string) $e['name'])] = (string) $e['name'];
+    foreach (LEVEL_NAMES as $id => $_) {
+        foreach (BOARDS as $c => $__) {
+            foreach (is_array($boardsNow[$id][$c] ?? null) ? $boardsNow[$id][$c] : [] as $row) {
+                if (is_array($row) && isset($row['name']) && is_string($row['name'])) $names[mb_strtolower($row['name'])] = $row['name'];
+            }
+        }
+    }
+    uksort($names, 'strnatcasecmp');
+    $player = mb_strtolower(trim((string) ($_GET['player'] ?? '')));
+    $player = isset($names[$player]) ? $player : '';
+    if ($player !== '') {
+        $rows = array_values(array_filter($rows, function ($e) use ($player) {
+            return mb_strtolower((string) $e['name']) === $player;
+        }));
+    }
     if ($now !== '') {
         $rows = array_values(array_filter($rows, function ($e) use ($boardsNow, $now) {
             $s = standing($boardsNow, (string) $e['level'], (string) $e['category'], (string) $e['name']);
@@ -547,6 +564,10 @@ function scores_view() {
     echo '</select><select name="cat"><option value="">All boards</option>';
     foreach (BOARDS as $id => $label) {
         echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    echo '</select><select name="player"><option value="">All players</option>';
+    foreach ($names as $key => $label) {
+        echo '<option value="' . h($key) . '"' . ($player === $key ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><select name="now">';
     foreach (['' => 'Any Now', 'top' => '#1', 'tied' => 'Tied #1', 'beaten' => 'Beaten'] as $v => $label) {
@@ -577,6 +598,15 @@ function scores_view() {
     echo '</tr>';
     foreach (LEVEL_NAMES as $id => $label) {
         if ($level !== '' && $level !== $id) continue;
+        if ($player !== '') {
+            $has = false;
+            foreach (BOARDS as $c => $_) {
+                foreach (is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [] as $row) {
+                    if (is_array($row) && isset($row['name']) && mb_strtolower((string) $row['name']) === $player) $has = true;
+                }
+            }
+            if (!$has) continue;
+        }
         $rev = (string) ($boards['_revs'][$id] ?? '');
         echo '<tr><td><b>' . h($label) . '</b>' . ($rev !== '' ? '<br><span class="mute">level v' . h($rev) . '</span>' : '') . '</td>';
         foreach (BOARDS as $c => $_) {
@@ -585,6 +615,7 @@ function scores_view() {
             if (!$list) echo '<span class="mute">-</span>';
             foreach (array_slice($list, 0, 5) as $i => $row) {
                 if (!is_array($row) || !isset($row['name'], $row['value'])) continue;
+                if ($player !== '' && mb_strtolower((string) $row['name']) !== $player) continue;
                 echo ($i === 0 ? '<b>' : '') . ($i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
                     . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($i === 0 ? '</b>' : '')
                     . (!empty($row['at']) ? ' <span class="mute">' . h(fmt_time((int) $row['at'])) . '</span>' : '') . '<br>';
