@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4q
+
+- **The dashboard uses the full width of the screen**, and table cells wrap instead of forcing a sideways scroll.
+- **High scores page order**: filters at the top, then the Current community boards, then the Scores the server refused (only when there are any), then Records broken. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4p
 
 - **A run that cannot succeed now stops by itself.** When every ball that could solve the level has left the play area, or everything that can move (balls, crates, dominoes, levers... but not gears, which a motor keeps turning) has been still for two seconds, after the first three seconds, the run freezes exactly as it ended and a small "Didn't work" card appears with the reason and two buttons: **Retry** (starts the run again at once) and **Edit** (back to building). The status pill turns red and a short falling sound plays. Nothing is scored. Levels with a lift, pulley or spinner still moving are not called failed while they move, and the sandbox (no goal) never fails.

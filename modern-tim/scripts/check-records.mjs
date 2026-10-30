@@ -107,6 +107,7 @@ try {
     assert.ok(html.includes('<b>Ana</b> 2 m'), 'new shortest record row');
     assert.ok(html.includes('Ben 3 m'), 'the record it beat');
     assert.ok(html.includes('Current community boards'));
+    assert.ok(html.indexOf('<form class="inline"') < html.indexOf('Current community boards') && html.indexOf('Current community boards') < html.indexOf('<h2>Records broken</h2>'), 'order: filters, community boards, records broken');
     // Several clicks in a row stay signed in, and every page tells caches to keep out.
     for (const v of ['players', 'levels', 'log', 'scores']) {
       const r = await fetch(`${base}/admin.php?view=${v}`, { headers: { cookie: cookie() } });

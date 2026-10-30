@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4p';
+const ADMIN_BUILD = '0.4q';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -368,14 +368,14 @@ function page_head(string $title, bool $refresh = false) {
 :root{--bg:#f6f7fb;--card:#fff;--ink:#1d2433;--mute:#667085;--line:#e3e6ee;--acc:#2f6fed;--ok:#1a9d5b;--bad:#d63f3f}
 @media(prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b2030;--ink:#e8ebf3;--mute:#9aa3b5;--line:#2c3348;--acc:#6b9bff;--ok:#43c88a;--bad:#ff7a7a}}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,sans-serif}
-main{max-width:1100px;margin:0 auto;padding:16px}h1{font-size:20px;margin:0}h2{font-size:16px;margin:22px 0 8px}
+main{max-width:none;margin:0 auto;padding:16px 20px}h1{font-size:20px;margin:0}h2{font-size:16px;margin:22px 0 8px}
 header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
 nav{display:flex;gap:6px;flex-wrap:wrap}nav a,button,.btn{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:6px 12px;border-radius:8px;text-decoration:none;font:inherit;cursor:pointer}
 header .stamp{text-align:right;font-size:13px;line-height:1.3}nav a.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
 .card b{display:block;font-size:24px}.card span{color:var(--mute);font-size:13px}
-.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%;min-width:640px}
-th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}th{color:var(--mute);font-weight:600;font-size:13px}tr:last-child td{border:0}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:600;font-size:13px}tr:last-child td{border:0}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line);margin-right:6px}.dot.on{background:var(--ok)}
 .mute{color:var(--mute)}.mono{font-family:ui-monospace,monospace;font-size:13px}a{color:var(--acc)}
 input[type=password],input[type=text],select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
@@ -568,7 +568,7 @@ function scores_view() {
         return (int) $e['t'] >= $weekAgo;
     }));
 
-    echo '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. <b>Now</b> says whether the player is still number one (or tied for it) on the community board. '
+    $intro = '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. <b>Now</b> says whether the player is still number one (or tied for it) on the community board. '
         . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
     echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="level"><option value="">All levels</option>';
     foreach (LEVEL_NAMES as $id => $label) {
@@ -587,6 +587,8 @@ function scores_view() {
         echo '<option value="' . h($v) . '"' . ($now === $v ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
+    ob_start();   // the three tables are built in this order but shown as: community boards, refused scores, records broken
+    echo $intro;
     echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
     foreach ($rows as $e) {
         $c = (string) $e['category'];
@@ -605,6 +607,8 @@ function scores_view() {
     if (!$rows) echo '<tr><td colspan="9" class="mute">No broken records yet.</td></tr>';
     echo '</table></div><p class="mute">Newest first, up to 300 rows. <b>Now</b> = whether the player is still number one (or tied for it) on the community board. Times are ' . h(DISPLAY_TZ) . '.</p>';
 
+    $recordsHtml = ob_get_clean();
+    ob_start();
     $rej = [];
     $rp = DATA_DIR . '/rejects.log';
     if (is_file($rp)) {
@@ -624,6 +628,8 @@ function scores_view() {
         echo '</table></div><p class="mute">The newest 20 runs scores.php turned away, with the reason. Empty (hidden) when none were refused.</p>';
     }
 
+    $refusedHtml = ob_get_clean();
+    ob_start();
     $boards = read_boards();
     $log = read_records(100000, '', '');
     echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';
@@ -667,6 +673,7 @@ function scores_view() {
         echo '</tr>';
     }
     echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). <b>View</b> on the record holder line is the screenshot of the run that set the record; it is replaced, and the old picture deleted, when someone beats it, and it stays empty (-) until a record is broken from the game. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
+    echo ob_get_clean() . $refusedHtml . $recordsHtml;
 }
 
 function dashboard() {
