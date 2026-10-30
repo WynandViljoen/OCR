@@ -29,3 +29,28 @@ export const LEVEL_REVS: Record<string, string> = {
   maze: '0.4g',
   energy: '0.4g',
 };
+
+/** Same idea for the November 2026 puzzle set (its levels have their own versions, so changing one wipes only that one). */
+export const NOV_REVS: Record<string, string> = {
+  ramps: 'nov-0.4x',
+  conveyor: 'nov-0.4x',
+  springs: 'nov-0.4x',
+  levers: 'nov-0.4x',
+  dominoes: 'nov-0.4x',
+  gears: 'nov-0.4x',
+  spin: 'nov-0.4x',
+  pulleys2: 'nov-0.4x',
+  machine: 'nov-0.4x',
+  overtop: 'nov-0.4x',
+  bridge: 'nov-0.4x',
+  chain: 'nov-0.4x',
+  reach: 'nov-0.4x',
+  tackle2: 'nov-0.4x',
+  tradeoff2: 'nov-0.4x',
+  double: 'nov-0.4x',
+  crane3: 'nov-0.4x',
+  skyhigh: 'nov-0.4x',
+  slalom: 'nov-0.4x',
+  maze: 'nov-0.4x',
+  energy: 'nov-0.4x',
+};

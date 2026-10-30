@@ -129,9 +129,11 @@ try {
   await check('in November the live set is the November one: its levels have their own version, so an old game cannot post to them', async () => {
     const r = await (await fetch(`${base()}/scores.php?revs=1`)).json();
     assert.equal(r.set, 'nov');
-    assert.ok(Object.values(r.revs).every((v) => v === 'nov1'));
+    assert.ok(Object.values(r.revs).every((v) => /^nov-/.test(v)), 'each level has its own November version');
     const res = await fetch(`${base()}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'Old', pathMeters: 5, seconds: 5, spare: 0, rev: '0.4g' }) });
     assert.equal(res.status, 409);
+    const ok = await fetch(`${base()}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'New', pathMeters: 20, seconds: 50, spare: 0, rev: r.revs.ramps }) });
+    assert.equal(ok.status, 200);
   });
   await clock(Date.UTC(2027, 0, 5, 12)); // nobody played in December
   await check('a quiet month in between still archives what was there', async () => {

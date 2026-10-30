@@ -46,7 +46,7 @@ const RECORD_DIR = __DIR__ . '/tim-data';
 // A month with no entry of its own keeps the latest set before it, with its boards and stars wiped as usual.
 // The game ships every set; this table (not the game) says which one is live. See modern-tim/src/game/seasons.ts.
 const SEASON_SETS = ['2026-11' => 'nov'];
-const SET_REVS = ['nov' => 'nov1'];   // version of a whole set; change it to wipe that set's boards (see level-revs.ts)
+const SET_REVS = ['nov' => ['ramps' => 'nov-0.4x', 'conveyor' => 'nov-0.4x', 'springs' => 'nov-0.4x', 'levers' => 'nov-0.4x', 'dominoes' => 'nov-0.4x', 'gears' => 'nov-0.4x', 'spin' => 'nov-0.4x', 'pulleys2' => 'nov-0.4x', 'machine' => 'nov-0.4x', 'overtop' => 'nov-0.4x', 'bridge' => 'nov-0.4x', 'chain' => 'nov-0.4x', 'reach' => 'nov-0.4x', 'tackle2' => 'nov-0.4x', 'tradeoff2' => 'nov-0.4x', 'double' => 'nov-0.4x', 'crane3' => 'nov-0.4x', 'skyhigh' => 'nov-0.4x', 'slalom' => 'nov-0.4x', 'maze' => 'nov-0.4x', 'energy' => 'nov-0.4x']];   // each level's version in that set; `npm run level-revs -- bump-nov <id>` changes one (wipes only that level)
 const SEASON_TZ = 'America/Vancouver';   // a season is one calendar month here, from midnight to midnight
 const RECORD_LOG_MAX_BYTES = 1500000;
 const MAX_BODY_BYTES = 400000;   // a score is tiny; the rest is room for one record-breaking screenshot
@@ -290,7 +290,7 @@ function revsNow(): array {
     $set = setFor(seasonInfo(nowTs())['id']);
     if ($set === 'base' || !isset(SET_REVS[$set])) return LEVEL_REVS;
     $out = [];
-    foreach (LEVEL_REVS as $id => $rev) $out[$id] = SET_REVS[$set];
+    foreach (LEVEL_REVS as $id => $rev) $out[$id] = SET_REVS[$set][$id] ?? $set;
     return $out;
 }
 

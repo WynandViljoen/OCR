@@ -14,7 +14,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LEVELS } from '../src/game/levels';
-import { LEVEL_REVS } from '../src/game/level-revs';
+import { LEVEL_REVS, NOV_REVS } from '../src/game/level-revs';
+import { LEVEL_SETS } from '../src/game/seasons';
 import { VERSION } from '../src/game/version';
 
 const here = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,8 +44,38 @@ const hashes: Record<string, string> = (() => {
   }
 })();
 
+const NOV_HASHES = join(here, 'level-hashes-nov.json');
+function novFingerprint(id: string): string {
+  const l = LEVEL_SETS.nov.find((x) => x.id === id);
+  if (!l) throw new Error(`level ${id} is not in the November set`);
+  const { goal, hasGoal, goalTargets, fixed, inventory, presets } = l;
+  return createHash('sha1').update(JSON.stringify({ goal, hasGoal, goalTargets, fixed, inventory, presets })).digest('hex').slice(0, 12);
+}
+const novHashes: Record<string, string> = (() => {
+  try {
+    return JSON.parse(readFileSync(NOV_HASHES, 'utf8'));
+  } catch {
+    return {};
+  }
+})();
+const phpNov: Record<string, string> = {};
+for (const m of (/const SET_REVS = \['nov' => \[(.*?)\]\];/s.exec(php)?.[1] ?? '').matchAll(/'([a-z0-9]+)' => '([^']+)'/g)) phpNov[m[1]] = m[2];
+
 const [cmd, ...args] = process.argv.slice(2);
-if (cmd === 'bump') {
+if (cmd === 'bump-nov') {
+  const ids = args[0] === 'all' ? phpIds : args;
+  if (!ids.length) throw new Error('say which levels: bump-nov <id> ... or bump-nov all');
+  for (const id of ids) {
+    if (!phpIds.includes(id)) throw new Error(`unknown level ${id}`);
+    NOV_REVS[id] = `nov-${VERSION}`;
+    novHashes[id] = novFingerprint(id);
+  }
+  const ts = readFileSync(TS, 'utf8');
+  writeFileSync(TS, ts.replace(/export const NOV_REVS[^]*?\n};\n/, `export const NOV_REVS: Record<string, string> = {\n${phpIds.map((id) => `  ${id}: '${NOV_REVS[id]}',`).join('\n')}\n};\n`));
+  writeFileSync(PHP, php.replace(/const SET_REVS = \['nov' => \[.*?\]\];/s, `const SET_REVS = ['nov' => [${phpIds.map((id) => `'${id}' => '${NOV_REVS[id]}'`).join(', ')}]];`));
+  writeFileSync(NOV_HASHES, JSON.stringify(Object.fromEntries(phpIds.map((id) => [id, novHashes[id] ?? novFingerprint(id)])), null, 2) + '\n');
+  console.log(`November set: bumped ${ids.join(', ')} to nov-${VERSION}`);
+} else if (cmd === 'bump') {
   const ids = args[0] === 'all' ? phpIds : args;
   if (!ids.length) throw new Error('say which levels: bump <id> ... or bump all');
   for (const id of ids) {
@@ -71,6 +102,11 @@ if (cmd === 'bump') {
     }
   }
   for (const id of Object.keys(LEVEL_REVS)) if (!phpIds.includes(id)) { console.log(`XX ${id} is not in scores.php`); bad++; }
-  if (!bad) console.log(`OK ${phpIds.length} levels: versions agree and nothing changed without a bump`);
+  for (const id of phpIds) {
+    if (NOV_REVS[id] !== phpNov[id]) { console.log(`XX November ${id}: level-revs.ts says ${NOV_REVS[id]}, scores.php says ${phpNov[id]}`); bad++; }
+    else if (!novHashes[id]) { console.log(`XX November ${id}: no fingerprint yet (run: npm run level-revs -- bump-nov ${id})`); bad++; }
+    else if (novHashes[id] !== novFingerprint(id)) { console.log(`XX November ${id}: changed since ${NOV_REVS[id]} without a bump (run: npm run level-revs -- bump-nov ${id})`); bad++; }
+  }
+  if (!bad) console.log(`OK ${phpIds.length} levels: versions agree and nothing changed without a bump (original and November sets)`);
   process.exitCode = bad ? 1 : 0;
 }
