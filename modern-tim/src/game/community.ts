@@ -86,6 +86,23 @@ export function scrubPending(levelIds: string[], store: StoreLike | null = brows
   savePending(loadPending(store).filter((r) => !levelIds.includes(r.levelId)), store);
 }
 
+export interface StarRow {
+  name: string;
+  stars: number;
+}
+/** The five players holding the most stars (boards where they are number one or tied), and the most anyone could hold. */
+export async function fetchStars(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<{ rows: StarRow[]; max: number } | null> {
+  const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
+  const data = raw === REJECTED ? null : (raw as { stars?: unknown; max?: unknown } | null);
+  if (!data || !Array.isArray(data.stars)) return null;
+  const rows: StarRow[] = [];
+  for (const r of data.stars as Partial<StarRow>[]) {
+    const name = sanitizeName(typeof r?.name === 'string' ? r.name : '');
+    if (name && typeof r?.stars === 'number' && r.stars > 0) rows.push({ name, stars: Math.floor(r.stars) });
+  }
+  return { rows: rows.slice(0, 5), max: typeof data.max === 'number' ? data.max : 0 };
+}
+
 export async function fetchCommunity(levelId: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Board | null> {
   const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
   const data = raw === REJECTED ? null : (raw as { board?: unknown } | null);

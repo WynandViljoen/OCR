@@ -264,6 +264,25 @@ try {
     const page = await (await fetch(`${base}/admin.php?view=scores&level=energy`, { headers: { cookie: cookie() } })).text();
     assert.ok(page.includes('Rae 3.123 m') && page.includes('Rae 4.57 s'), 'the dashboard shows them as stored');
   });
+  await check('the star table lists the top five holders of number-one spots, ties included', async () => {
+    const r = await (await fetch(`${base}/scores.php?stars=1`)).json();
+    assert.equal(r.max, 63);
+    assert.ok(r.stars.length > 0 && r.stars.length <= 5);
+    const counts = r.stars.map((x) => x.stars);
+    assert.deepEqual(counts, [...counts].sort((a, b) => b - a), 'most stars first');
+    // Count by hand from the boards the server keeps.
+    const data = JSON.parse(readFileSync(join(dir, 'scores-data.json'), 'utf8'));
+    const want = {};
+    for (const [level, boards] of Object.entries(data)) {
+      if (level === '_revs') continue;
+      for (const rows of Object.values(boards)) {
+        if (!rows.length) continue;
+        for (const row of rows) if (Math.abs(row.value - rows[0].value) < 0.0001) want[row.name.toLowerCase()] = (want[row.name.toLowerCase()] ?? 0) + 1;
+      }
+    }
+    for (const x of r.stars) assert.equal(x.stars, want[x.name.toLowerCase()], x.name);
+    assert.equal(Math.max(...Object.values(want)), counts[0]);
+  });
   console.log(`\n${passed} checks passed`);
 } catch (err) {
   console.error(err);

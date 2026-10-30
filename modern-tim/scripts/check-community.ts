@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { LEVEL_REVS } from '../src/game/level-revs';
 import { scrubChangedLevels, loadScores, saveScores, REVS_KEY } from '../src/game/profile';
-import { syncLocalBests, fetchRevs, scrubPending, fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
+import { fetchStars, syncLocalBests, fetchRevs, scrubPending, fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
 
 let passed = 0;
 async function check(name: string, fn: () => Promise<void>) {
@@ -149,6 +149,15 @@ await check('on start, local bests that belong on a community board are sent; ot
   assert.equal(posts.every((p) => p.name === 'ana' && !('version' in p) && !('shot' in p)), true);
   assert.equal(await syncLocalBests(scores, '', f), 0);
   assert.equal(await syncLocalBests(scores, 'Ana', async () => { throw new Error('offline'); }), 0);
+});
+
+await check('the star table is cleaned: bad rows dropped, five at most', async () => {
+  const r = await fetchStars(okJson({ max: 63, stars: [{ name: 'Ana', stars: 5 }, { name: '', stars: 4 }, { name: 'Bad', stars: 'x' }, { name: 'Zero', stars: 0 }, ...['B', 'C', 'D', 'E', 'F'].map((n) => ({ name: n, stars: 1 }))] }));
+  assert.ok(r);
+  assert.equal(r.max, 63);
+  assert.deepEqual(r.rows.map((x) => x.name), ['Ana', 'B', 'C', 'D', 'E']);
+  assert.equal(await fetchStars(async () => { throw new Error('offline'); }), null);
+  assert.equal(await fetchStars(okJson({ nope: 1 })), null);
 });
 
 console.log(`\n${passed} checks passed`);

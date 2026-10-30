@@ -26,6 +26,8 @@ export interface UIHandlers {
   onSelectLevel(index: number): void;
   onNext(): void;
   onBackToEdit(): void;
+  /** The ★ Stars tab was opened: fetch the top star earners. */
+  onStarsTab(): void;
   onTogglePaths(show: boolean): void;
   onZoomIn(): void;
   onZoomOut(): void;
@@ -464,7 +466,8 @@ export class UI {
   }
 
   private scoresView: ScoresView | null = null;
-  private scoresTab: 'community' | 'mine' = 'community';
+  private scoresTab: 'community' | 'mine' | 'stars' = 'community';
+  private starsView: { rows: { name: string; stars: number }[]; max: number } | 'loading' | 'offline' = 'loading';
 
   /** Fill the High scores card for the current level. `view.mine` is null for levels without a goal. */
   setScores(view: ScoresView) {
@@ -473,12 +476,22 @@ export class UI {
   }
 
   private setupScoresTabs() {
-    for (const tab of ['community', 'mine'] as const) {
+    for (const tab of ['community', 'mine', 'stars'] as const) {
       $(`tab-${tab}`).addEventListener('click', () => {
         this.scoresTab = tab;
+        if (tab === 'stars') {
+          this.starsView = 'loading';
+          this.handlers.onStarsTab();
+        }
         this.renderScores();
       });
     }
+  }
+
+  /** The answer for the ★ Stars tab (null = the server could not be reached). */
+  setStars(view: { rows: { name: string; stars: number }[]; max: number } | null) {
+    this.starsView = view ?? 'offline';
+    if (this.scoresTab === 'stars') this.renderScores();
   }
 
   private renderScores() {
@@ -486,7 +499,7 @@ export class UI {
     if (!view) return;
     const { level, mine, community, status, player } = view;
     $('scores-level').textContent = level.hasGoal ? level.name : 'Sandbox';
-    for (const tab of ['community', 'mine'] as const) {
+    for (const tab of ['community', 'mine', 'stars'] as const) {
       const btn = $(`tab-${tab}`);
       const on = this.scoresTab === tab;
       btn.setAttribute('aria-selected', String(on));
@@ -503,6 +516,31 @@ export class UI {
     };
     if (!mine) {
       note('The sandbox has no goal, so there are no scores here. Build anything you like.');
+      return;
+    }
+
+    if (this.scoresTab === 'stars') {
+      $('scores-level').textContent = 'Star leaders';
+      const v = this.starsView;
+      if (v === 'loading') return note('Counting stars...');
+      if (v === 'offline') return note('The star table is not reachable right now.');
+      if (!v.rows.length) return note('No stars yet. Be number one on a board to earn the first one!');
+      const ol = document.createElement('ol');
+      ol.className = 'star-list';
+      v.rows.forEach((r, i) => {
+        const li = document.createElement('li');
+        if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+        const who = document.createElement('span');
+        who.className = 'who';
+        who.textContent = `${i + 1}. ${r.name}`;
+        const val = document.createElement('span');
+        val.className = 'val';
+        val.textContent = `★ ${r.stars}`;
+        li.append(who, val);
+        ol.appendChild(li);
+      });
+      body.appendChild(ol);
+      note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}.`);
       return;
     }
 

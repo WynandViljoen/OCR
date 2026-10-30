@@ -548,9 +548,9 @@ kbd {
   .btn, .toast { transition: none; }
 }
 
-.tabs { display: flex; gap: 6px; margin: 2px 0 4px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
 .tabs[hidden] { display: none; }
-.tab { font: inherit; font-size: 0.8rem; font-weight: 800; padding: 3px 12px; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
+.tab { font: inherit; font-size: 0.8rem; font-weight: 800; padding: 3px 10px; white-space: nowrap; border-radius: 999px; border: 2px solid var(--ink); background: #fff; color: var(--ink); cursor: pointer; }
 .tab.on { background: var(--ink); color: #fff; }
 .mine-row { display: flex; justify-content: space-between; gap: 8px; font-size: 0.86rem; font-weight: 700; padding: 3px 8px; border-radius: 8px; background: #eef2ff; margin-bottom: 3px; }
 .mine-row .val { font-family: var(--font-display); font-variant-numeric: tabular-nums; }
@@ -707,6 +707,34 @@ kbd {
 .menu-stars .star-off { color: #8a8f98; }
 @media (max-width: 700px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } }
 
+/* First-level guide */
+.coach {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 92%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff4c2;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 0 3px 0 var(--ink);
+  padding: 8px 12px;
+  font-weight: 700;
+  z-index: 4;
+}
+.coach[hidden] { display: none; }
+.coach-skip { border: 2px solid var(--ink); background: #fff; border-radius: 10px; padding: 2px 10px; font: inherit; font-weight: 700; cursor: pointer; }
+
+/* Star leaders */
+.star-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.star-list li { display: flex; gap: 8px; padding: 4px 8px; border-radius: 8px; }
+.star-list li.me { background: var(--blue-soft); }
+.star-list .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.star-list .val { color: #e0a800; font-variant-numeric: tabular-nums; font-weight: 800; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -793,6 +821,7 @@ kbd {
               </div>
               </div>
               <div id="toast" class="toast" role="status" aria-live="polite"></div>
+              <div id="coach" class="coach" role="status" hidden><span id="coach-text"></span><button id="coach-skip" class="coach-skip" type="button">Skip</button></div>
               <div id="failed" class="solved failed" hidden>
                 <div class="solved-card">
                   <h2>Didn't work</h2>
@@ -833,6 +862,7 @@ kbd {
             <div id="scores-tabs" class="tabs" role="tablist">
               <button id="tab-community" class="tab on" type="button" role="tab" aria-selected="true">Community</button>
               <button id="tab-mine" class="tab" type="button" role="tab" aria-selected="false">My best</button>
+              <button id="tab-stars" class="tab" type="button" role="tab" aria-selected="false">★ Stars</button>
             </div>
             <div id="scores-body"></div>
           </div>
@@ -3943,7 +3973,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4u';
+const VERSION = '0.4v';
 
 return { VERSION };
 })();
@@ -4468,7 +4498,7 @@ return { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CAT
 })();
 
 // ---- game/community.ts ----
-const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
+const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchStars, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
 
 
 const ENDPOINT = 'scores.php';
@@ -4514,6 +4544,23 @@ async function fetchRevs(fetchFn = (u, i)=>fetch(u, i)) {
 function scrubPending(levelIds, store = browserStore()) {
     if (!levelIds.length) return;
     savePending(loadPending(store).filter((r)=>!levelIds.includes(r.levelId)), store);
+}
+async function fetchStars(fetchFn = (u, i)=>fetch(u, i)) {
+    const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
+    const data = raw === REJECTED ? null : raw;
+    if (!data || !Array.isArray(data.stars)) return null;
+    const rows = [];
+    for (const r of data.stars){
+        const name = sanitizeName(typeof r?.name === 'string' ? r.name : '');
+        if (name && typeof r?.stars === 'number' && r.stars > 0) rows.push({
+            name,
+            stars: Math.floor(r.stars)
+        });
+    }
+    return {
+        rows: rows.slice(0, 5),
+        max: typeof data.max === 'number' ? data.max : 0
+    };
 }
 async function fetchCommunity(levelId, fetchFn = (u, i)=>fetch(u, i)) {
     const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
@@ -4638,7 +4685,7 @@ function mayBreakRecord(board, run) {
     return shortest !== undefined && run.pathMeters < shortest || fastest !== undefined && run.seconds < fastest || spare !== undefined && run.spare > spare;
 }
 
-return { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord };
+return { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchStars, fetchCommunity, trySubmit, submitRun, syncLocalBests, loadPending, savePending, flushPending, mayBreakRecord };
 })();
 
 // ---- game/builds.ts ----
@@ -6536,6 +6583,7 @@ class UI {
     }
     scoresView = null;
     scoresTab = 'community';
+    starsView = 'loading';
     setScores(view) {
         this.scoresView = view;
         this.renderScores();
@@ -6543,13 +6591,22 @@ class UI {
     setupScoresTabs() {
         for (const tab of [
             'community',
-            'mine'
+            'mine',
+            'stars'
         ]){
             $(`tab-${tab}`).addEventListener('click', ()=>{
                 this.scoresTab = tab;
+                if (tab === 'stars') {
+                    this.starsView = 'loading';
+                    this.handlers.onStarsTab();
+                }
                 this.renderScores();
             });
         }
+    }
+    setStars(view) {
+        this.starsView = view ?? 'offline';
+        if (this.scoresTab === 'stars') this.renderScores();
     }
     renderScores() {
         const view = this.scoresView;
@@ -6558,7 +6615,8 @@ class UI {
         $('scores-level').textContent = level.hasGoal ? level.name : 'Sandbox';
         for (const tab of [
             'community',
-            'mine'
+            'mine',
+            'stars'
         ]){
             const btn = $(`tab-${tab}`);
             const on = this.scoresTab === tab;
@@ -6576,6 +6634,30 @@ class UI {
         };
         if (!mine) {
             note('The sandbox has no goal, so there are no scores here. Build anything you like.');
+            return;
+        }
+        if (this.scoresTab === 'stars') {
+            $('scores-level').textContent = 'Star leaders';
+            const v = this.starsView;
+            if (v === 'loading') return note('Counting stars...');
+            if (v === 'offline') return note('The star table is not reachable right now.');
+            if (!v.rows.length) return note('No stars yet. Be number one on a board to earn the first one!');
+            const ol = document.createElement('ol');
+            ol.className = 'star-list';
+            v.rows.forEach((r, i)=>{
+                const li = document.createElement('li');
+                if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+                const who = document.createElement('span');
+                who.className = 'who';
+                who.textContent = `${i + 1}. ${r.name}`;
+                const val = document.createElement('span');
+                val.className = 'val';
+                val.textContent = `★ ${r.stars}`;
+                li.append(who, val);
+                ol.appendChild(li);
+            });
+            body.appendChild(ol);
+            note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}.`);
             return;
         }
         if (this.scoresTab === 'mine') {
@@ -6780,6 +6862,7 @@ const ui = new UI({
     onSelectLevel: (i)=>loadLevel(i, true),
     onNext: ()=>loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
     onBackToEdit: ()=>stop(),
+    onStarsTab: ()=>void fetchStars().then((s)=>ui.setStars(s)),
     onTogglePaths: (show)=>showPaths = show,
     onZoomIn: ()=>zoomStep(1.25),
     onZoomOut: ()=>zoomStep(1 / 1.25),
@@ -7246,7 +7329,34 @@ function changed() {
     persistSandbox();
     refreshUI();
 }
+const COACH_KEY = 'modern-tim:coach';
+let coachDone = (()=>{
+    try {
+        return window.localStorage.getItem(COACH_KEY) === '1';
+    } catch  {
+        return false;
+    }
+})();
+function endCoach() {
+    coachDone = true;
+    try {
+        window.localStorage.setItem(COACH_KEY, '1');
+    } catch  {}
+    updateCoach();
+}
+function updateCoach() {
+    const el = document.getElementById('coach');
+    if (!el) return;
+    const first = !coachDone && level.id === LEVELS[0].id && solvedLevels.size === 0 && !playing;
+    el.hidden = !first;
+    if (!first) return;
+    const placed = parts.some((p)=>!p.locked);
+    const text = placed ? 'Nice! Now press Start \u25B6 (or Space) and watch the ball.' : 'Welcome! Drag the Ramp from the Parts panel onto the board so the ball rolls into the basket.';
+    document.getElementById('coach-text').textContent = text;
+}
+document.getElementById('coach-skip')?.addEventListener('click', endCoach);
 function refreshUI() {
+    updateCoach();
     if (tool !== 'string') stringFrom = null;
     if (tool !== 'rope') ropePicks = [];
     ui.showProps(propsModel());
@@ -7357,6 +7467,7 @@ function start() {
     playing = true;
     hideHintGhost();
     playSound('start');
+    if (!coachDone && level.id === LEVELS[0].id) endCoach();
     track('play', player, level.id);
     tool = null;
     clearSelection();

@@ -278,6 +278,35 @@ function publicBoard(array $board): array {
     return $board;
 }
 
+/**
+ * Stars per player: one for every board (level x Shortest/Fastest/Spare) on which the name is number one or tied
+ * for it. Returns the top five, most stars first (ties by name), as [['name' => ..., 'stars' => n], ...].
+ */
+function topStars(array $all, int $limit = 5): array {
+    $count = [];
+    $shown = [];
+    foreach (LEVELS as $level) {
+        $board = boardFor($all, $level);
+        foreach (CATEGORIES as $category) {
+            $list = $board[$category];
+            if (!$list) continue;
+            $top = (float)$list[0]['value'];
+            foreach ($list as $row) {
+                if (abs((float)$row['value'] - $top) >= 0.0001) continue;
+                $key = mb_strtolower($row['name']);
+                $count[$key] = ($count[$key] ?? 0) + 1;
+                if (!isset($shown[$key])) $shown[$key] = $row['name'];
+            }
+        }
+    }
+    $rows = [];
+    foreach ($count as $key => $n) $rows[] = ['name' => $shown[$key], 'stars' => $n];
+    usort($rows, function ($a, $b) {
+        return $b['stars'] <=> $a['stars'] ?: strcasecmp($a['name'], $b['name']);
+    });
+    return array_slice($rows, 0, $limit);
+}
+
 function saveAll($handle, array $all) {
     rewind($handle);
     ftruncate($handle, 0);
@@ -308,7 +337,8 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 if ($method === 'GET') {
     $level = (string)($_GET['level'] ?? '');
     $wantRevs = isset($_GET['revs']);
-    if (!$wantRevs && !in_array($level, LEVELS, true)) fail(400, 'Unknown level.');
+    $wantStars = isset($_GET['stars']);
+    if (!$wantRevs && !$wantStars && !in_array($level, LEVELS, true)) fail(400, 'Unknown level.');
     $handle = @fopen(DATA_FILE, 'c+');
     if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be read here.');
     $all = readAll($handle);
@@ -317,6 +347,10 @@ if ($method === 'GET') {
     fclose($handle);
     if ($wantRevs) {
         echo json_encode(['revs' => LEVEL_REVS]);
+        exit;
+    }
+    if ($wantStars) {
+        echo json_encode(['stars' => topStars($all), 'max' => count(LEVELS) * count(CATEGORIES)]);
         exit;
     }
     echo json_encode(['board' => publicBoard(boardFor($all, $level)), 'rev' => LEVEL_REVS[$level]]);

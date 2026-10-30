@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.4v
+
+- **New "★ Stars" tab in the High scores card**: the top five players by number of stars (boards where they are number one or tied for it), with their star count, your own row highlighted, and a note on the most anyone can hold (63). It comes from the server (`scores.php?stars=1`), so it always matches the boards and the dashboard's Stars column.
+- **A short guide on the very first level** for a brand-new player: "Drag the Ramp from the Parts panel onto the board", then "Press Start". It ends when they press Start or Skip, and never shows again. Players who have already solved a level never see it.
+- The score tabs wrap instead of squeezing on narrow screens.
+
 ## Modern TIM 0.4u
 
 - **The Now filter is a set of tick boxes** (#1, Tied #1, Beaten) in a dropdown, so several can be selected at once, for example #1 + Tied #1 for everything a player holds a star on. The dropdown names what is ticked, and no ticks means everything. It filters both the Current community boards and Records broken. Server file only: copy `admin.php` (the cron job does).

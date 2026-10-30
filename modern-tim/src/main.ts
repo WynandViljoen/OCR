@@ -22,7 +22,7 @@ import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, fetchRevs, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
+import { fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -147,6 +147,7 @@ const ui = new UI({
   onSelectLevel: (i) => loadLevel(i, true),
   onNext: () => loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
   onBackToEdit: () => stop(),
+  onStarsTab: () => void fetchStars().then((s) => ui.setStars(s)),
   onTogglePaths: (show) => (showPaths = show),
   onZoomIn: () => zoomStep(1.25),
   onZoomOut: () => zoomStep(1 / 1.25),
@@ -623,7 +624,40 @@ function changed() {
   refreshUI();
 }
 
+// A short guide on the very first level for a brand-new player: drag a ramp, then press Start. Skippable, shown once.
+const COACH_KEY = 'modern-tim:coach';
+let coachDone = (() => {
+  try {
+    return window.localStorage.getItem(COACH_KEY) === '1';
+  } catch {
+    return false;
+  }
+})();
+function endCoach() {
+  coachDone = true;
+  try {
+    window.localStorage.setItem(COACH_KEY, '1');
+  } catch {
+    /* it just shows again next visit */
+  }
+  updateCoach();
+}
+function updateCoach() {
+  const el = document.getElementById('coach') as HTMLElement | null;
+  if (!el) return;
+  const first = !coachDone && level.id === LEVELS[0].id && solvedLevels.size === 0 && !playing;
+  el.hidden = !first;
+  if (!first) return;
+  const placed = parts.some((p) => !p.locked);
+  const text = placed
+    ? 'Nice! Now press Start \u25B6 (or Space) and watch the ball.'
+    : 'Welcome! Drag the Ramp from the Parts panel onto the board so the ball rolls into the basket.';
+  (document.getElementById('coach-text') as HTMLElement).textContent = text;
+}
+document.getElementById('coach-skip')?.addEventListener('click', endCoach);
+
 function refreshUI() {
+  updateCoach();
   if (tool !== 'string') stringFrom = null;
   if (tool !== 'rope') ropePicks = [];
   ui.showProps(propsModel());
@@ -747,6 +781,7 @@ function start() {
   playing = true;
   hideHintGhost();
   playSound('start');
+  if (!coachDone && level.id === LEVELS[0].id) endCoach();
   track('play', player, level.id);
   tool = null;
   clearSelection();
