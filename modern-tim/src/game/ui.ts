@@ -26,6 +26,8 @@ export interface UIHandlers {
   onSelectLevel(index: number): void;
   onNext(): void;
   onBackToEdit(): void;
+  /** The run failed and the player pressed Retry. */
+  onRetry(): void;
   onTogglePaths(show: boolean): void;
   onZoomIn(): void;
   onZoomOut(): void;
@@ -82,6 +84,7 @@ export class UI {
   private undoBtn = $('btn-undo') as HTMLButtonElement;
   private statusEl = $('status');
   private solvedEl = $('solved');
+  private failedEl = $('failed');
   private nextBtn = $('btn-next') as HTMLButtonElement;
   private toolbar = $('part-toolbar');
   private toastEl = $('toast');
@@ -101,6 +104,8 @@ export class UI {
     this.undoBtn.addEventListener('click', () => handlers.onUndo());
     $('btn-next').addEventListener('click', () => handlers.onNext());
     $('btn-replay').addEventListener('click', () => handlers.onBackToEdit());
+    $('btn-edit').addEventListener('click', () => handlers.onBackToEdit());
+    $('btn-retry').addEventListener('click', () => handlers.onRetry());
     $('tb-rot-l').addEventListener('click', () => handlers.onRotate(-1));
     $('tb-rot-r').addEventListener('click', () => handlers.onRotate(1));
     $('tb-flip').addEventListener('click', () => handlers.onFlip());
@@ -301,9 +306,15 @@ export class UI {
     this.runBtn.classList.toggle('running', running);
     document.body.classList.toggle('is-running', running);
     this.paletteEl.classList.toggle('disabled', running);
+    this.failedEl.hidden = true;
   }
 
-  setStatus(text: string, kind: 'edit' | 'running' | 'solved' = 'edit') {
+  showFailed(text: string) {
+    $('failed-why').textContent = text;
+    this.failedEl.hidden = false;
+  }
+
+  setStatus(text: string, kind: 'edit' | 'running' | 'solved' | 'failed' = 'edit') {
     this.statusEl.textContent = text;
     this.statusEl.dataset.kind = kind;
   }

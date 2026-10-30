@@ -3,7 +3,7 @@
  * created after the first tap or key press, as browsers require. Muting is
  * remembered in this browser.
  */
-export type Sfx = 'bounce' | 'thud' | 'place' | 'start' | 'success' | 'click';
+export type Sfx = 'bounce' | 'thud' | 'place' | 'start' | 'success' | 'click' | 'fail';
 
 const MUTE_KEY = 'modern-tim:muted';
 let ctx: AudioContext | null = null;
@@ -84,6 +84,10 @@ export function playSound(kind: Sfx, strength = 0.5) {
     case 'start':
       tone(c, 330, t, 0.1, 0.07, 'triangle');
       tone(c, 440, t + 0.09, 0.14, 0.07, 'triangle');
+      break;
+    case 'fail':
+      tone(c, 330, t, 0.14, 0.07, 'triangle', 300);
+      tone(c, 247, t + 0.13, 0.22, 0.07, 'triangle', 200);
       break;
     case 'success':
       [523, 659, 784, 1047].forEach((f, i) => tone(c, f, t + i * 0.11, 0.25, 0.09, 'triangle'));

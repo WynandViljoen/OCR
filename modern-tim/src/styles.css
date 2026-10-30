@@ -221,6 +221,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
 }
 .status[data-kind='running'] { background: #ffe8d6; color: #9a4100; }
 .status[data-kind='solved'] { background: var(--go); color: #fff; }
+.status[data-kind='failed'] { background: #ffd9d4; color: #9b1c0f; }
 
 .stage-area {
   flex: 1;
@@ -360,6 +361,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
   animation: pop 0.35s cubic-bezier(0.2, 1.6, 0.4, 1);
 }
 .solved-card h2 { font-size: 2.2rem; color: var(--go); }
+/* A failed run stays frozen on screen so the player can see why: a small card at the top, not a curtain. */
+.failed { background: none; align-items: flex-start; pointer-events: none; }
+.failed .solved-card { pointer-events: auto; padding: 12px 20px; margin-top: 6px; }
+.failed .solved-card h2 { font-size: 1.5rem; color: #c0392b; }
+.failed .solved-learned { margin: 4px 0 10px; }
 .solved-learned { margin: 6px 0 16px; font-weight: 700; }
 .solved-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 

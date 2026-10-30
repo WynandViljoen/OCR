@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4p
+
+- **A run that cannot succeed now stops by itself.** When every ball that could solve the level has left the play area, or everything that can move (balls, crates, dominoes, levers... but not gears, which a motor keeps turning) has been still for two seconds, after the first three seconds, the run freezes exactly as it ended and a small "Didn't work" card appears with the reason and two buttons: **Retry** (starts the run again at once) and **Edit** (back to building). The status pill turns red and a short falling sound plays. Nothing is scored. Levels with a lift, pulley or spinner still moving are not called failed while they move, and the sandbox (no goal) never fails.
+- Tested: all 21 recorded solutions still solve and none is ever called a failure; every empty board now ends by itself as a failure. New `npm run check-failure`.
+
 ## Modern TIM 0.4o
 
 - **Every number-one spot on the dashboard's community boards now has a View link** to the screenshot of the run that set the record (a dash while there is none). At most one picture per spot, so 63 at most with 21 levels.

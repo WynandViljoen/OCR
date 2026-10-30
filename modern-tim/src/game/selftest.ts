@@ -20,6 +20,8 @@ export interface LevelTestResult {
   solutionSolves: boolean;
   seconds: number;
   solvesAlone: boolean;
+  /** Did the run end by itself as a failure when the player adds nothing? (Informative: a ball that rolls forever never fails.) */
+  emptyFails: boolean;
   /** Names what is wrong with the solution's use of attributes or inventory, or '' if fine. */
   problem: string;
   ok: boolean;
@@ -34,11 +36,11 @@ function run(level: Level, withSolution: boolean) {
   sim.goalTargets = level.goalTargets ?? ['ball'];
   sim.load(parts, true);
   let steps = 0;
-  while (!sim.solved && steps < MAX_STEPS) {
+  while (!sim.solved && !sim.failed && steps < MAX_STEPS) {
     sim.step();
     steps++;
   }
-  return { solved: sim.solved, seconds: steps / 60 };
+  return { solved: sim.solved, failed: sim.failed, seconds: steps / 60 };
 }
 
 /** The solution may only use tools from the inventory and must not set any attributes. */
@@ -61,7 +63,7 @@ function solutionProblem(level: Level): string {
 
 export function testLevel(level: Level): LevelTestResult {
   if (!level.hasGoal || !level.solution) {
-    return { id: level.id, name: level.name, skipped: true, solutionSolves: false, seconds: 0, solvesAlone: false, problem: '', ok: true };
+    return { id: level.id, name: level.name, skipped: true, solutionSolves: false, seconds: 0, solvesAlone: false, emptyFails: false, problem: '', ok: true };
   }
   const problem = solutionProblem(level);
   const good = run(level, true);
@@ -73,8 +75,9 @@ export function testLevel(level: Level): LevelTestResult {
     solutionSolves: good.solved,
     seconds: good.seconds,
     solvesAlone: empty.solved,
+    emptyFails: empty.failed !== null,
     problem,
-    ok: good.solved && !empty.solved && problem === '',
+    ok: good.solved && !good.failed && !empty.solved && problem === '',
   };
 }
 

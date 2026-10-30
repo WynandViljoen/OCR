@@ -147,6 +147,10 @@ const ui = new UI({
   onSelectLevel: (i) => loadLevel(i, true),
   onNext: () => loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
   onBackToEdit: () => stop(),
+  onRetry: () => {
+    stop();
+    start();
+  },
   onTogglePaths: (show) => (showPaths = show),
   onZoomIn: () => zoomStep(1.25),
   onZoomOut: () => zoomStep(1 / 1.25),
@@ -252,6 +256,13 @@ sim.onSolved = (info) => {
   window.setTimeout(() => {
     if (playing && sim.solved) ui.showSolved(true);
   }, 700);
+};
+
+// A run that cannot succeed any more stops by itself, frozen as it ended, with a message and a way to try again.
+sim.onFailed = (reason) => {
+  playSound('fail');
+  ui.setStatus("Didn't work", 'failed');
+  ui.showFailed(reason === 'lost' ? 'The ball left the play area before it reached the goal.' : 'Everything came to rest and the ball never reached the goal.');
 };
 
 /** Parts from this level's inventory that the player did not use (the sandbox has no inventory limit). */
@@ -1697,7 +1708,7 @@ let acc = 0;
 function frame(now: number) {
   const dt = Math.min(now - last, 100);
   last = now;
-  if (playing) {
+  if (playing && !sim.failed) {
     acc += dt;
     let n = 0;
     while (acc >= STEP_MS && n < 4) {

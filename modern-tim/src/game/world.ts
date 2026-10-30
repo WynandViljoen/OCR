@@ -29,6 +29,13 @@ import { computeGearTrain, pointPolygonDistance, type GearTrain } from './mechan
 
 const { Engine, Composite, Bodies, Body, Events } = Matter;
 
+/** A run that did not solve the level: see Simulation.checkFailure. */
+export type FailReason = 'rest' | 'lost';
+const REST_SPEED = 0.5;    // px per step (30 px per second: a ball creeping along the floor counts as still)
+const REST_SPIN = 0.01;    // radians per step
+const REST_STEPS = 120;    // two seconds of stillness
+const MIN_RUN_STEPS = 180; // never fail in the first three seconds
+
 export const WORLD_W = 1000;
 export const WORLD_H = 620;
 export const FLOOR_TOP = 600;
@@ -110,6 +117,11 @@ export class Simulation {
   goalTargets: string[] = ['ball'];
   solved = false;
   solvedInfo: SolveInfo | null = null;
+  /** A run that can no longer succeed: 'rest' = everything came to rest without the goal, 'lost' = the ball left the play area. */
+  failed: FailReason | null = null;
+  onFailed: ((reason: FailReason) => void) | null = null;
+  private restSteps = 0;
+  private poses = new Map<number, { x: number; y: number; a: number }>();
   onSolved: ((info: SolveInfo) => void) | null = null;
   /** Called for a noticeable hit; `speed` is the closing speed in px per step. Used for sound effects. */
   onImpact: ((speed: number, a: string, b: string) => void) | null = null;
@@ -172,6 +184,9 @@ export class Simulation {
     this.running = play;
     this.solved = false;
     this.solvedInfo = null;
+    this.failed = null;
+    this.restSteps = 0;
+    this.poses.clear();
     this.steps = 0;
     this.gearTrain = computeGearTrain(parts);
 
@@ -269,6 +284,42 @@ export class Simulation {
     Engine.update(this.engine, STEP_MS);
     this.trackPaths();
     if (this.steps % TRAIL_EVERY === 0) this.recordTrails();
+    this.checkFailure();
+  }
+
+  /**
+   * A run fails when it cannot succeed any more: every ball that could solve the level has left the play area,
+   * or everything that can move (balls, crates, dominoes... not the gears, which a motor keeps turning) has been still for
+   * REST_STEPS in a row, after the first MIN_RUN_STEPS. Belts, motors and gears turning do not count as motion.
+   */
+  private checkFailure() {
+    if (!this.running || !this.goalEnabled || this.solved || this.failed) return;
+    const bodies = Composite.allBodies(this.engine.world);
+    const targets = bodies.filter((b) => this.goalTargets.includes(b.label));
+    if (!targets.length) return;
+    if (targets.every((b) => b.position.x < -120 || b.position.x > WORLD_W + 120 || b.position.y > WORLD_H + 200)) {
+      return this.fail('lost');
+    }
+    // Anything free to move that is still moving, or any fixed part that a mechanism is moving (a lift, a pulley,
+    // a spinner), means the run is not over. Gears are left out: a motor keeps them turning for ever.
+    let moving = false;
+    for (const b of bodies) {
+      if (/gear$/i.test(b.label)) continue;
+      if (b.isStatic) {
+        const prev = this.poses.get(b.id);
+        if (prev && (Math.hypot(b.position.x - prev.x, b.position.y - prev.y) > 0.05 || Math.abs(b.angle - prev.a) > 0.0005)) moving = true;
+        this.poses.set(b.id, { x: b.position.x, y: b.position.y, a: b.angle });
+      } else if (b.speed > REST_SPEED || Math.abs(b.angularSpeed) > REST_SPIN) {
+        moving = true;
+      }
+    }
+    this.restSteps = moving ? 0 : this.restSteps + 1;
+    if (this.steps >= MIN_RUN_STEPS && this.restSteps >= REST_STEPS) this.fail('rest');
+  }
+
+  private fail(reason: FailReason) {
+    this.failed = reason;
+    this.onFailed?.(reason);
   }
 
   /** Add this step's movement to each ball's travelled distance. */

@@ -20,7 +20,8 @@
     "check-php-compat": "node scripts/check-php-compat.mjs",
     "check-versions": "node scripts/check-versions.mjs",
     "level-revs": "tsx scripts/level-revs.ts",
-    "check-bundle": "node scripts/check-bundle.mjs"
+    "check-bundle": "node scripts/check-bundle.mjs",
+    "check-failure": "tsx scripts/check-failure.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0"
