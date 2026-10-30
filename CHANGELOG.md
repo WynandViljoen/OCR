@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4g
+
+- **The Now filter now matches the column exactly**: #1, Tied #1 or Beaten, with no combined option. #1 shows only players who are alone in first place; Tied #1 shows shared first places. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4f
 
 - **The Records broken table can now be filtered by the Now column**: Any standing, Number one now (or tied), Tied for number one, or Beaten since. It works together with the Level and Board filters. Server file only: copy `admin.php` (the cron job does).

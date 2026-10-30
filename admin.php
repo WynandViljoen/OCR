@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4f';
+const ADMIN_BUILD = '0.4g';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -528,7 +528,7 @@ function scores_view() {
     if ($now !== '') {
         $rows = array_values(array_filter($rows, function ($e) use ($boardsNow, $now) {
             $s = standing($boardsNow, (string) $e['level'], (string) $e['category'], (string) $e['name']);
-            return $now === 'top' ? $s !== '' : ($now === 'tied' ? $s === 'Tied #1' : $s === '');
+            return $now === 'top' ? $s === '#1' : ($now === 'tied' ? $s === 'Tied #1' : $s === '');
         }));
     }
     $rows = array_slice($rows, 0, 300);
@@ -549,7 +549,7 @@ function scores_view() {
         echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><select name="now">';
-    foreach (['' => 'Any standing now', 'top' => 'Number one now (or tied)', 'tied' => 'Tied for number one', 'beaten' => 'Beaten since'] as $v => $label) {
+    foreach (['' => 'Any Now', 'top' => '#1', 'tied' => 'Tied #1', 'beaten' => 'Beaten'] as $v => $label) {
         echo '<option value="' . h($v) . '"' . ($now === $v ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
