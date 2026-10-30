@@ -118,7 +118,10 @@ await check('a changed level loses its local scores and waiting runs; unchanged 
   savePending([{ levelId: 'ramps', name: 'Ana', run }, { levelId: 'gears', name: 'Ana', run }], store);
   scrubPending(['ramps'], store);
   assert.deepEqual(loadPending(store).map((r) => r.levelId), ['gears']);
-  assert.deepEqual(await fetchRevs(okJson({ revs: { ramps: '2', bad: 3 } })), { ramps: '2' });
+  assert.deepEqual((await fetchRevs(okJson({ revs: { ramps: '2', bad: 3 } })))?.revs, { ramps: '2' });
+  const withSeason = await fetchRevs(okJson({ revs: {}, season: { id: '2026-10', label: 'October 2026', start: 1, end: 9, now: 5 } }));
+  assert.equal(withSeason?.season?.label, 'October 2026');
+  assert.equal((await fetchRevs(okJson({ revs: {}, season: { id: 3 } })))?.season, null);
   assert.equal(await fetchRevs(async () => { throw new Error('offline'); }), null);
 });
 
@@ -148,6 +151,9 @@ await check('on start, local bests that belong on a community board are sent; ot
   assert.deepEqual(posts.map((p) => p.level).sort(), ['maze', 'ramps']);
   assert.equal(posts.every((p) => p.name === 'ana' && !('version' in p) && !('shot' in p)), true);
   assert.equal(await syncLocalBests(scores, '', f), 0);
+  posts.length = 0;
+  assert.equal(await syncLocalBests(scores, 'ana', f, 5), 0, 'runs from an earlier season are not sent into this one');
+  assert.equal(posts.length, 0);
   assert.equal(await syncLocalBests(scores, 'Ana', async () => { throw new Error('offline'); }), 0);
 });
 
@@ -156,6 +162,10 @@ await check('the star table is cleaned: bad rows dropped, five at most', async (
   assert.ok(r);
   assert.equal(r.max, 63);
   assert.deepEqual(r.rows.map((x) => x.name), ['Ana', 'B', 'C', 'D', 'E']);
+  assert.equal(r.previous, null);
+  const withPrev = await fetchStars(okJson({ max: 63, stars: [], season: { id: '2026-11', label: 'November 2026', start: 1, end: 9, now: 5 }, previous: { label: 'October 2026', stars: [{ name: 'Zed', stars: 7 }, { name: '', stars: 2 }] } }));
+  assert.equal(withPrev?.season?.id, '2026-11');
+  assert.deepEqual(withPrev?.previous, { label: 'October 2026', rows: [{ name: 'Zed', stars: 7 }] });
   assert.equal(await fetchStars(async () => { throw new Error('offline'); }), null);
   assert.equal(await fetchStars(okJson({ nope: 1 })), null);
 });

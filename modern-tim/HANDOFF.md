@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4w: SEASONS (calendar month, America/Vancouver). scores.php syncSeason()/archiveSeason() under the data-file lock; archive = tim-data/seasons/YYYY-MM.json (+ seasons/shots/); `_season` key in scores-data.json; nowTs() honours env TIM_TEST_NOW (tests only). Client: fetchRevs returns {revs, season}; fetchStars returns season + previous; syncLocalBests only sends runs newer than the season start. Admin: ?season=YYYY-MM selects an archive, Season results table. NOT BUILT YET: per-season puzzle sets (staging next month's 21 puzzles, admin preview). When puzzle ids change per season, the archive must also store level names (admin uses today's LEVEL_NAMES for old seasons).
 - v0.4v: scores.php `?stars=1` (topStars, PHP 7.0-safe) feeds the game's ★ Stars tab (ui.setStars, fetchStars); first-level coach (#coach, COACH_KEY, updateCoach in main.ts).
 - v0.4u: admin.php Now filter is a checkbox dropdown (`now[]`; a plain `now=top` still works), `$nows` array.
 - v0.4t: admin.php board_status()/board_row_shown(): Player + Now filters apply to the community boards table as well as Records broken.

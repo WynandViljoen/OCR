@@ -735,6 +735,8 @@ kbd {
 .star-list .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .star-list .val { color: #e0a800; font-variant-numeric: tabular-nums; font-weight: 800; }
 
+.season-head { margin: 6px 0 2px; font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -3973,7 +3975,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4v';
+const VERSION = '0.4w';
 
 return { VERSION };
 })();
@@ -4533,33 +4535,61 @@ async function call(fetchFn, url, init) {
         if (timer) clearTimeout(timer);
     }
 }
+function parseSeason(raw) {
+    const s = raw;
+    if (!s || typeof s.id !== 'string' || typeof s.label !== 'string' || ![
+        s.start,
+        s.end,
+        s.now
+    ].every((n)=>typeof n === 'number' && Number.isFinite(n))) return null;
+    return {
+        id: s.id,
+        label: s.label,
+        start: s.start,
+        end: s.end,
+        now: s.now
+    };
+}
 async function fetchRevs(fetchFn = (u, i)=>fetch(u, i)) {
     const raw = await call(fetchFn, `${ENDPOINT}?revs=1&_=${Date.now()}`);
-    const revs = raw === REJECTED ? null : raw?.revs;
+    const data = raw === REJECTED ? null : raw;
+    const revs = data?.revs;
     if (!revs || typeof revs !== 'object') return null;
     const out = {};
     for (const [id, v] of Object.entries(revs))if (typeof v === 'string') out[id] = v;
-    return out;
+    return {
+        revs: out,
+        season: parseSeason(data?.season)
+    };
 }
 function scrubPending(levelIds, store = browserStore()) {
     if (!levelIds.length) return;
     savePending(loadPending(store).filter((r)=>!levelIds.includes(r.levelId)), store);
 }
-async function fetchStars(fetchFn = (u, i)=>fetch(u, i)) {
-    const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
-    const data = raw === REJECTED ? null : raw;
-    if (!data || !Array.isArray(data.stars)) return null;
+function parseStarRows(list) {
     const rows = [];
-    for (const r of data.stars){
+    for (const r of Array.isArray(list) ? list : []){
         const name = sanitizeName(typeof r?.name === 'string' ? r.name : '');
         if (name && typeof r?.stars === 'number' && r.stars > 0) rows.push({
             name,
             stars: Math.floor(r.stars)
         });
     }
+    return rows.slice(0, 5);
+}
+async function fetchStars(fetchFn = (u, i)=>fetch(u, i)) {
+    const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
+    const data = raw === REJECTED ? null : raw;
+    if (!data || !Array.isArray(data.stars)) return null;
+    const prev = data.previous && typeof data.previous.label === 'string' ? {
+        label: data.previous.label,
+        rows: parseStarRows(data.previous.stars)
+    } : null;
     return {
-        rows: rows.slice(0, 5),
-        max: typeof data.max === 'number' ? data.max : 0
+        rows: parseStarRows(data.stars),
+        max: typeof data.max === 'number' ? data.max : 0,
+        season: parseSeason(data.season),
+        previous: prev
     };
 }
 async function fetchCommunity(levelId, fetchFn = (u, i)=>fetch(u, i)) {
@@ -4623,12 +4653,15 @@ function earnsPlace(board, category, name, value) {
     if (list.length < BOARD_SIZE) return true;
     return better(category, value, list[list.length - 1].value);
 }
-async function syncLocalBests(scores, player, fetchFn) {
+async function syncLocalBests(scores, player, fetchFn, sinceMs = 0) {
     const name = sanitizeName(player);
     if (!name) return 0;
     const jobs = Object.entries(scores).filter(([id])=>id in LEVEL_REVS).map(async ([id, mine])=>{
         const best = {};
-        for (const c of CATEGORIES)best[c] = mine[c].find((e)=>sameName(e.name, name))?.value ?? 0;
+        for (const c of CATEGORIES){
+            const e = mine[c].find((x)=>sameName(x.name, name));
+            best[c] = e && e.at >= sinceMs ? e.value : 0;
+        }
         if (!(best.shortest > 0 && best.fastest > 0)) return 0;
         const board = await fetchCommunity(id, fetchFn);
         if (!board) return 0;
@@ -6236,11 +6269,18 @@ return { REST_STEPS, WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
 })();
 
 // ---- game/ui.ts ----
-const { UI } = (() => {
+const { leftText, UI } = (() => {
 
 
 
 
+function leftText(secs) {
+    if (secs <= 0) return 'no time';
+    const d = Math.floor(secs / 86400);
+    const h = Math.floor(secs % 86400 / 3600);
+    const m = Math.floor(secs % 3600 / 60);
+    return d > 0 ? `${d} d ${h} h` : h > 0 ? `${h} h ${m} min` : `${Math.max(1, m)} min`;
+}
 function $(id) {
     const el = document.getElementById(id);
     if (!el) throw new Error(`Missing #${id} in index.html`);
@@ -6584,6 +6624,7 @@ class UI {
     scoresView = null;
     scoresTab = 'community';
     starsView = 'loading';
+    starsAt = 0;
     setScores(view) {
         this.scoresView = view;
         this.renderScores();
@@ -6606,6 +6647,7 @@ class UI {
     }
     setStars(view) {
         this.starsView = view ?? 'offline';
+        this.starsAt = Date.now();
         if (this.scoresTab === 'stars') this.renderScores();
     }
     renderScores() {
@@ -6641,23 +6683,44 @@ class UI {
             const v = this.starsView;
             if (v === 'loading') return note('Counting stars...');
             if (v === 'offline') return note('The star table is not reachable right now.');
-            if (!v.rows.length) return note('No stars yet. Be number one on a board to earn the first one!');
-            const ol = document.createElement('ol');
-            ol.className = 'star-list';
-            v.rows.forEach((r, i)=>{
-                const li = document.createElement('li');
-                if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
-                const who = document.createElement('span');
-                who.className = 'who';
-                who.textContent = `${i + 1}. ${r.name}`;
-                const val = document.createElement('span');
-                val.className = 'val';
-                val.textContent = `★ ${r.stars}`;
-                li.append(who, val);
-                ol.appendChild(li);
-            });
-            body.appendChild(ol);
-            note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}.`);
+            const champs = new Set((v.previous?.rows ?? []).filter((r)=>r.stars === v.previous?.rows[0]?.stars).map((r)=>r.name.toLowerCase()));
+            const list = (rows, crownFirst)=>{
+                const ol = document.createElement('ol');
+                ol.className = 'star-list';
+                rows.forEach((r, i)=>{
+                    const li = document.createElement('li');
+                    if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+                    const who = document.createElement('span');
+                    who.className = 'who';
+                    const crowned = crownFirst ? r.stars === rows[0].stars : champs.has(r.name.toLowerCase());
+                    who.textContent = `${i + 1}. ${r.name}${crowned ? ' \u{1F3C6}' : ''}`;
+                    who.title = crowned && !crownFirst ? 'Won last season' : '';
+                    const val = document.createElement('span');
+                    val.className = 'val';
+                    val.textContent = `\u2605 ${r.stars}`;
+                    li.append(who, val);
+                    ol.appendChild(li);
+                });
+                return ol;
+            };
+            const heading = (text)=>{
+                const p = document.createElement('p');
+                p.className = 'season-head';
+                p.textContent = text;
+                body.appendChild(p);
+            };
+            if (v.season) {
+                const left = v.season.end - (v.season.now + (Date.now() - this.starsAt) / 1000);
+                heading(`${v.season.label} season \u00B7 ${leftText(left)} left`);
+            }
+            if (v.rows.length) body.appendChild(list(v.rows, false));
+            else note('No stars yet this season. Be number one on a board to earn the first one!');
+            if (v.previous) {
+                heading(`Last season \u00B7 ${v.previous.label}`);
+                if (v.previous.rows.length) body.appendChild(list(v.previous.rows, true));
+                else note('Nobody held a star.');
+            }
+            note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}. Every month starts fresh.`);
             return;
         }
         if (this.scoresTab === 'mine') {
@@ -6741,7 +6804,7 @@ class UI {
     }
 }
 
-return { UI };
+return { leftText, UI };
 })();
 
 // ---- main.ts ----
@@ -8562,8 +8625,10 @@ track('visit', player, level.id);
 track('level', player, level.id);
 const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
-void fetchRevs().then((revs)=>{
-    const gone = revs ? scrubChangedLevels(revs, allScores) : [];
+let seasonStartMs = 0;
+void fetchRevs().then((info)=>{
+    seasonStartMs = info?.season ? info.season.start * 1000 : 0;
+    const gone = info ? scrubChangedLevels(info.revs, allScores) : [];
     if (gone.length) {
         scrubPending(gone);
         for (const id of gone)delete community[id];
@@ -8571,7 +8636,7 @@ void fetchRevs().then((revs)=>{
         ui.toast(gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
     }
 }).then(()=>flushPending()).then(async (n)=>{
-    const added = player ? await syncLocalBests(allScores, player) : 0;
+    const added = player ? await syncLocalBests(allScores, player, undefined, seasonStartMs) : 0;
     if (added > 0) ui.toast(added === 1 ? 'Added one of your scores to the community boards.' : `Added your scores for ${added} levels to the community boards.`);
     if (n > 0 || added > 0) loadCommunity();
 });

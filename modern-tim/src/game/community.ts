@@ -70,14 +70,29 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
   }
 }
 
-/** The version each level was last changed in, as the server has it (null if it cannot be reached). */
-export async function fetchRevs(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Record<string, string> | null> {
+export interface SeasonInfo {
+  id: string;
+  label: string;
+  /** Unix seconds: when this season began and ends (midnight Vancouver time), and what the server's clock said. */
+  start: number;
+  end: number;
+  now: number;
+}
+function parseSeason(raw: unknown): SeasonInfo | null {
+  const s = raw as Partial<SeasonInfo> | null;
+  if (!s || typeof s.id !== 'string' || typeof s.label !== 'string' || ![s.start, s.end, s.now].every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  return { id: s.id, label: s.label, start: s.start as number, end: s.end as number, now: s.now as number };
+}
+
+/** The version each level was last changed in, and the season now running, as the server has them (null if it cannot be reached). */
+export async function fetchRevs(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<{ revs: Record<string, string>; season: SeasonInfo | null } | null> {
   const raw = await call(fetchFn, `${ENDPOINT}?revs=1&_=${Date.now()}`);
-  const revs = raw === REJECTED ? null : (raw as { revs?: unknown } | null)?.revs;
+  const data = raw === REJECTED ? null : (raw as { revs?: unknown; season?: unknown } | null);
+  const revs = data?.revs;
   if (!revs || typeof revs !== 'object') return null;
   const out: Record<string, string> = {};
   for (const [id, v] of Object.entries(revs as Record<string, unknown>)) if (typeof v === 'string') out[id] = v;
-  return out;
+  return { revs: out, season: parseSeason(data?.season) };
 }
 
 /** Forget runs still waiting to be sent for levels that were changed (they were made on the old level). */
@@ -90,17 +105,29 @@ export interface StarRow {
   name: string;
   stars: number;
 }
-/** The five players holding the most stars (boards where they are number one or tied), and the most anyone could hold. */
-export async function fetchStars(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<{ rows: StarRow[]; max: number } | null> {
-  const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
-  const data = raw === REJECTED ? null : (raw as { stars?: unknown; max?: unknown } | null);
-  if (!data || !Array.isArray(data.stars)) return null;
+export interface StarsView {
+  rows: StarRow[];
+  max: number;
+  season: SeasonInfo | null;
+  /** The season that just finished: its name and final top five. */
+  previous: { label: string; rows: StarRow[] } | null;
+}
+function parseStarRows(list: unknown): StarRow[] {
   const rows: StarRow[] = [];
-  for (const r of data.stars as Partial<StarRow>[]) {
+  for (const r of Array.isArray(list) ? (list as Partial<StarRow>[]) : []) {
     const name = sanitizeName(typeof r?.name === 'string' ? r.name : '');
     if (name && typeof r?.stars === 'number' && r.stars > 0) rows.push({ name, stars: Math.floor(r.stars) });
   }
-  return { rows: rows.slice(0, 5), max: typeof data.max === 'number' ? data.max : 0 };
+  return rows.slice(0, 5);
+}
+/** The five players holding the most stars (boards where they are number one or tied), the most anyone could hold,
+ *  the season now running and last season's final top five. */
+export async function fetchStars(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<StarsView | null> {
+  const raw = await call(fetchFn, `${ENDPOINT}?stars=1&_=${Date.now()}`);
+  const data = raw === REJECTED ? null : (raw as { stars?: unknown; max?: unknown; season?: unknown; previous?: { label?: unknown; stars?: unknown } | null } | null);
+  if (!data || !Array.isArray(data.stars)) return null;
+  const prev = data.previous && typeof data.previous.label === 'string' ? { label: data.previous.label, rows: parseStarRows(data.previous.stars) } : null;
+  return { rows: parseStarRows(data.stars), max: typeof data.max === 'number' ? data.max : 0, season: parseSeason(data.season), previous: prev };
 }
 
 export async function fetchCommunity(levelId: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Board | null> {
@@ -161,17 +188,21 @@ function earnsPlace(board: Board, category: Category, name: string, value: numbe
 /**
  * Compare this player's best scores kept on this device with the community boards and send every level where
  * one of them belongs on the board but is not there yet (for example a run that was made offline, or on
- * another browser before the board existed). The server only ever improves a board, so sending is harmless.
+ * another browser before the board existed). Only runs made in the current season count. The server only ever improves a board, so sending is harmless.
  * Returns how many levels were sent. Quiet when offline.
  */
-export async function syncLocalBests(scores: AllScores, player: string, fetchFn?: FetchLike): Promise<number> {
+export async function syncLocalBests(scores: AllScores, player: string, fetchFn?: FetchLike, sinceMs = 0): Promise<number> {
   const name = sanitizeName(player);
   if (!name) return 0;
   const jobs = Object.entries(scores)
     .filter(([id]) => id in LEVEL_REVS)
     .map(async ([id, mine]) => {
       const best = {} as Record<Category, number>;
-      for (const c of CATEGORIES) best[c] = mine[c].find((e) => sameName(e.name, name))?.value ?? 0;
+      // Only runs from the season now running: an older best belongs to a season that is over.
+      for (const c of CATEGORIES) {
+        const e = mine[c].find((x) => sameName(x.name, name));
+        best[c] = e && e.at >= sinceMs ? e.value : 0;
+      }
       if (!(best.shortest > 0 && best.fastest > 0)) return 0;
       const board = await fetchCommunity(id, fetchFn);
       if (!board) return 0;

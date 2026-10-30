@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.4w
+
+- **Seasons.** A season is one calendar month in Vancouver time. At midnight on the 1st the server (`scores.php`, on the first request after midnight) saves the finished season for good and starts the new one with empty boards, so every star count starts again from zero. Saved: all boards as they ended, the screenshots of the number ones (moved into the archive so they are never deleted), and the final star table. Nothing is lost if no one plays for a while: the next request archives whatever was there.
+- **Game**: the ★ Stars tab shows the season name and how long is left, this season's top five, and last season's final top five with a trophy next to the champion(s). Your personal bests are kept for good; only runs made in the current season are sent to the new boards at start-up, so last season's scores can never leak into a fresh one.
+- **Dashboard**: the first filter on the High scores page is the season (current, or any finished month marked "final"). A finished season opens exactly like the current one, with its community boards (and the number-one screenshot links), its records broken, its star leaders and all the other filters. Above the tables: the season's name, when it ends and how long is left, and the five star leaders (trophy on the leader). At the bottom a **Season results** table lists every season with its champion and top five. Needs `scores.php` and `admin.php` (the cron job copies both).
+- New `npm run check-seasons` runs the real server with a fake clock across the midnight boundary (including the November daylight-saving change) and checks the archive, the new season and the dashboard.
+
 ## Modern TIM 0.4v
 
 - **New "★ Stars" tab in the High scores card**: the top five players by number of stars (boards where they are number one or tied for it), with their star count, your own row highlighted, and a note on the most anyone can hold (63). It comes from the server (`scores.php?stars=1`), so it always matches the boards and the dashboard's Stars column.

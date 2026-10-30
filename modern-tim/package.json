@@ -21,7 +21,8 @@
     "check-versions": "node scripts/check-versions.mjs",
     "level-revs": "tsx scripts/level-revs.ts",
     "check-bundle": "node scripts/check-bundle.mjs",
-    "check-failure": "tsx scripts/check-failure.ts"
+    "check-failure": "tsx scripts/check-failure.ts",
+    "check-seasons": "node scripts/check-seasons.mjs"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

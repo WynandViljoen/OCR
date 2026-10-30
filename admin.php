@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4v';
+const ADMIN_BUILD = '0.4w';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -459,10 +459,99 @@ function read_boards(): array {
     return is_array($d) ? $d : [];
 }
 
+/** The clock; tests can set TIM_TEST_NOW (a web request cannot). */
+function season_now(): int {
+    $t = getenv('TIM_TEST_NOW');
+    return ($t !== false && $t !== '' && ctype_digit($t)) ? (int) $t : time();
+}
+
+/** A season is one calendar month in Vancouver. Same rule as scores.php. */
+function season_info(int $ts, string $id = ''): array {
+    $tz = new DateTimeZone(DISPLAY_TZ);
+    if ($id !== '' && preg_match('/^\d{4}-\d{2}$/', $id)) {
+        $start = new DateTime($id . '-01 00:00:00', $tz);
+    } else {
+        $d = new DateTime('@' . $ts);
+        $d->setTimezone($tz);
+        $start = new DateTime($d->format('Y-m-01') . ' 00:00:00', $tz);
+    }
+    $end = clone $start;
+    $end->modify('+1 month');
+    return ['id' => $start->format('Y-m'), 'label' => $start->format('F Y'), 'start' => $start->getTimestamp(), 'end' => $end->getTimestamp()];
+}
+
+/** Finished seasons that scores.php archived, newest first (ids like 2026-10). */
+function season_ids(): array {
+    $ids = [];
+    foreach (glob(DATA_DIR . '/seasons/*.json') ?: [] as $f) {
+        if (preg_match('/^(\d{4}-\d{2})\.json$/', basename($f), $m)) $ids[] = $m[1];
+    }
+    rsort($ids);
+    return $ids;
+}
+
+/** One archived season, or null. */
+function read_season(string $id) {
+    if (!preg_match('/^\d{4}-\d{2}$/', $id)) return null;
+    $p = DATA_DIR . '/seasons/' . $id . '.json';
+    $d = is_file($p) ? json_decode((string) @file_get_contents($p), true) : null;
+    return is_array($d) && isset($d['boards']) ? $d : null;
+}
+
+/** "3 d 5 h", "5 h 10 min" or "12 min". */
+function left_text(int $secs): string {
+    if ($secs <= 0) return 'ending now';
+    $d = intdiv($secs, 86400);
+    $h = intdiv($secs % 86400, 3600);
+    $m = intdiv($secs % 3600, 60);
+    return $d > 0 ? $d . ' d ' . $h . ' h' : ($h > 0 ? $h . ' h ' . $m . ' min' : max(1, $m) . ' min');
+}
+
+/** Stars per player from a set of boards: [['name' => ..., 'stars' => n], ...], most first (ties by name). */
+function star_table(array $boards): array {
+    $count = [];
+    $shown = [];
+    foreach (LEVEL_NAMES as $id => $_) {
+        foreach (BOARDS as $c => $__) {
+            $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
+            $top = null;
+            foreach ($list as $row) {
+                if (is_array($row) && isset($row['value']) && is_numeric($row['value'])) {
+                    $v = (float) $row['value'];
+                    if ($top === null || ($c === 'spare' ? $v > $top : $v < $top)) $top = $v;
+                }
+            }
+            if ($top === null) continue;
+            foreach ($list as $row) {
+                if (is_array($row) && isset($row['name'], $row['value']) && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001) {
+                    $k = mb_strtolower((string) $row['name']);
+                    $count[$k] = ($count[$k] ?? 0) + 1;
+                    if (!isset($shown[$k])) $shown[$k] = (string) $row['name'];
+                }
+            }
+        }
+    }
+    $rows = [];
+    foreach ($count as $k => $n) $rows[] = ['name' => $shown[$k], 'stars' => $n];
+    usort($rows, function ($a, $b) {
+        return $b['stars'] <=> $a['stars'] ?: strcasecmp($a['name'], $b['name']);
+    });
+    return $rows;
+}
+
+/** Where a screenshot file lives: this season's folder or a finished season's, or '' if it is gone. */
+function shot_path(string $file): string {
+    if (!preg_match('/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/', $file)) return '';
+    foreach (['/shots/', '/seasons/shots/'] as $d) {
+        if (is_file(DATA_DIR . $d . $file)) return DATA_DIR . $d . $file;
+    }
+    return '';
+}
+
 /** A plain link to the screenshot (served by this page only after sign-in). */
 function shot_cell($file): string {
     $file = (string) $file;
-    if (!preg_match('/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/', $file) || !is_file(DATA_DIR . '/shots/' . $file)) {
+    if (shot_path($file) === '') {
         return '<span class="mute">-</span>';
     }
     $u = 'admin.php?shot=' . rawurlencode($file);
@@ -569,10 +658,21 @@ function scores_view() {
     $nows = array_values(array_unique(array_filter(is_array($nowRaw) ? $nowRaw : [$nowRaw], function ($v) {
         return in_array($v, ['top', 'tied', 'beaten'], true);
     })));
-    $boardsNow = read_boards();
-    $rows = read_records(100000, $level, $cat);
+    // Season: the current month, or any finished one (its boards and records are shown exactly the same way).
+    $cur = season_info(season_now());
+    $archived = season_ids();
+    $seasonSel = (string) ($_GET['season'] ?? '');
+    $archive = in_array($seasonSel, $archived, true) ? read_season($seasonSel) : null;
+    if (!$archive) $seasonSel = '';
+    $from = $archive ? (int) $archive['start'] : $cur['start'];
+    $to = $archive ? (int) $archive['end'] : PHP_INT_MAX;
+    $inSeason = function ($e) use ($from, $to) {
+        return (int) $e['t'] >= $from && (int) $e['t'] < $to;
+    };
+    $boardsNow = $archive ? $archive['boards'] : read_boards();
+    $rows = array_values(array_filter(read_records(100000, $level, $cat), $inSeason));
     $names = [];
-    foreach (read_records(100000, '', '') as $e) $names[mb_strtolower((string) $e['name'])] = (string) $e['name'];
+    foreach (array_filter(read_records(100000, '', ''), $inSeason) as $e) $names[mb_strtolower((string) $e['name'])] = (string) $e['name'];
     foreach (LEVEL_NAMES as $id => $_) {
         foreach (BOARDS as $c => $__) {
             foreach (is_array($boardsNow[$id][$c] ?? null) ? $boardsNow[$id][$c] : [] as $row) {
@@ -595,15 +695,20 @@ function scores_view() {
         }));
     }
     $rows = array_slice($rows, 0, 300);
-    $all = read_records(100000, '', '');
-    $weekAgo = time() - 7 * 86400;
+    $all = array_values(array_filter(read_records(100000, '', ''), $inSeason));
+    $weekAgo = season_now() - 7 * 86400;
     $week = count(array_filter($all, function ($e) use ($weekAgo) {
         return (int) $e['t'] >= $weekAgo;
     }));
 
     $intro = '<h2>Records broken</h2><p class="mute">One line each time a run beats the old number one on a board. Ties and first scores are not listed. <b>Now</b> says whether the player is still number one (or tied for it) on the community board. '
         . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
-    echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="level"><option value="">All levels</option>';
+    echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="season"><option value="">Current season: ' . h($cur['label']) . '</option>';
+    foreach ($archived as $sid) {
+        $sinfo = season_info(0, $sid);
+        echo '<option value="' . h($sid) . '"' . ($seasonSel === $sid ? ' selected' : '') . '>' . h($sinfo['label']) . ' (final)</option>';
+    }
+    echo '</select><select name="level"><option value="">All levels</option>';
     foreach (LEVEL_NAMES as $id => $label) {
         echo '<option value="' . h($id) . '"' . ($level === $id ? ' selected' : '') . '>' . h(level_label($id)) . '</option>';
     }
@@ -625,6 +730,22 @@ function scores_view() {
     }
     echo '</div></details>';
     echo '<button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
+    // Which season this is, and who leads it.
+    if ($archive) {
+        echo '<p><b>' . h($archive['label']) . '</b> <span class="mute">final results, ' . h(fmt_time((int) $archive['start'])) . ' to ' . h(fmt_time((int) $archive['end'])) . '. Boards, records and stars are exactly as that season ended.</span></p>';
+        $leaders = is_array($archive['stars'] ?? null) ? $archive['stars'] : [];
+    } else {
+        echo '<p><b>' . h($cur['label']) . '</b> <span class="mute">season in progress: ends ' . h(fmt_time($cur['end'])) . ' (' . h(DISPLAY_TZ) . '), ' . h(left_text($cur['end'] - season_now())) . ' left. At that moment the boards are saved here as a finished season and start empty.</span></p>';
+        $leaders = star_table($boardsNow);
+    }
+    echo '<div class="wrap" style="margin-bottom:8px"><table><tr><th>Star leaders</th>';
+    for ($i = 0; $i < 5; $i++) echo '<th>' . ($i + 1) . '</th>';
+    echo '</tr><tr><td class="mute">' . ($archive ? 'Final' : 'Right now') . '</td>';
+    for ($i = 0; $i < 5; $i++) {
+        $r = $leaders[$i] ?? null;
+        echo '<td>' . ($r ? ($i === 0 || ($leaders[0]['stars'] ?? -1) === $r['stars'] ? '&#127942; ' : '') . '<b>' . h($r['name']) . '</b> &#9733; ' . (int) $r['stars'] : '<span class="mute">-</span>') . '</td>';
+    }
+    echo '</tr></table></div>';
     ob_start();   // the three tables are built in this order but shown as: community boards, refused scores, records broken
     echo $intro;
     echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
@@ -668,9 +789,9 @@ function scores_view() {
 
     $refusedHtml = ob_get_clean();
     ob_start();
-    $boards = read_boards();
+    $boards = $boardsNow;
     $log = read_records(100000, '', '');
-    echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';
+    echo '<h2>' . ($archive ? 'Community boards at the end of ' . h($archive['label']) : 'Current community boards') . '</h2><div class="wrap"><table><tr><th>Level</th>';
     foreach (BOARDS as $label) echo '<th>' . h($label) . '</th>';
     echo '</tr>';
     foreach (LEVEL_NAMES as $id => $label) {
@@ -711,7 +832,31 @@ function scores_view() {
         echo '</tr>';
     }
     echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). The Player and Now filters apply here too: #1 = alone in first, Tied #1 = shared first, Beaten = behind number one. <b>View</b> on the record holder line is the screenshot of the run that set the record; it is replaced, and the old picture deleted, when someone beats it, and it stays empty (-) until a record is broken from the game. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
-    echo ob_get_clean() . $refusedHtml . $recordsHtml;
+    $boardsHtml = ob_get_clean();
+    $hall = '';
+    if ($archived) {
+        $hall = '<h2>Season results</h2><div class="wrap"><table><tr><th>Season</th><th>Champion</th><th>Top five</th><th></th></tr>';
+        $live = star_table(read_boards());
+        $hall .= '<tr><td><b>' . h($cur['label']) . '</b> <span class="mute">in progress</span></td><td>' . ($live ? h($live[0]['name']) . ' &#9733; ' . (int) $live[0]['stars'] : '-') . '</td><td class="mute">'
+            . h(implode(', ', array_map(function ($r) {
+                return $r['name'] . ' ' . $r['stars'];
+            }, array_slice($live, 0, 5)))) . '</td><td><a href="admin.php?view=scores">Open</a></td></tr>';
+        foreach ($archived as $sid) {
+            $s = read_season($sid);
+            if (!$s) continue;
+            $st = is_array($s['stars'] ?? null) ? $s['stars'] : [];
+            $champs = [];
+            foreach ($st as $r) {
+                if ($r['stars'] === $st[0]['stars']) $champs[] = $r['name'];
+            }
+            $hall .= '<tr><td><b>' . h($s['label']) . '</b></td><td>' . ($st ? '&#127942; ' . h(implode(' + ', $champs)) . ' &#9733; ' . (int) $st[0]['stars'] : '-') . '</td><td class="mute">'
+                . h(implode(', ', array_map(function ($r) {
+                    return $r['name'] . ' ' . $r['stars'];
+                }, array_slice($st, 0, 5)))) . '</td><td><a href="admin.php?view=scores&amp;season=' . h($sid) . '">Open</a></td></tr>';
+        }
+        $hall .= '</table></div><p class="mute">Every finished season stays available in full: pick it in the first filter above.</p>';
+    }
+    echo $boardsHtml . $refusedHtml . $recordsHtml . $hall;
 }
 
 function dashboard() {
@@ -917,8 +1062,8 @@ if (!is_admin()) {
 
 if (isset($_GET['shot'])) {
     $f = (string) $_GET['shot'];
-    $p = DATA_DIR . '/shots/' . $f;
-    if (!preg_match('/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/', $f) || !is_file($p)) {
+    $p = shot_path($f);
+    if ($p === '') {
         http_response_code(404);
         exit;
     }

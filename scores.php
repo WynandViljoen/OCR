@@ -42,6 +42,7 @@ const BOARD_SIZE = 5;
 const MAX_NAME = 16;
 const DATA_FILE = __DIR__ . '/scores-data.json';
 const RECORD_DIR = __DIR__ . '/tim-data';
+const SEASON_TZ = 'America/Vancouver';   // a season is one calendar month here, from midnight to midnight
 const RECORD_LOG_MAX_BYTES = 1500000;
 const MAX_BODY_BYTES = 400000;   // a score is tiny; the rest is room for one record-breaking screenshot
 const MAX_SHOT_BYTES = 250000;
@@ -51,7 +52,7 @@ const MAX_SHOTS_KEPT = 150;
 function logReject(int $code, string $message) {
     if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;
     $in = $GLOBALS['in'] ?? null;
-    $entry = ['t' => time(), 'code' => $code, 'reason' => $message];
+    $entry = ['t' => nowTs(), 'code' => $code, 'reason' => $message];
     if (is_array($in)) {
         foreach (['level', 'name', 'version', 'rev'] as $k) {
             if (isset($in[$k]) && is_string($in[$k])) $entry[$k] = mb_substr($in[$k], 0, 40);
@@ -247,6 +248,93 @@ function readAll($handle): array {
     return is_array($data) ? $data : [];
 }
 
+/** The clock. Tests can set the environment variable TIM_TEST_NOW (a Unix time); a web request cannot. */
+function nowTs(): int {
+    $t = getenv('TIM_TEST_NOW');
+    return ($t !== false && $t !== '' && ctype_digit($t)) ? (int)$t : time();
+}
+
+/** The season (calendar month in SEASON_TZ) that contains the moment $ts, or the season named by $id ('2026-10'). */
+function seasonInfo(int $ts, string $id = ''): array {
+    $tz = new DateTimeZone(SEASON_TZ);
+    if ($id !== '' && preg_match('/^\d{4}-\d{2}$/', $id)) {
+        $start = new DateTime($id . '-01 00:00:00', $tz);
+    } else {
+        $d = new DateTime('@' . $ts);
+        $d->setTimezone($tz);
+        $start = new DateTime($d->format('Y-m-01') . ' 00:00:00', $tz);
+    }
+    $end = clone $start;
+    $end->modify('+1 month');
+    return ['id' => $start->format('Y-m'), 'label' => $start->format('F Y'), 'start' => $start->getTimestamp(), 'end' => $end->getTimestamp()];
+}
+
+function ensureRecordDir() {
+    if (!is_dir(RECORD_DIR)) @mkdir(RECORD_DIR, 0750, true);
+    foreach (['.htaccess' => "Require all denied\nDeny from all\n", 'index.html' => ''] as $f => $c) {
+        if (!file_exists(RECORD_DIR . '/' . $f)) @file_put_contents(RECORD_DIR . '/' . $f, $c);
+    }
+}
+
+/** Newest finished season's archive (the file kept by archiveSeason), or null. */
+function latestSeason() {
+    $files = glob(RECORD_DIR . '/seasons/*.json') ?: [];
+    if (!$files) return null;
+    rsort($files);
+    $d = json_decode((string)@file_get_contents($files[0]), true);
+    return is_array($d) && isset($d['id']) ? $d : null;
+}
+
+/**
+ * Save the finished season for good: every board as it ended (with the screenshots of the number ones, which move
+ * to seasons/shots so they are never deleted), and the star table. Returns false if it could not be written.
+ */
+function archiveSeason(array $all, string $id): bool {
+    ensureRecordDir();
+    $dir = RECORD_DIR . '/seasons';
+    if (!is_dir($dir)) @mkdir($dir, 0750, true);
+    if (!is_dir($dir . '/shots')) @mkdir($dir . '/shots', 0750, true);
+    $info = seasonInfo(0, $id);
+    $boards = [];
+    foreach (LEVELS as $level) {
+        $board = boardFor($all, $level);
+        foreach (CATEGORIES as $category) {
+            $row = $board[$category][0] ?? null;
+            if (is_array($row)) {
+                $shot = shotOf($level, $category, $row);
+                if ($shot !== '') {
+                    $board[$category][0]['shot'] = $shot;
+                    $from = RECORD_DIR . '/shots/' . $shot;
+                    if (is_file($from)) @rename($from, $dir . '/shots/' . $shot);
+                }
+            }
+        }
+        if ($board['shortest'] || $board['fastest'] || $board['spare']) $boards[$level] = $board;
+    }
+    $data = ['id' => $info['id'], 'label' => $info['label'], 'start' => $info['start'], 'end' => $info['end'], 'boards' => $boards, 'stars' => topStars($all, 1000)];
+    $tmp = $dir . '/' . $info['id'] . '.json.tmp';
+    if (@file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_UNICODE)) === false) return false;
+    return @rename($tmp, $dir . '/' . $info['id'] . '.json');
+}
+
+/**
+ * New month in Vancouver: archive the finished season and start the new one with empty boards.
+ * The first time ever, the boards that exist simply belong to the current season. Returns true when $all changed.
+ */
+function syncSeason(array &$all): bool {
+    $cur = seasonInfo(nowTs());
+    $stored = $all['_season'] ?? null;
+    if (!is_string($stored) || !preg_match('/^\d{4}-\d{2}$/', $stored)) {
+        $all['_season'] = $cur['id'];
+        return true;
+    }
+    if ($stored === $cur['id']) return false;
+    if (!archiveSeason($all, $stored)) return false;   // keep everything and try again on the next request
+    foreach (LEVELS as $level) unset($all[$level]);
+    $all['_season'] = $cur['id'];
+    return true;
+}
+
 /**
  * Compare each level's version in scores.php (LEVEL_REVS, the version it was last changed in) with the one the
  * data file remembers. A level seen for the first time just gets its version recorded; a level whose version
@@ -342,15 +430,25 @@ if ($method === 'GET') {
     $handle = @fopen(DATA_FILE, 'c+');
     if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be read here.');
     $all = readAll($handle);
-    if (syncRevs($all)) saveAll($handle, $all);
+    $c1 = syncSeason($all);
+    $c2 = syncRevs($all);
+    if ($c1 || $c2) saveAll($handle, $all);
     flock($handle, LOCK_UN);
     fclose($handle);
+    $season = seasonInfo(nowTs());
+    $season['now'] = nowTs();
     if ($wantRevs) {
-        echo json_encode(['revs' => LEVEL_REVS]);
+        echo json_encode(['revs' => LEVEL_REVS, 'season' => $season]);
         exit;
     }
     if ($wantStars) {
-        echo json_encode(['stars' => topStars($all), 'max' => count(LEVELS) * count(CATEGORIES)]);
+        $prev = latestSeason();
+        echo json_encode([
+            'stars' => topStars($all),
+            'max' => count(LEVELS) * count(CATEGORIES),
+            'season' => $season,
+            'previous' => $prev ? ['id' => $prev['id'], 'label' => $prev['label'], 'stars' => array_slice($prev['stars'] ?? [], 0, 5)] : null,
+        ]);
         exit;
     }
     echo json_encode(['board' => publicBoard(boardFor($all, $level)), 'rev' => LEVEL_REVS[$level]]);
@@ -393,10 +491,11 @@ $shotFile = saveShot((string)($in['shot'] ?? ''), $level);
 $handle = @fopen(DATA_FILE, 'c+');
 if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here.');
 $all = readAll($handle);
+syncSeason($all);
 syncRevs($all);
 $board = boardFor($all, $level);
 $before = $board;
-$results = recordRun($board, $name, $values, time(), $version);
+$results = recordRun($board, $name, $values, nowTs(), $version);
 $broken = brokenRecords($before, $board, $results);
 // Only a board's number one keeps a screenshot: the new record's picture goes on its row, and the pictures of
 // whoever was number one before (and of anyone no longer first) are deleted.
@@ -419,7 +518,7 @@ deleteShots(array_diff($oldShots, $newShots));
 if ($shotFile !== '' && !in_array($shotFile, $newShots, true)) deleteShots([$shotFile]);   // the run broke nothing
 foreach ($broken as $category => $b) {
     logRecord([
-        't' => time(),
+        't' => nowTs(),
         'level' => $level,
         'category' => $category,
         'name' => $b['new']['name'],

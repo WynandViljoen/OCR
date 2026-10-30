@@ -8,6 +8,16 @@ import { feelOf, type PropSpec } from './props';
 import type { Level } from './levels';
 import { drawThumbnail } from './draw';
 import { BOARD_SIZE, CATEGORIES, CATEGORY_INFO, emptyBoard, formatValue, sanitizeName, type Board } from './profile';
+import type { StarsView } from './community';
+
+/** Time left as "3 d 5 h", "5 h 10 min" or "12 min". */
+export function leftText(secs: number): string {
+  if (secs <= 0) return 'no time';
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  return d > 0 ? `${d} d ${h} h` : h > 0 ? `${h} h ${m} min` : `${Math.max(1, m)} min`;
+}
 
 export interface UIHandlers {
   onPaletteClick(type: PartType): void;
@@ -467,7 +477,8 @@ export class UI {
 
   private scoresView: ScoresView | null = null;
   private scoresTab: 'community' | 'mine' | 'stars' = 'community';
-  private starsView: { rows: { name: string; stars: number }[]; max: number } | 'loading' | 'offline' = 'loading';
+  private starsView: StarsView | 'loading' | 'offline' = 'loading';
+  private starsAt = 0;
 
   /** Fill the High scores card for the current level. `view.mine` is null for levels without a goal. */
   setScores(view: ScoresView) {
@@ -489,8 +500,9 @@ export class UI {
   }
 
   /** The answer for the ★ Stars tab (null = the server could not be reached). */
-  setStars(view: { rows: { name: string; stars: number }[]; max: number } | null) {
+  setStars(view: StarsView | null) {
     this.starsView = view ?? 'offline';
+    this.starsAt = Date.now();
     if (this.scoresTab === 'stars') this.renderScores();
   }
 
@@ -524,23 +536,44 @@ export class UI {
       const v = this.starsView;
       if (v === 'loading') return note('Counting stars...');
       if (v === 'offline') return note('The star table is not reachable right now.');
-      if (!v.rows.length) return note('No stars yet. Be number one on a board to earn the first one!');
-      const ol = document.createElement('ol');
-      ol.className = 'star-list';
-      v.rows.forEach((r, i) => {
-        const li = document.createElement('li');
-        if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
-        const who = document.createElement('span');
-        who.className = 'who';
-        who.textContent = `${i + 1}. ${r.name}`;
-        const val = document.createElement('span');
-        val.className = 'val';
-        val.textContent = `★ ${r.stars}`;
-        li.append(who, val);
-        ol.appendChild(li);
-      });
-      body.appendChild(ol);
-      note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}.`);
+      const champs = new Set((v.previous?.rows ?? []).filter((r) => r.stars === v.previous?.rows[0]?.stars).map((r) => r.name.toLowerCase()));
+      const list = (rows: StarsView['rows'], crownFirst: boolean) => {
+        const ol = document.createElement('ol');
+        ol.className = 'star-list';
+        rows.forEach((r, i) => {
+          const li = document.createElement('li');
+          if (r.name.toLowerCase() === player.toLowerCase()) li.className = 'me';
+          const who = document.createElement('span');
+          who.className = 'who';
+          const crowned = crownFirst ? r.stars === rows[0].stars : champs.has(r.name.toLowerCase());
+          who.textContent = `${i + 1}. ${r.name}${crowned ? ' \u{1F3C6}' : ''}`;
+          who.title = crowned && !crownFirst ? 'Won last season' : '';
+          const val = document.createElement('span');
+          val.className = 'val';
+          val.textContent = `\u2605 ${r.stars}`;
+          li.append(who, val);
+          ol.appendChild(li);
+        });
+        return ol;
+      };
+      const heading = (text: string) => {
+        const p = document.createElement('p');
+        p.className = 'season-head';
+        p.textContent = text;
+        body.appendChild(p);
+      };
+      if (v.season) {
+        const left = v.season.end - (v.season.now + (Date.now() - this.starsAt) / 1000);
+        heading(`${v.season.label} season \u00B7 ${leftText(left)} left`);
+      }
+      if (v.rows.length) body.appendChild(list(v.rows, false));
+      else note('No stars yet this season. Be number one on a board to earn the first one!');
+      if (v.previous) {
+        heading(`Last season \u00B7 ${v.previous.label}`);
+        if (v.previous.rows.length) body.appendChild(list(v.previous.rows, true));
+        else note('Nobody held a star.');
+      }
+      note(`A star = number one (or tied) on one board. Each level has 3 boards, so the most anyone can hold is ${v.max}. Every month starts fresh.`);
       return;
     }
 

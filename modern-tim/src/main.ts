@@ -1799,10 +1799,12 @@ track('level', player, level.id);
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
 const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
+let seasonStartMs = 0;
 // Levels that were changed since this browser last looked lose their scores (the server cleared its boards).
 void fetchRevs()
-  .then((revs) => {
-    const gone = revs ? scrubChangedLevels(revs, allScores) : [];
+  .then((info) => {
+    seasonStartMs = info?.season ? info.season.start * 1000 : 0;
+    const gone = info ? scrubChangedLevels(info.revs, allScores) : [];
     if (gone.length) {
       scrubPending(gone);
       for (const id of gone) delete community[id];
@@ -1813,7 +1815,7 @@ void fetchRevs()
   .then(() => flushPending())
   .then(async (n) => {
     // Every start: anything this player has on this device that belongs on a community board but is not there yet is added.
-    const added = player ? await syncLocalBests(allScores, player) : 0;
+    const added = player ? await syncLocalBests(allScores, player, undefined, seasonStartMs) : 0;
     if (added > 0) ui.toast(added === 1 ? 'Added one of your scores to the community boards.' : `Added your scores for ${added} levels to the community boards.`);
     if (n > 0 || added > 0) loadCommunity();
   });

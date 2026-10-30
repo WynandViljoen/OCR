@@ -720,3 +720,5 @@ kbd {
 .star-list li.me { background: var(--blue-soft); }
 .star-list .who { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .star-list .val { color: #e0a800; font-variant-numeric: tabular-nums; font-weight: 800; }
+
+.season-head { margin: 6px 0 2px; font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
