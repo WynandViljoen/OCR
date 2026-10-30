@@ -56,6 +56,30 @@ try {
     assert.equal(r.season.end * 1000, OCT_END);
     assert.equal(r.season.now, Math.floor(Date.UTC(2026, 9, 30, 20) / 1000));
   });
+  await check('October still uses the original puzzles, and the November set is announced only by the dashboard preview', async () => {
+    const r = await (await fetch(`${base()}/scores.php?revs=1`)).json();
+    assert.equal(r.set, 'base');
+    assert.equal(r.revs.ramps, '0.4g');
+    assert.deepEqual(await (await fetch(`${base()}/scores.php?preview=nope&set=nov`)).json(), { ok: false }, 'a made-up key opens nothing');
+  });
+
+  await check('the dashboard offers a hidden preview of the November puzzles, and only its key opens it', async () => {
+    const jar = {};
+    const take = (r) => { for (const c of r.headers.getSetCookie?.() ?? []) jar[c.split('=')[0]] = c.split(';')[0]; };
+    const cookie = () => Object.values(jar).join('; ');
+    let res = await fetch(`${base()}/admin.php`);
+    take(res);
+    const csrf = /name="csrf" value="([a-f0-9]+)"/.exec(await res.text())?.[1];
+    res = await fetch(`${base()}/admin.php`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: cookie() }, body: new URLSearchParams({ csrf, password: 'HappyCampers', do: 'login' }) });
+    take(res);
+    const page = await (await fetch(`${base()}/admin.php?view=scores`, { headers: { cookie: cookie() } })).text();
+    const m = /href="\.\/\?preview=([0-9a-f]+)&amp;set=nov"/.exec(page);
+    assert.ok(m, 'the November preview link is on the dashboard');
+    assert.ok(page.includes('November 2026 puzzles'));
+    assert.deepEqual(await (await fetch(`${base()}/scores.php?preview=${m[1]}&set=nov`)).json(), { ok: true });
+    assert.deepEqual(await (await fetch(`${base()}/scores.php?preview=${m[1]}&set=base`)).json(), { ok: false }, 'only sets that are not live yet can be previewed');
+    assert.deepEqual(await (await fetch(`${base()}/scores.php?preview=${m[1]}x&set=nov`)).json(), { ok: false });
+  });
 
   await post('ramps', 'Ann', 8);
   await post('ramps', 'Bob', 6, { shot: jpeg }); // Bob breaks the record, with a picture
@@ -102,6 +126,13 @@ try {
     assert.equal(again.board.shortest.length, 1, 'asking again does not archive again');
   });
 
+  await check('in November the live set is the November one: its levels have their own version, so an old game cannot post to them', async () => {
+    const r = await (await fetch(`${base()}/scores.php?revs=1`)).json();
+    assert.equal(r.set, 'nov');
+    assert.ok(Object.values(r.revs).every((v) => v === 'nov1'));
+    const res = await fetch(`${base()}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'Old', pathMeters: 5, seconds: 5, spare: 0, rev: '0.4g' }) });
+    assert.equal(res.status, 409);
+  });
   await clock(Date.UTC(2027, 0, 5, 12)); // nobody played in December
   await check('a quiet month in between still archives what was there', async () => {
     await fetch(`${base()}/scores.php?level=ramps`);

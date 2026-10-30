@@ -1,5 +1,13 @@
 # Changelog
 
+## Modern TIM 0.4x
+
+- **The November 2026 puzzle set is built and shipped, hidden.** Every one of the 21 puzzles is back with the same id and name, but changed and harder (walls taller, targets farther, gears and dominoes needing more pieces, tighter inventories, new solutions). It lives in `modern-tim/src/game/levels-nov.ts`; `seasons.ts` lists the sets. Nobody sees it before the 1st.
+- **The server decides which set is live.** `scores.php` has `SEASON_SETS` (`'2026-11' => 'nov'`): from that month on the game uses that set. The game asks the server at start-up, switches sets, remembers the set for offline starts, and scrubs the old scores and "solved" ticks of the levels that changed (the November levels carry their own version, `SET_REVS`, so an old game can never post to the new boards). A month with no set of its own keeps the latest one before it, with the boards and stars wiped as usual, so nothing needs doing on the 1st if the next set is not ready.
+- **Preview on the dashboard.** The High scores page shows "Preview November 2026 puzzles" while a set is shipped but not live. The link opens the game with the next set, a banner says nothing is saved, and nothing is saved or sent: no scores, no solved ticks, no community posts, no tracking. The link carries a secret key (made once, kept in `tim-data/preview.key`, checked by `scores.php`); anyone without it just gets the normal game.
+- `npm run check-levels` and `check-failure` now test every puzzle set (solution solves, empty board does not, no attributes, inventory respected, no pause long enough to look like a failure). `check-seasons` covers the set switch at midnight, the 409 for old games and the preview key; `check-versions` checks the two PHP files agree on `SEASON_SETS`.
+- No "last season" button in the Community tab: the Stars tab already shows last season's winners.
+
 ## Modern TIM 0.4w
 
 - **Seasons.** A season is one calendar month in Vancouver time. At midnight on the 1st the server (`scores.php`, on the first request after midnight) saves the finished season for good and starts the new one with empty boards, so every star count starts again from zero. Saved: all boards as they ended, the screenshots of the number ones (moved into the archive so they are never deleted), and the final star table. Nothing is lost if no one plays for a while: the next request archives whatever was there.

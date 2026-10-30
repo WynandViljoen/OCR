@@ -81,6 +81,6 @@ export function testLevel(level: Level): LevelTestResult {
   };
 }
 
-export function testAllLevels(): LevelTestResult[] {
-  return LEVELS.map(testLevel);
+export function testAllLevels(levels: Level[] = LEVELS): LevelTestResult[] {
+  return levels.map(testLevel);
 }

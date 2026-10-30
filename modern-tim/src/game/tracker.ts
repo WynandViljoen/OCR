@@ -55,7 +55,14 @@ export function deviceId(): string {
 // before the next one is sent (otherwise two ids could be issued at once).
 let queue: Promise<void> = Promise.resolve();
 
+/** Preview mode: nothing the admin does while trying a puzzle set is recorded. */
+let off = false;
+export function disableTracking() {
+  off = true;
+}
+
 export function track(ev: TrackEvent, name: string, level = '', d: Record<string, unknown> = {}): void {
+  if (off) return;
   queue = queue.then(async () => {
     const ctl = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = ctl ? setTimeout(() => ctl.abort(), TIMEOUT_MS) : null;

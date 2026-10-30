@@ -27,10 +27,12 @@ declare(strict_types=1);
 
 const ADMIN_HASH = '$2y$10$2o0urLzMO6zfm0hP2RyzzOnQJjd3oaH8mC5vT.fUgrKrn8aegDCyO';
 const DATA_DIR = __DIR__ . '/tim-data';
+// Same table as SEASON_SETS in scores.php (check-versions makes sure they match): the month a puzzle set goes live.
+const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4w';
+const ADMIN_BUILD = '0.4x';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -465,6 +467,18 @@ function season_now(): int {
     return ($t !== false && $t !== '' && ctype_digit($t)) ? (int) $t : time();
 }
 
+/** The secret in the preview link for a puzzle set that is not live yet (made once; scores.php checks it). */
+function preview_key(): string {
+    $p = DATA_DIR . '/preview.key';
+    $k = is_file($p) ? trim((string) @file_get_contents($p)) : '';
+    if ($k === '') {
+        ensure_dir();
+        $k = bin2hex(random_bytes(12));
+        if (@file_put_contents($p, $k) === false) return '';
+    }
+    return $k;
+}
+
 /** A season is one calendar month in Vancouver. Same rule as scores.php. */
 function season_info(int $ts, string $id = ''): array {
     $tz = new DateTimeZone(DISPLAY_TZ);
@@ -737,6 +751,16 @@ function scores_view() {
     } else {
         echo '<p><b>' . h($cur['label']) . '</b> <span class="mute">season in progress: ends ' . h(fmt_time($cur['end'])) . ' (' . h(DISPLAY_TZ) . '), ' . h(left_text($cur['end'] - season_now())) . ' left. At that moment the boards are saved here as a finished season and start empty.</span></p>';
         $leaders = star_table($boardsNow);
+    }
+    if (!$archive) {
+        // Puzzle sets that are shipped in the game but not live yet: the admin can play them from here.
+        foreach (SEASON_SETS as $month => $setName) {
+            if (strcmp((string) $month, $cur['id']) <= 0) continue;
+            $key = preview_key();
+            $info = season_info(0, (string) $month);
+            echo '<p><b>' . h($info['label']) . ' puzzles</b> <span class="mute">are in the game but hidden. They go live on ' . h(fmt_time($info['start'])) . ' (' . h(DISPLAY_TZ) . '). Play them now: </span>'
+                . ($key !== '' ? '<a class="btn" target="_blank" rel="noopener" href="./?preview=' . h($key) . '&amp;set=' . h($setName) . '">Preview ' . h($info['label']) . ' puzzles</a> <span class="mute">(nothing you do there is saved or sent). Keep this link private.</span>' : '<span class="mute">(the data folder is not writable, so there is no link)</span>') . '</p>';
+        }
     }
     echo '<div class="wrap" style="margin-bottom:8px"><table><tr><th>Star leaders</th>';
     for ($i = 0; $i < 5; $i++) echo '<th>' . ($i + 1) . '</th>';

@@ -65,7 +65,7 @@ export interface Level {
 }
 
 /** A basket on the floor with a funnel above it: landing window about cx ± 95 at y = 445. */
-function basketWithFunnel(cx: number): LevelPart[] {
+export function basketWithFunnel(cx: number): LevelPart[] {
   return [
     { type: 'basket', x: cx, y: 565 },
     { type: 'wall', x: cx - 60, y: 480, angle: 45, w: 100, h: 12 },

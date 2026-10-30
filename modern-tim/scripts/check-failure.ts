@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import Matter from 'matter-js';
 import { LEVELS, levelToParts, solutionToParts } from '../src/game/levels';
 import { REST_STEPS, Simulation, type FailReason } from '../src/game/world';
+import { LEVEL_SETS, applyLevelSet } from '../src/game/seasons';
 
 let passed = 0;
 const check = (name: string, fn: () => void) => {
@@ -43,18 +44,22 @@ check('an empty board ends by itself as a failure once everything is still, and 
   assert.deepEqual(calls, ['rest']);
 });
 
-check('a working solution is never called a failure', () => {
-  for (const l of LEVELS.filter((x) => x.hasGoal && x.solution)) {
-    const { sim, calls } = make(l.id, true);
-    let still = 0;
-    for (let i = 0; i < 1800 && !sim.solved && !sim.failed; i++) {
-      sim.step();
-      still = Math.max(still, (sim as unknown as { restSteps: number }).restSteps);
+check('a working solution is never called a failure (every puzzle set)', () => {
+  for (const setName of Object.keys(LEVEL_SETS)) {
+    applyLevelSet(setName);
+    for (const l of LEVELS.filter((x) => x.hasGoal && x.solution)) {
+      const { sim, calls } = make(l.id, true);
+      let still = 0;
+      for (let i = 0; i < 1800 && !sim.solved && !sim.failed; i++) {
+        sim.step();
+        still = Math.max(still, (sim as unknown as { restSteps: number }).restSteps);
+      }
+      assert.ok(still <= REST_STEPS * 0.8, `${setName}/${l.id}: its solution pauses ${still} steps, too close to the failure limit of ${REST_STEPS}`);
+      assert.equal(sim.solved, true, `${setName}/${l.id}`);
+      assert.deepEqual(calls, [], `${setName}/${l.id}`);
     }
-    assert.ok(still <= REST_STEPS * 0.8, `${l.id}: its solution pauses ${still} steps, too close to the failure limit of ${REST_STEPS}`);
-    assert.equal(sim.solved, true, l.id);
-    assert.deepEqual(calls, [], l.id);
   }
+  applyLevelSet('base');
 });
 
 check('a ball that leaves the play area is a failure at once', () => {

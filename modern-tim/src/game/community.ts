@@ -85,14 +85,20 @@ function parseSeason(raw: unknown): SeasonInfo | null {
 }
 
 /** The version each level was last changed in, and the season now running, as the server has them (null if it cannot be reached). */
-export async function fetchRevs(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<{ revs: Record<string, string>; season: SeasonInfo | null } | null> {
+export async function fetchRevs(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<{ revs: Record<string, string>; season: SeasonInfo | null; set: string } | null> {
   const raw = await call(fetchFn, `${ENDPOINT}?revs=1&_=${Date.now()}`);
-  const data = raw === REJECTED ? null : (raw as { revs?: unknown; season?: unknown } | null);
+  const data = raw === REJECTED ? null : (raw as { revs?: unknown; season?: unknown; set?: unknown } | null);
   const revs = data?.revs;
   if (!revs || typeof revs !== 'object') return null;
   const out: Record<string, string> = {};
   for (const [id, v] of Object.entries(revs as Record<string, unknown>)) if (typeof v === 'string') out[id] = v;
-  return { revs: out, season: parseSeason(data?.season) };
+  return { revs: out, season: parseSeason(data?.season), set: typeof data?.set === 'string' && data.set ? data.set : 'base' };
+}
+
+/** True when the server accepts this preview key for that puzzle set (the admin dashboard hands out the link). */
+export async function checkPreview(key: string, set: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<boolean> {
+  const raw = await call(fetchFn, `${ENDPOINT}?preview=${encodeURIComponent(key)}&set=${encodeURIComponent(set)}&_=${Date.now()}`);
+  return raw !== REJECTED && !!raw && (raw as { ok?: unknown }).ok === true;
 }
 
 /** Forget runs still waiting to be sent for levels that were changed (they were made on the old level). */

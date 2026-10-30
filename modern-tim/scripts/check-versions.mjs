@@ -18,3 +18,11 @@ assert.equal(admin, game, `admin.php ADMIN_BUILD (${admin}) must equal the game 
 assert.equal(readme, game, `README.md says version ${readme}, the game is ${game}`);
 assert.equal(changelog, game, `the top CHANGELOG entry is ${changelog}, the game is ${game}`);
 console.log(`OK game, dashboard, README and CHANGELOG are all version ${game}`);
+
+// The month a puzzle set goes live is written in both PHP files, and must be the same.
+const sets = (file) => /const SEASON_SETS = \[(.*?)\];/s.exec(readFileSync(join(root, file), 'utf8'))?.[1].replace(/\s+/g, '');
+assert.ok(sets('scores.php'), 'scores.php has no SEASON_SETS');
+assert.equal(sets('admin.php'), sets('scores.php'), 'SEASON_SETS in admin.php and scores.php must match');
+const setRev = /const SET_REVS = \['nov' => '([^']+)'\]/.exec(readFileSync(join(root, 'scores.php'), 'utf8'))?.[1];
+assert.ok(setRev, 'scores.php has no SET_REVS for nov');
+console.log(`OK puzzle sets agree (SEASON_SETS ${sets('scores.php')}, November set version ${setRev})`);

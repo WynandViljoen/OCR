@@ -6,9 +6,12 @@
  * Run it after tweaking physics constants or level layouts.
  */
 import { testAllLevels } from '../src/game/selftest';
+import { LEVEL_SETS } from '../src/game/seasons';
 
 let failures = 0;
-for (const r of testAllLevels()) {
+for (const [setName, levels] of Object.entries(LEVEL_SETS)) {
+console.log(`== puzzle set: ${setName}`);
+for (const r of testAllLevels(levels)) {
   if (r.skipped) {
     console.log(`-  ${r.name}: no goal or recorded solution, skipped`);
     continue;
@@ -18,5 +21,6 @@ for (const r of testAllLevels()) {
     `${r.ok ? 'OK' : 'XX'} ${r.name}: solution ${r.solutionSolves ? `solves in ${r.seconds.toFixed(1)}s` : 'FAILS'}, ` +
       `empty board ${r.solvesAlone ? 'SOLVES BY ITSELF' : r.emptyFails ? 'needs parts (ends as a failure by itself)' : 'needs parts (keeps running)'}${r.problem ? `, PROBLEM: ${r.problem}` : ''}`,
   );
+}
 }
 process.exitCode = failures ? 1 : 0;

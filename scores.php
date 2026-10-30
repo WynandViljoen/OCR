@@ -42,6 +42,11 @@ const BOARD_SIZE = 5;
 const MAX_NAME = 16;
 const DATA_FILE = __DIR__ . '/scores-data.json';
 const RECORD_DIR = __DIR__ . '/tim-data';
+// Puzzle sets: from the month named here on, the game uses that set of levels (same ids and names, new layouts).
+// A month with no entry of its own keeps the latest set before it, with its boards and stars wiped as usual.
+// The game ships every set; this table (not the game) says which one is live. See modern-tim/src/game/seasons.ts.
+const SEASON_SETS = ['2026-11' => 'nov'];
+const SET_REVS = ['nov' => 'nov1'];   // version of a whole set; change it to wipe that set's boards (see level-revs.ts)
 const SEASON_TZ = 'America/Vancouver';   // a season is one calendar month here, from midnight to midnight
 const RECORD_LOG_MAX_BYTES = 1500000;
 const MAX_BODY_BYTES = 400000;   // a score is tiny; the rest is room for one record-breaking screenshot
@@ -269,6 +274,38 @@ function seasonInfo(int $ts, string $id = ''): array {
     return ['id' => $start->format('Y-m'), 'label' => $start->format('F Y'), 'start' => $start->getTimestamp(), 'end' => $end->getTimestamp()];
 }
 
+/** Which puzzle set is live in the season with this id ('base' = the original levels). */
+function setFor(string $seasonId): string {
+    $set = 'base';
+    $keys = array_keys(SEASON_SETS);
+    sort($keys);
+    foreach ($keys as $k) {
+        if (strcmp((string)$k, $seasonId) <= 0) $set = SEASON_SETS[$k];
+    }
+    return $set;
+}
+
+/** The version of every level now: the level's own for the base set, the whole set's version for a later set. */
+function revsNow(): array {
+    $set = setFor(seasonInfo(nowTs())['id']);
+    if ($set === 'base' || !isset(SET_REVS[$set])) return LEVEL_REVS;
+    $out = [];
+    foreach (LEVEL_REVS as $id => $rev) $out[$id] = SET_REVS[$set];
+    return $out;
+}
+
+/** Hidden link for the admin to try a set before it goes live: the key is made once and kept in tim-data. */
+function previewKey(bool $make = false): string {
+    $p = RECORD_DIR . '/preview.key';
+    $k = is_file($p) ? trim((string)@file_get_contents($p)) : '';
+    if ($k === '' && $make) {
+        ensureRecordDir();
+        $k = bin2hex(random_bytes(12));
+        @file_put_contents($p, $k);
+    }
+    return $k;
+}
+
 function ensureRecordDir() {
     if (!is_dir(RECORD_DIR)) @mkdir(RECORD_DIR, 0750, true);
     foreach (['.htaccess' => "Require all denied\nDeny from all\n", 'index.html' => ''] as $f => $c) {
@@ -343,7 +380,7 @@ function syncSeason(array &$all): bool {
 function syncRevs(array &$all): bool {
     $changed = false;
     $stored = is_array($all['_revs'] ?? null) ? $all['_revs'] : [];
-    foreach (LEVEL_REVS as $id => $rev) {
+    foreach (revsNow() as $id => $rev) {
         if (!isset($stored[$id])) {
             $stored[$id] = $rev;
             $changed = true;
@@ -424,6 +461,14 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
     $level = (string)($_GET['level'] ?? '');
+    if (isset($_GET['preview'])) {
+        $k = previewKey();
+        $given = (string)$_GET['preview'];
+        $set = (string)($_GET['set'] ?? '');
+        $ok = $k !== '' && hash_equals($k, $given) && in_array($set, SEASON_SETS, true);
+        echo json_encode(['ok' => $ok]);
+        exit;
+    }
     $wantRevs = isset($_GET['revs']);
     $wantStars = isset($_GET['stars']);
     if (!$wantRevs && !$wantStars && !in_array($level, LEVELS, true)) fail(400, 'Unknown level.');
@@ -438,7 +483,7 @@ if ($method === 'GET') {
     $season = seasonInfo(nowTs());
     $season['now'] = nowTs();
     if ($wantRevs) {
-        echo json_encode(['revs' => LEVEL_REVS, 'season' => $season]);
+        echo json_encode(['revs' => revsNow(), 'season' => $season, 'set' => setFor($season['id'])]);
         exit;
     }
     if ($wantStars) {
@@ -451,7 +496,7 @@ if ($method === 'GET') {
         ]);
         exit;
     }
-    echo json_encode(['board' => publicBoard(boardFor($all, $level)), 'rev' => LEVEL_REVS[$level]]);
+    echo json_encode(['board' => publicBoard(boardFor($all, $level)), 'rev' => revsNow()[$level]]);
     exit;
 }
 
@@ -478,7 +523,7 @@ if ($path <= 0 || $path > 500 || $seconds <= 0 || $seconds > 120 || $spare < 0 |
 
 // A game that still has an older copy of this level must not put scores on the new board.
 $rev = $in['rev'] ?? null;
-if (is_string($rev) && $rev !== LEVEL_REVS[$level]) fail(409, 'This level has changed. Reload the game to get the new version.');
+if (is_string($rev) && $rev !== revsNow()[$level]) fail(409, 'This level has changed. Reload the game to get the new version.');
 
 $version = (string)($in['version'] ?? '');
 if (!preg_match('/^[0-9A-Za-z.\-]{1,12}$/', $version)) $version = '';

@@ -722,3 +722,5 @@ kbd {
 .star-list .val { color: #e0a800; font-variant-numeric: tabular-nums; font-weight: 800; }
 
 .season-head { margin: 6px 0 2px; font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+#preview-bar{position:sticky;top:0;z-index:50;background:#b45309;color:#fff;font:600 14px/1.2 system-ui,sans-serif;text-align:center;padding:6px 10px}

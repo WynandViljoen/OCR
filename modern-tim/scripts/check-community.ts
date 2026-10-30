@@ -123,6 +123,9 @@ await check('a changed level loses its local scores and waiting runs; unchanged 
   assert.equal(withSeason?.season?.label, 'October 2026');
   assert.equal((await fetchRevs(okJson({ revs: {}, season: { id: 3 } })))?.season, null);
   assert.equal(await fetchRevs(async () => { throw new Error('offline'); }), null);
+  assert.equal((await fetchRevs(okJson({ revs: {}, set: 'nov' })))?.set, 'nov', 'the server names the live puzzle set');
+  assert.equal((await fetchRevs(okJson({ revs: {} })))?.set, 'base', 'an older server means the original set');
+  assert.equal((await fetchRevs(okJson({ revs: {}, set: 7 })))?.set, 'base');
 });
 
 await check('on start, local bests that belong on a community board are sent; others are not', async () => {

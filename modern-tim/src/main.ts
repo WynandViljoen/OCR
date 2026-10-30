@@ -17,12 +17,13 @@ import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
 import { findFreeSpot, overlapsAny } from './game/space';
 import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
-import { track } from './game/tracker';
+import { track, disableTracking } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
+import { applyLevelSet, currentSet, rememberSet, rememberedSet } from './game/seasons';
+import { checkPreview, fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -74,10 +75,17 @@ let suppressPaletteClick = false;
 let undoStack: PlacedPart[][] = [];
 let lastTrails: Trail[] = [];
 let showPaths = true;
-let solvedLevels = loadSolved();
+// Preview: the admin dashboard links here to play a puzzle set before it goes live. Nothing is saved or sent.
+const previewParams = new URLSearchParams(window.location.search);
+const previewKey = previewParams.get('preview') ?? '';
+const previewSet = previewParams.get('set') ?? '';
+const previewing = previewKey !== '' && previewSet !== '' && applyLevelSet(previewSet);
+if (previewing) disableTracking();
+else applyLevelSet(rememberedSet());
+let solvedLevels = previewing ? new Set<string>() : loadSolved();
 /** Who is playing (asked on the first visit, then remembered) and everyone's best runs on this device. */
 let player = loadPlayer();
-const allScores: AllScores = loadScores();
+const allScores: AllScores = previewing ? {} : loadScores();
 
 // Camera: `z` is the zoom factor, (cx, cy) the world point at the top-left of the view.
 const MIN_ZOOM = 0.4;
@@ -197,7 +205,7 @@ sim.onSolved = (info) => {
   const run = { pathMeters: pathMeters(info.pathPx), seconds: stepsToSeconds(info.steps), spare: spareTools() };
   const results = player ? recordRun(allScores, level.id, player, run) : [];
   if (results.length) {
-    saveScores(allScores);
+    if (!previewing) saveScores(allScores);
     try {
       refreshScores();
     } catch (err) {
@@ -205,7 +213,7 @@ sim.onSolved = (info) => {
     }
   }
   // Send it to the community board. If that fails, keep it and try again next visit.
-  if (player && level.hasGoal) {
+  if (player && level.hasGoal && !previewing) {
     const id = level.id;
     const name = player;
     let shot = '';
@@ -318,6 +326,11 @@ function refreshScores() {
 function loadCommunity() {
   if (!level.hasGoal) return;
   const id = level.id;
+  if (previewing) {
+    community[id] = emptyBoard();
+    communityStatus = 'ok';
+    return;
+  }
   communityStatus = 'loading';
   void flushPending().then(() => fetchCommunity(id)).then((board) => {
     if (board) community[id] = board;
@@ -344,6 +357,7 @@ function loadSolved(): Set<string> {
 }
 
 function saveSolved() {
+  if (previewing) return;
   try {
     localStorage.setItem(SOLVED_KEY, JSON.stringify([...solvedLevels]));
   } catch {
@@ -1801,15 +1815,40 @@ const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
 let seasonStartMs = 0;
 // Levels that were changed since this browser last looked lose their scores (the server cleared its boards).
-void fetchRevs()
+/** The server says which puzzle set is live this month. A different set than the one on screen replaces it. */
+function switchToLiveSet(set: string) {
+  if (set === currentSet() || !applyLevelSet(set)) return;
+  rememberSet(set);
+  loadLevel(Math.max(0, LEVELS.findIndex((l) => l.hasGoal && !solvedLevels.has(l.id))), true);
+}
+
+if (previewing) {
+  // Show a banner at once; if the server does not recognise the link, go back to the normal game.
+  const bar = document.createElement('div');
+  bar.id = 'preview-bar';
+  bar.textContent = `PREVIEW: next month's puzzles. Nothing you do here is saved or sent.`;
+  document.body.prepend(bar);
+  void checkPreview(previewKey, previewSet).then((ok) => {
+    if (!ok) window.location.replace(window.location.pathname);
+  });
+} else void fetchRevs()
   .then((info) => {
     seasonStartMs = info?.season ? info.season.start * 1000 : 0;
     const gone = info ? scrubChangedLevels(info.revs, allScores) : [];
+    const newSet = !!info && info.set !== currentSet();
+    if (info) {
+      // A new puzzle set is a new challenge: its levels start unsolved.
+      if (newSet && gone.length) {
+        for (const id of gone) solvedLevels.delete(id);
+        saveSolved();
+      }
+      switchToLiveSet(info.set);
+    }
     if (gone.length) {
       scrubPending(gone);
       for (const id of gone) delete community[id];
       refreshScores();
-      ui.toast(gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
+      ui.toast(newSet ? 'New puzzles this month! Every level has changed, and the scores start fresh.' : gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
     }
   })
   .then(() => flushPending())
