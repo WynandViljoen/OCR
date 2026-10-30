@@ -3943,7 +3943,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4r';
+const VERSION = '0.4s';
 
 return { VERSION };
 })();
@@ -4321,12 +4321,12 @@ function stepsToSeconds(steps) {
     return Math.round(steps / 60 * 100) / 100;
 }
 function pathMeters(px) {
-    return Math.round(px / PX_PER_METER * 100) / 100;
+    return Math.round(px / PX_PER_METER * 1000) / 1000;
 }
 function formatValue(category, value) {
-    if (category === 'fastest') return `${value.toFixed(1)} s`;
+    if (category === 'fastest') return `${value.toFixed(2)} s`;
     if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
-    return `${value.toFixed(1)} m`;
+    return `${value.toFixed(3)} m`;
 }
 const sameName = (a, b)=>a.toLowerCase() === b.toLowerCase();
 function better(category, a, b) {

@@ -92,15 +92,15 @@ export function stepsToSeconds(steps: number): number {
   return Math.round((steps / 60) * 100) / 100;
 }
 
-/** Pixels to metres, two decimals. */
+/** Pixels to metres, three decimals (a tenth of a pixel). */
 export function pathMeters(px: number): number {
-  return Math.round((px / PX_PER_METER) * 100) / 100;
+  return Math.round((px / PX_PER_METER) * 1000) / 1000;
 }
 
 export function formatValue(category: Category, value: number): string {
-  if (category === 'fastest') return `${value.toFixed(1)} s`;
+  if (category === 'fastest') return `${value.toFixed(2)} s`;
   if (category === 'spare') return value === 1 ? '1 spare' : `${value} spare`;
-  return `${value.toFixed(1)} m`;
+  return `${value.toFixed(3)} m`;
 }
 
 export const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();

@@ -104,8 +104,8 @@ try {
     assert.ok(html.includes('Records broken'));
     assert.ok(html.includes('<b>4</b> broken in total'));
     assert.ok(html.includes('Ramps'));
-    assert.ok(html.includes('<b>Ana</b> 2 m'), 'new shortest record row');
-    assert.ok(html.includes('Ben 3 m'), 'the record it beat');
+    assert.ok(html.includes('<b>Ana</b> 2.000 m'), 'new shortest record row');
+    assert.ok(html.includes('Ben 3.000 m'), 'the record it beat');
     assert.ok(html.includes('Current community boards'));
     assert.ok(html.indexOf('<form class="inline"') < html.indexOf('Current community boards') && html.indexOf('Current community boards') < html.indexOf('<h2>Records broken</h2>'), 'order: filters, community boards, records broken');
     // Several clicks in a row stay signed in, and every page tells caches to keep out.
@@ -172,19 +172,19 @@ try {
     const html = await (await fetch(`${base}/admin.php?view=scores&level=springs`, { headers: { cookie: cookie() } })).text();
     assert.ok(html.includes('<th>Version</th>') && html.includes('<th>Screenshot</th>'));
     assert.ok(html.includes('<th>Now</th>'));
-    assert.ok(/<b>Fay<\/b> 4 m<\/td><td><b>#1<\/b><\/td>/.test(html), 'Fay is still number one');
-    assert.ok(/<b>Dee<\/b> 6 m<\/td><td><span class="mute">Beaten<\/span><\/td>/.test(html), 'Dee has been passed');
+    assert.ok(/<b>Fay<\/b> 4.000 m<\/td><td><b>#1<\/b><\/td>/.test(html), 'Fay is still number one');
+    assert.ok(/<b>Dee<\/b> 6.000 m<\/td><td><span class="mute">Beaten<\/span><\/td>/.test(html), 'Dee has been passed');
     for (const [n, v] of [['Gus', 5], ['Hal', 4], ['Ivy', 4]]) await send2(n, v);
     const gears = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();
-    assert.ok(/<b>Hal<\/b> 4 m<\/td><td><b>Tied #1<\/b><\/td>/.test(gears), 'Hal is tied for number one');
+    assert.ok(/<b>Hal<\/b> 4.000 m<\/td><td><b>Tied #1<\/b><\/td>/.test(gears), 'Hal is tied for number one');
     const only = async (now) => await (await fetch(`${base}/admin.php?view=scores&level=springs&now=${now}`, { headers: { cookie: cookie() } })).text();
     const top = await only('top');
-    assert.ok(top.includes('<b>Fay</b> 4 m') && !top.includes('<b>Dee</b> 6 m'), 'filter: number one now');
+    assert.ok(top.includes('<b>Fay</b> 4.000 m') && !top.includes('<b>Dee</b> 6.000 m'), 'filter: number one now');
     const beaten = await only('beaten');
-    assert.ok(beaten.includes('<b>Dee</b> 6 m') && !beaten.includes('<b>Fay</b> 4 m'), 'filter: beaten since');
-    assert.ok(/<b>Hal<\/b> 4 m/.test(await (await fetch(`${base}/admin.php?view=scores&level=gears&now=tied`, { headers: { cookie: cookie() } })).text()), 'filter: tied');
+    assert.ok(beaten.includes('<b>Dee</b> 6.000 m') && !beaten.includes('<b>Fay</b> 4.000 m'), 'filter: beaten since');
+    assert.ok(/<b>Hal<\/b> 4.000 m/.test(await (await fetch(`${base}/admin.php?view=scores&level=gears&now=tied`, { headers: { cookie: cookie() } })).text()), 'filter: tied');
     const dee = await (await fetch(`${base}/admin.php?view=scores&level=springs&player=dee`, { headers: { cookie: cookie() } })).text();
-    assert.ok(dee.includes('<b>Dee</b> 6 m') && !dee.includes('<b>Fay</b> 4 m'), 'filter: player');
+    assert.ok(dee.includes('<b>Dee</b> 6.000 m') && !dee.includes('<b>Fay</b> 4.000 m'), 'filter: player');
     assert.ok(dee.includes('<option value="dee" selected>Dee</option>'), 'player list offers the name');
     assert.ok(!(await only('top')).includes('value="nobody"'), 'unknown names are ignored');
     assert.ok((gears.match(/<b>1\. /g) || []).length >= 2, 'everyone tied for number one is bold');
@@ -241,6 +241,13 @@ try {
     assert.ok((await board()).includes(`admin.php?shot=${second[0]}`) && !(await board()).includes(first[0]));
     await go('Kim', 6, jpeg(4)); // a tie breaks nothing: no new picture, the old one stays
     assert.deepEqual(files(), second);
+  });
+  await check('distance is kept to three decimals and time to two', async () => {
+    const r = await (await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'energy', name: 'Rae', pathMeters: 3.12349, seconds: 4.5678, spare: 1 }) })).json();
+    assert.equal(r.board.shortest[0].value, 3.123);
+    assert.equal(r.board.fastest[0].value, 4.57);
+    const page = await (await fetch(`${base}/admin.php?view=scores&level=energy`, { headers: { cookie: cookie() } })).text();
+    assert.ok(page.includes('Rae 3.123 m') && page.includes('Rae 4.57 s'), 'the dashboard shows them as stored');
   });
   console.log(`\n${passed} checks passed`);
 } catch (err) {

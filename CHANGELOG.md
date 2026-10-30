@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4s
+
+- **Scores show more digits, so fewer look like ties.** Distance is now kept and shown to three decimals (a tenth of a pixel, for example 2.512 m) and time to two (for example 4.25 s). Before, both were *shown* with one decimal even though two were stored, so different scores such as 4.31 m and 4.34 m both read "4.3 m". Time cannot use more than two decimals: the game runs 60 steps a second, so two runs can only differ by multiples of 0.0167 s, and two decimals already tell every one of them apart. Older two-decimal scores stay as they are and compare correctly. Needs `scores.php` and `admin.php` (the cron job copies both).
+- Runs that are exactly the same machine give exactly the same numbers, so those remain real ties however many digits are shown.
+
 ## Modern TIM 0.4r
 
 - **The "Didn't work" card has only Edit now** (Retry would just fail the same way again).

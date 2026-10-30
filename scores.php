@@ -338,7 +338,7 @@ $path = $in['pathMeters'] ?? null;
 $seconds = $in['seconds'] ?? null;
 $spare = $in['spare'] ?? null;
 if (!is_numeric($path) || !is_numeric($seconds) || !is_numeric($spare)) fail(400, 'Bad numbers.');
-$path = round((float)$path, 2);
+$path = round((float)$path, 3);
 $seconds = round((float)$seconds, 2);
 $spare = (int)$spare;
 // Plausible limits for this game: a level is 10 m wide and solves within 30 s.

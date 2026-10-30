@@ -42,7 +42,10 @@ check('names are cleaned and capped', () => {
 
 check('metres and labels', () => {
   assert.equal(pathMeters(250), 2.5);
-  assert.equal(formatValue('shortest', 8.44), '8.4 m');
+  assert.equal(formatValue('shortest', 8.44), '8.440 m');
+  assert.equal(formatValue('shortest', 2.512), '2.512 m');
+  assert.equal(formatValue('fastest', 5.5), '5.50 s');
+  assert.equal(pathMeters(251.234), 2.512);
   assert.equal(formatValue('spare', 1), '1 spare');
   assert.equal(formatValue('spare', 3), '3 spare');
 });
@@ -159,7 +162,7 @@ check('fastest wants less time', () => {
   const r = recordRun(s, 'L', 'Ben', { pathMeters: 5, seconds: 4, spare: 1 }, 2);
   assert.equal(result(r, 'fastest').rank, 1);
   assert.deepEqual(s.L.fastest.map((e) => e.name), ['Ben', 'Ana']);
-  assert.equal(formatValue('fastest', 4.25), '4.3 s');
+  assert.equal(formatValue('fastest', 4.25), '4.25 s');
   assert.equal(stepsToSeconds(90), 1.5);
 });
 

@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4s: precision: distance 3 decimals (pathMeters/formatValue/scores.php/admin format_score), time 2 (steps/60 is never finer than 0.0167 s).
 - v0.4r: failure card has Edit only; REST_STEPS 75 (1.25 s), MIN_RUN_STEPS 60. check-failure guards the margin against the longest pause in any solution (0.9 s today).
 - v0.4q: admin.php full-width layout; scores_view() builds its three tables with ob_start and prints boards, refused, records in that order.
 - v0.4p: Simulation.checkFailure() (world.ts): ball(s) lost, or all free bodies + moving fixed parts still for 2 s after 3 s (gears ignored) -> failed/onFailed; main.ts freezes the loop and shows #failed card (Retry/Edit). Tune REST_* constants there; `npm run check-levels` must show every solution solving and `npm run check-failure` pass.
