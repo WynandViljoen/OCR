@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4k
+
+- **Level list marks now follow the boards**: the three marks always stand for Shortest path, Fastest solve and Most spare tools, in that order. A gold star means you hold (or tie) number one on that board, a grey dot means not yet, so a player who only holds the fastest record sees dot, star, dot. Hover a mark to see which board it is.
+- **Stars can only come from boards fetched from the server when the list is opened.** Boards remembered from earlier in the visit are no longer used for stars, so a record that was beaten (or a level that was scrubbed) cannot leave a star behind. Offline, the list shows no marks.
+
 ## Modern TIM 0.4j
 
 - **Dashboard levels now carry their number**, in the same order as the game's level list (for example "1. Ramps"): in the Records broken table, the Level filter and the Current community boards. Server file only: copy `admin.php` (the cron job does).

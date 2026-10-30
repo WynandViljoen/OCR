@@ -20,7 +20,7 @@ import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
-import { CATEGORIES, holdsBest, scrubChangedLevels } from './game/profile';
+import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
 import { fetchCommunity, fetchRevs, flushPending, scrubPending, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
@@ -2070,11 +2070,14 @@ const menuNote = document.getElementById('level-menu-note') as HTMLElement;
 const menuSummary = document.getElementById('level-menu-summary') as HTMLElement;
 
 /** How many of the 3 community boards (shortest, fastest, spare) this player leads or ties on a level. */
-function starsFor(levelId: string): number | null {
-  const board = community[levelId];
+/** Boards (in the order of CATEGORIES) on which this player is number one or tied, using only boards fetched from the server just now. */
+function starsFor(levelId: string): boolean[] | null {
+  const board = starBoards[levelId];
   if (!board || !player) return null;
-  return CATEGORIES.filter((c) => holdsBest(board, c, player) !== null).length;
+  return CATEGORIES.map((c) => holdsBest(board, c, player) !== null);
 }
+/** Community boards fetched for the level list; emptied each time the list is opened so an old board can never show a star. */
+let starBoards: Record<string, Board> = {};
 
 function campaignLevels(): { level: Level; index: number }[] {
   return LEVELS.map((l, index) => ({ level: l, index })).filter((x) => x.level.hasGoal);
@@ -2096,7 +2099,8 @@ function renderMenu() {
     if (done) btn.classList.add('done');
     if (here) btn.classList.add('current');
     btn.setAttribute('aria-selected', String(here));
-    const st = starsFor(l.id);
+    const marks = starsFor(l.id);
+    const st = marks === null ? null : marks.filter(Boolean).length;
     if (st !== null) {
       stars += st;
       known++;
@@ -2110,16 +2114,17 @@ function renderMenu() {
     const star = document.createElement('span');
     star.className = 'menu-stars';
     star.replaceChildren();
-    if (st !== null) {
-      // Earned boards are gold stars; the ones still to win are plain grey dots, easier to see than hollow stars.
-      for (let i = 0; i < 3; i++) {
+    if (marks !== null) {
+      // One mark per board, always in the same order: shortest path, fastest solve, most spare tools.
+      // A gold star = you hold (or tie) number one there; a grey dot = not yet.
+      CATEGORIES.forEach((c, i) => {
         const mark = document.createElement('span');
-        mark.className = i < st ? 'star-on' : 'star-off';
-        mark.textContent = i < st ? '★' : '•';
+        mark.className = marks[i] ? 'star-on' : 'star-off';
+        mark.textContent = marks[i] ? '★' : '•';
+        mark.title = `${CATEGORY_INFO[c].label}: ${marks[i] ? 'you hold the community best' : 'not yet'}`;
         star.appendChild(mark);
-      }
+      });
     }
-    star.title = st === null ? '' : `You hold the community best for ${st} of 3 boards`;
     btn.append(num, name, star);
     btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);
     btn.addEventListener('click', () => {
@@ -2138,10 +2143,15 @@ function renderMenu() {
 let communityLoaded = false;
 /** Fetch every level's community board, then redraw the menu if it is open. */
 async function loadAllCommunity() {
+  communityLoaded = false;
+  const mine = (starBoards = {});
   await Promise.all(
     campaignLevels().map(async ({ level: l }) => {
       const b = await fetchCommunity(l.id);
-      if (b) community[l.id] = b;
+      if (b) {
+        community[l.id] = b;
+        mine[l.id] = b;
+      }
     }),
   );
   communityLoaded = true;
@@ -2153,6 +2163,7 @@ function closeMenu() {
   menuBtn.setAttribute('aria-expanded', 'false');
 }
 function openMenu() {
+  starBoards = {};
   renderMenu();
   menuEl.hidden = false;
   menuBtn.setAttribute('aria-expanded', 'true');

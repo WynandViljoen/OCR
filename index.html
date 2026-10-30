@@ -3928,7 +3928,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4j';
+const VERSION = '0.4k';
 
 return { VERSION };
 })();
@@ -8623,10 +8623,11 @@ const menuList = document.getElementById('level-menu-list');
 const menuNote = document.getElementById('level-menu-note');
 const menuSummary = document.getElementById('level-menu-summary');
 function starsFor(levelId) {
-    const board = community[levelId];
+    const board = starBoards[levelId];
     if (!board || !player) return null;
-    return CATEGORIES.filter((c)=>holdsBest(board, c, player) !== null).length;
+    return CATEGORIES.map((c)=>holdsBest(board, c, player) !== null);
 }
+let starBoards = {};
 function campaignLevels() {
     return LEVELS.map((l, index)=>({
             level: l,
@@ -8649,7 +8650,8 @@ function renderMenu() {
         if (done) btn.classList.add('done');
         if (here) btn.classList.add('current');
         btn.setAttribute('aria-selected', String(here));
-        const st = starsFor(l.id);
+        const marks = starsFor(l.id);
+        const st = marks === null ? null : marks.filter(Boolean).length;
         if (st !== null) {
             stars += st;
             known++;
@@ -8663,15 +8665,15 @@ function renderMenu() {
         const star = document.createElement('span');
         star.className = 'menu-stars';
         star.replaceChildren();
-        if (st !== null) {
-            for(let i = 0; i < 3; i++){
+        if (marks !== null) {
+            CATEGORIES.forEach((c, i)=>{
                 const mark = document.createElement('span');
-                mark.className = i < st ? 'star-on' : 'star-off';
-                mark.textContent = i < st ? '★' : '•';
+                mark.className = marks[i] ? 'star-on' : 'star-off';
+                mark.textContent = marks[i] ? '★' : '•';
+                mark.title = `${CATEGORY_INFO[c].label}: ${marks[i] ? 'you hold the community best' : 'not yet'}`;
                 star.appendChild(mark);
-            }
+            });
         }
-        star.title = st === null ? '' : `You hold the community best for ${st} of 3 boards`;
         btn.append(num, name, star);
         btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);
         btn.addEventListener('click', ()=>{
@@ -8688,9 +8690,14 @@ function renderMenu() {
 }
 let communityLoaded = false;
 async function loadAllCommunity() {
+    communityLoaded = false;
+    const mine = starBoards = {};
     await Promise.all(campaignLevels().map(async ({ level: l })=>{
         const b = await fetchCommunity(l.id);
-        if (b) community[l.id] = b;
+        if (b) {
+            community[l.id] = b;
+            mine[l.id] = b;
+        }
     }));
     communityLoaded = true;
     if (!menuEl.hidden) renderMenu();
@@ -8700,6 +8707,7 @@ function closeMenu() {
     menuBtn.setAttribute('aria-expanded', 'false');
 }
 function openMenu() {
+    starBoards = {};
     renderMenu();
     menuEl.hidden = false;
     menuBtn.setAttribute('aria-expanded', 'true');
