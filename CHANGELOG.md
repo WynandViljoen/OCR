@@ -1,5 +1,13 @@
 # Changelog
 
+## Modern TIM 0.4y
+
+First step towards community puzzles (the Sandbox becoming a puzzle maker).
+
+- **Fixed parts in the Sandbox.** Select a part and press **🔒 Fix** on its toolbar (or the L key; it works on a group too) to mark it as part of the puzzle. A fixed part looks different on purpose: grey diagonal hatching, a dashed orange outline and a padlock above it, so it can never be mistaken for a part to build with. Press **🔓 Unfix** (or L again) to take the mark off. The mark is saved with the Sandbox, with My builds and in share links (`share.php` keeps a `fixed` flag). It does nothing to the physics yet: fixed parts load locked, like a level's own parts, once publishing exists.
+- **No adjustable attributes anywhere.** The Tinker lab sliders (weight, bounce, grip, speed, strands...) and the spring Strength buttons are gone, so every part has the same numbers for every player. Old saved builds load with the standard numbers.
+- Planned next (agreed): the player's parts tray comes from the creator's solution, a Publish step that checks the puzzle solves, five slots per browser (the browser's ID, not the name, is the account), every new or edited puzzle waiting for approval in the dashboard, a separate Community puzzles area with completion only (no stars) and thumbs up/down from players who finished it.
+
 ## Modern TIM 0.4x
 
 - **The November 2026 puzzle set is built and shipped, hidden.** Every one of the 21 puzzles is back with the same id and name, but changed and harder (walls taller, targets farther, gears and dominoes needing more pieces, tighter inventories, new solutions). It lives in `modern-tim/src/game/levels-nov.ts`; `seasons.ts` lists the sets. Nobody sees it before the 1st.

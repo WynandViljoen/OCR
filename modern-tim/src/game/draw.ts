@@ -38,6 +38,60 @@ export function traceBodies(ctx: CanvasRenderingContext2D, bodies: Matter.Body[]
   for (const body of bodies) for (const piece of pieces(body)) pathPiece(ctx, piece);
 }
 
+/**
+ * Sandbox: a part the creator marked as fixed (part of the puzzle, locked in place for players). It gets a grey
+ * diagonal hatch, a dashed orange outline and a padlock, so it can never be mistaken for a part to build with.
+ */
+export function drawFixedMark(ctx: CanvasRenderingContext2D, bodies: Matter.Body[], zoom = 1) {
+  if (!bodies.length) return;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  for (const b of bodies) {
+    minX = Math.min(minX, b.bounds.min.x);
+    minY = Math.min(minY, b.bounds.min.y);
+    maxX = Math.max(maxX, b.bounds.max.x);
+  }
+  const maxY = Math.max(...bodies.map((b) => b.bounds.max.y));
+  const z = Math.max(0.4, zoom);
+  ctx.save();
+  traceBodies(ctx, bodies);
+  ctx.clip();
+  ctx.strokeStyle = 'rgba(40,52,76,0.55)';
+  ctx.lineWidth = 2 / z;
+  ctx.beginPath();
+  const gap = 9 / z;
+  for (let x = minX - (maxY - minY); x < maxX; x += gap) {
+    ctx.moveTo(x, maxY);
+    ctx.lineTo(x + (maxY - minY), minY);
+  }
+  ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.lineWidth = 2.5 / z;
+  ctx.setLineDash([6 / z, 4 / z]);
+  ctx.strokeStyle = '#d9730d';
+  traceBodies(ctx, bodies);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // The padlock sits just above the part, on a small white disc.
+  const cx = (minX + maxX) / 2;
+  const cy = Math.max(14, minY - 12 / z);
+  ctx.beginPath();
+  ctx.arc(cx, cy, 11 / z, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.lineWidth = 2 / z;
+  ctx.strokeStyle = '#d9730d';
+  ctx.stroke();
+  ctx.font = `${13 / z}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#000';
+  ctx.fillText('\u{1F512}', cx, cy + 1 / z);
+  ctx.restore();
+}
+
 /** How far the spring pad is pushed out (local y, negative = up) right after it fires. */
 function springKick(body: Matter.Body, state: DrawState) {
   const fired = body.plugin?.firedAt as number | undefined;

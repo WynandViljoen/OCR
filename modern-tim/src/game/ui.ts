@@ -27,6 +27,8 @@ export interface UIHandlers {
   onUndo(): void;
   onRotate(direction: 1 | -1): void;
   onFlip(): void;
+  /** Sandbox: mark the selected part as fixed (part of the puzzle) or not. */
+  onFix(): void;
   /** A slider in the Tinker lab: grab it, move it, let go. */
   onPropStart(): void;
   onProp(key: string, value: number): void;
@@ -85,6 +87,8 @@ export interface ToolbarOptions {
   rotatable: boolean;
   flippable: boolean;
   power: number | null;
+  /** Sandbox only: the toolbar offers to fix the part or to unfix it. */
+  fix: 'fix' | 'unfix' | null;
 }
 
 export class UI {
@@ -118,6 +122,7 @@ export class UI {
     $('tb-rot-l').addEventListener('click', () => handlers.onRotate(-1));
     $('tb-rot-r').addEventListener('click', () => handlers.onRotate(1));
     $('tb-flip').addEventListener('click', () => handlers.onFlip());
+    $('tb-fix').addEventListener('click', () => handlers.onFix());
     $('tb-delete').addEventListener('click', () => handlers.onDelete());
     this.toolbar.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>
       b.addEventListener('click', () => handlers.onPower(Number(b.dataset.power))),
@@ -291,6 +296,10 @@ export class UI {
     $('tb-rot-l').hidden = !opts.rotatable;
     $('tb-rot-r').hidden = !opts.rotatable;
     $('tb-flip').hidden = !opts.flippable;
+    const fixBtn = $('tb-fix');
+    fixBtn.hidden = opts.fix === null;
+    fixBtn.textContent = opts.fix === 'unfix' ? '🔓 Unfix' : '🔒 Fix';
+    fixBtn.title = opts.fix === 'unfix' ? 'Take the mark off: this part becomes yours to build with again (L)' : 'Make this part part of the puzzle: players will find it locked in place (L)';
     const powerRow = $('tb-power');
     powerRow.hidden = opts.power === null;
     powerRow.querySelectorAll<HTMLButtonElement>('[data-power]').forEach((b) =>

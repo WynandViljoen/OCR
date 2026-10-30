@@ -15,7 +15,7 @@ import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './
 import { HUB_RADIUS, snapGear } from './game/mechanics';
 import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
 import { findFreeSpot, overlapsAny } from './game/space';
-import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState } from './game/draw';
+import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState, drawFixedMark } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track, disableTracking } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
@@ -144,6 +144,7 @@ const ui = new UI({
   onUndo: () => undo(),
   onRotate: (dir) => rotate(dir),
   onFlip: () => flip(),
+  onFix: () => toggleFixed(),
   onPropStart: () => pushUndo(),
   onProp: (key, value) => setProp(key, value),
   onPropEnd: () => {
@@ -401,14 +402,14 @@ function importParts(raw: unknown): PlacedPart[] {
     if (x === undefined || y === undefined) continue;
     const id = nextId();
     if (typeof p.id === 'number') ids.set(p.id, id);
-    const part: PlacedPart = { id, type, x, y, angle: num(p.angle, -100, 100) ?? 0, locked: false, props: cleanProps(type, p.props) };
+    // Attributes are the same for everyone now: saved tinkered numbers (weight, strength...) are not brought back.
+    const part: PlacedPart = { id, type, x, y, angle: num(p.angle, -100, 100) ?? 0, locked: false };
     const w = num(p.w, 1, 1200);
     const h = num(p.h, 1, 1200);
     if (w !== undefined) part.w = w;
     if (h !== undefined) part.h = h;
     if (p.flip === true) part.flip = true;
-    const power = num(p.power, 1, 3);
-    if (power !== undefined) part.power = Math.round(power);
+    if (p.fixed === true) part.fixed = true;
     const l = p.link as Record<string, unknown> | undefined;
     if (l && typeof l === 'object' && typeof l.a === 'number' && typeof l.b === 'number') {
       part.link = { a: l.a, b: l.b, via: typeof l.via === 'number' ? l.via : undefined };
@@ -709,7 +710,7 @@ function updateToolbar() {
       top: clamp(below ? bottom : top, 0, 1) * 100,
       below,
     },
-    { rotatable: def.rotatable, flippable: def.flippable, power: def.hasPower && canTinker() ? sel.power ?? 2 : null },
+    { rotatable: def.rotatable, flippable: def.flippable, power: def.hasPower && canTinker() ? sel.power ?? 2 : null, fix: level.id === 'sandbox' && sel.type !== 'string' && sel.type !== 'rope' ? (sel.fixed ? 'unfix' : 'fix') : null },
   );
 }
 
@@ -901,9 +902,25 @@ function stringClick(x: number, y: number, touch = false) {
   changed();
 }
 
-/** Attributes (weight, power, strands, speed...) can only be changed in the Sandbox. Puzzle levels hand out fixed tools. */
+/**
+ * Attributes (weight, power, strands, speed...) cannot be changed anywhere any more: every part has the same
+ * fixed numbers for every player, in the Sandbox and in puzzles alike. (The Tinker lab code stays for later.)
+ */
 function canTinker(): boolean {
-  return level.id === 'sandbox';
+  return false;
+}
+
+/** In the Sandbox, mark the selected parts as part of the puzzle (fixed) or take the mark off again. */
+function toggleFixed() {
+  if (playing || level.id !== 'sandbox') return;
+  const ids = selectedId !== null ? [selectedId] : [...multi];
+  const chosen = parts.filter((p) => ids.includes(p.id) && !p.locked && p.type !== 'string' && p.type !== 'rope');
+  if (!chosen.length) return;
+  pushUndo();
+  const to = !chosen.every((p) => p.fixed);
+  for (const p of chosen) p.fixed = to || undefined;
+  ui.toast(to ? (chosen.length === 1 ? 'Fixed: this part will be part of the puzzle and players cannot move it.' : `Fixed ${chosen.length} parts.`) : (chosen.length === 1 ? 'Not fixed any more: this part is yours to build with.' : `Unfixed ${chosen.length} parts.`));
+  changed();
 }
 
 /** The Tinker lab card for the selected part. */
@@ -1472,6 +1489,8 @@ window.addEventListener('keydown', (e) => {
     rotate(e.shiftKey ? -1 : 1);
   } else if (e.key === 'f' || e.key === 'F') {
     flip();
+  } else if (e.key === 'l' || e.key === 'L') {
+    toggleFixed();
   } else if (e.key === '1' || e.key === '2' || e.key === '3') {
     setPower(Number(e.key));
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1597,6 +1616,7 @@ function render() {
   drawBodies(ctx, sensors, state);
   drawBodies(ctx, solids, state);
   for (const b of solids) drawDecoration(ctx, b, state);
+  for (const f of parts) if (f.fixed && !f.locked) drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
   if (hintGhost && !playing) {
     ctx.save();
     ctx.globalAlpha = 0.4;

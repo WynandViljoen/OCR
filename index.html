@@ -805,6 +805,7 @@ kbd {
                 <button id="tb-rot-l" type="button" title="Rotate left (Shift+R)" aria-label="Rotate left">⟲</button>
                 <button id="tb-rot-r" type="button" title="Rotate right (R)" aria-label="Rotate right">⟳</button>
                 <button id="tb-flip" type="button" title="Reverse direction (F)">⇄ Flip</button>
+                <button id="tb-fix" type="button" title="Make this part part of the puzzle (L)" hidden>🔒 Fix</button>
                 <span id="tb-power" class="tb-power" role="group" aria-label="Spring strength">
                   <span class="tb-label">Strength</span>
                   <button type="button" data-power="1" title="Soft (1)">1</button>
@@ -1714,7 +1715,7 @@ const PART_DEFS = {
     spring: {
         type: 'spring',
         label: 'Spring',
-        blurb: 'Squash it and it pushes back! Stronger springs launch higher.',
+        blurb: 'Squash it and it pushes back, and launches whatever lands on it.',
         color: COLORS.spring,
         rotatable: true,
         flippable: false,
@@ -2479,7 +2480,7 @@ const LEVELS = [
         science: {
             topic: 'Elastic energy',
             text: 'When the ball lands on a spring, the spring squashes and stores the ball’s energy. Then it springs back and gives the energy back. Tilt the spring to aim the bounce.',
-            tryThis: 'Turn the spring with the rotate keys. Which angle bounces the ball over the wall? In the Sandbox you can also change a spring\'s strength.',
+            tryThis: 'Turn the spring with the rotate keys. Which angle bounces the ball over the wall?',
             learned: 'Falling energy turned into spring energy, then back into motion. Energy changes form but never disappears.'
         }
     },
@@ -3977,7 +3978,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4x';
+const VERSION = '0.4y';
 
 return { VERSION };
 })();
@@ -6080,7 +6081,7 @@ return { burst };
 })();
 
 // ---- game/draw.ts ----
-const { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+const { traceBodies, drawFixedMark, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
 
 
 const INK = COLORS.ink;
@@ -6103,6 +6104,57 @@ function pathPiece(ctx, piece, dx = 0, dy = 0) {
 function traceBodies(ctx, bodies) {
     ctx.beginPath();
     for (const body of bodies)for (const piece of pieces(body))pathPiece(ctx, piece);
+}
+function drawFixedMark(ctx, bodies, zoom = 1) {
+    if (!bodies.length) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    for (const b of bodies){
+        minX = Math.min(minX, b.bounds.min.x);
+        minY = Math.min(minY, b.bounds.min.y);
+        maxX = Math.max(maxX, b.bounds.max.x);
+    }
+    const maxY = Math.max(...bodies.map((b)=>b.bounds.max.y));
+    const z = Math.max(0.4, zoom);
+    ctx.save();
+    traceBodies(ctx, bodies);
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(40,52,76,0.55)';
+    ctx.lineWidth = 2 / z;
+    ctx.beginPath();
+    const gap = 9 / z;
+    for(let x = minX - (maxY - minY); x < maxX; x += gap){
+        ctx.moveTo(x, maxY);
+        ctx.lineTo(x + (maxY - minY), minY);
+    }
+    ctx.stroke();
+    ctx.restore();
+    ctx.save();
+    ctx.lineWidth = 2.5 / z;
+    ctx.setLineDash([
+        6 / z,
+        4 / z
+    ]);
+    ctx.strokeStyle = '#d9730d';
+    traceBodies(ctx, bodies);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const cx = (minX + maxX) / 2;
+    const cy = Math.max(14, minY - 12 / z);
+    ctx.beginPath();
+    ctx.arc(cx, cy, 11 / z, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.lineWidth = 2 / z;
+    ctx.strokeStyle = '#d9730d';
+    ctx.stroke();
+    ctx.font = `${13 / z}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000';
+    ctx.fillText('\u{1F512}', cx, cy + 1 / z);
+    ctx.restore();
 }
 function springKick(body, state) {
     const fired = body.plugin?.firedAt;
@@ -6707,7 +6759,7 @@ function drawThumbnail(canvas, type) {
     for (const b of bodies)drawDecoration(ctx, b, state);
 }
 
-return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
+return { traceBodies, drawFixedMark, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
 })();
 
 // ---- game/world.ts ----
@@ -7272,6 +7324,7 @@ class UI {
         $('tb-rot-l').addEventListener('click', ()=>handlers.onRotate(-1));
         $('tb-rot-r').addEventListener('click', ()=>handlers.onRotate(1));
         $('tb-flip').addEventListener('click', ()=>handlers.onFlip());
+        $('tb-fix').addEventListener('click', ()=>handlers.onFix());
         $('tb-delete').addEventListener('click', ()=>handlers.onDelete());
         this.toolbar.querySelectorAll('[data-power]').forEach((b)=>b.addEventListener('click', ()=>handlers.onPower(Number(b.dataset.power))));
         $('zoom-in').addEventListener('click', ()=>handlers.onZoomIn());
@@ -7424,6 +7477,10 @@ class UI {
         $('tb-rot-l').hidden = !opts.rotatable;
         $('tb-rot-r').hidden = !opts.rotatable;
         $('tb-flip').hidden = !opts.flippable;
+        const fixBtn = $('tb-fix');
+        fixBtn.hidden = opts.fix === null;
+        fixBtn.textContent = opts.fix === 'unfix' ? '🔓 Unfix' : '🔒 Fix';
+        fixBtn.title = opts.fix === 'unfix' ? 'Take the mark off: this part becomes yours to build with again (L)' : 'Make this part part of the puzzle: players will find it locked in place (L)';
         const powerRow = $('tb-power');
         powerRow.hidden = opts.power === null;
         powerRow.querySelectorAll('[data-power]').forEach((b)=>b.classList.toggle('on', Number(b.dataset.power) === opts.power));
@@ -7876,6 +7933,7 @@ const ui = new UI({
     onUndo: ()=>undo(),
     onRotate: (dir)=>rotate(dir),
     onFlip: ()=>flip(),
+    onFix: ()=>toggleFixed(),
     onPropStart: ()=>pushUndo(),
     onProp: (key, value)=>setProp(key, value),
     onPropEnd: ()=>{
@@ -8127,16 +8185,14 @@ function importParts(raw) {
             x,
             y,
             angle: num(p.angle, -100, 100) ?? 0,
-            locked: false,
-            props: cleanProps(type, p.props)
+            locked: false
         };
         const w = num(p.w, 1, 1200);
         const h = num(p.h, 1, 1200);
         if (w !== undefined) part.w = w;
         if (h !== undefined) part.h = h;
         if (p.flip === true) part.flip = true;
-        const power = num(p.power, 1, 3);
-        if (power !== undefined) part.power = Math.round(power);
+        if (p.fixed === true) part.fixed = true;
         const l = p.link;
         if (l && typeof l === 'object' && typeof l.a === 'number' && typeof l.b === 'number') {
             part.link = {
@@ -8424,7 +8480,8 @@ function updateToolbar() {
     }, {
         rotatable: def.rotatable,
         flippable: def.flippable,
-        power: def.hasPower && canTinker() ? sel.power ?? 2 : null
+        power: def.hasPower && canTinker() ? sel.power ?? 2 : null,
+        fix: level.id === 'sandbox' && sel.type !== 'string' && sel.type !== 'rope' ? sel.fixed ? 'unfix' : 'fix' : null
     });
 }
 function loadLevel(index, restore) {
@@ -8622,7 +8679,22 @@ function stringClick(x, y, touch = false) {
     changed();
 }
 function canTinker() {
-    return level.id === 'sandbox';
+    return false;
+}
+function toggleFixed() {
+    if (playing || level.id !== 'sandbox') return;
+    const ids = selectedId !== null ? [
+        selectedId
+    ] : [
+        ...multi
+    ];
+    const chosen = parts.filter((p)=>ids.includes(p.id) && !p.locked && p.type !== 'string' && p.type !== 'rope');
+    if (!chosen.length) return;
+    pushUndo();
+    const to = !chosen.every((p)=>p.fixed);
+    for (const p of chosen)p.fixed = to || undefined;
+    ui.toast(to ? chosen.length === 1 ? 'Fixed: this part will be part of the puzzle and players cannot move it.' : `Fixed ${chosen.length} parts.` : chosen.length === 1 ? 'Not fixed any more: this part is yours to build with.' : `Unfixed ${chosen.length} parts.`);
+    changed();
 }
 function propsModel() {
     const sel = selectedPart();
@@ -9204,6 +9276,8 @@ window.addEventListener('keydown', (e)=>{
         rotate(e.shiftKey ? -1 : 1);
     } else if (e.key === 'f' || e.key === 'F') {
         flip();
+    } else if (e.key === 'l' || e.key === 'L') {
+        toggleFixed();
     } else if (e.key === '1' || e.key === '2' || e.key === '3') {
         setPower(Number(e.key));
     } else if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -9377,6 +9451,7 @@ function render() {
     drawBodies(ctx, sensors, state);
     drawBodies(ctx, solids, state);
     for (const b of solids)drawDecoration(ctx, b, state);
+    for (const f of parts)if (f.fixed && !f.locked) drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
     if (hintGhost && !playing) {
         ctx.save();
         ctx.globalAlpha = 0.4;

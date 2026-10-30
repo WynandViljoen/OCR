@@ -55,6 +55,8 @@ export interface PlacedPart {
   h?: number;
   /** Locked parts come from the level and can't be moved or deleted. */
   locked?: boolean;
+  /** Sandbox: the creator marked this part as part of the puzzle itself. It will load locked, like a level's own parts. */
+  fixed?: boolean;
   /** Reverse direction (conveyor belt, motor gear). */
   flip?: boolean;
   /** Spring strength: 1 (soft) .. 3 (strong). */
@@ -390,7 +392,7 @@ export const PART_DEFS: Record<PartType, PartDef> = {
   spring: {
     type: 'spring',
     label: 'Spring',
-    blurb: 'Squash it and it pushes back! Stronger springs launch higher.',
+    blurb: 'Squash it and it pushes back, and launches whatever lands on it.',
     color: COLORS.spring,
     rotatable: true,
     flippable: false,

@@ -96,6 +96,9 @@ function clean_part($p) {
     if (!empty($p['flip'])) {
         $out['flip'] = true;
     }
+    if (!empty($p['fixed'])) {
+        $out['fixed'] = true;
+    }
     if (isset($p['props'])) {
         if (!is_array($p['props']) || count($p['props']) > 12) return null;
         $props = [];

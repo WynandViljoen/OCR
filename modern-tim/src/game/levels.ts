@@ -55,7 +55,7 @@ export interface Level {
   solution?: LevelPart[];
   /**
    * Fixed attributes of the parts handed out in this level (a spring's power, a crate's weight,
-   * a rope's strands). Players cannot change attributes outside the Sandbox, so a level that
+   * a rope's strands). Players cannot change attributes anywhere, so a level that
    * needs a strong spring or a heavy crate says so here. The solution must NOT set attributes.
    */
   presets?: Partial<Record<PartType, Preset>>;
@@ -129,7 +129,7 @@ export const LEVELS: Level[] = [
     science: {
       topic: 'Elastic energy',
       text: 'When the ball lands on a spring, the spring squashes and stores the ball’s energy. Then it springs back and gives the energy back. Tilt the spring to aim the bounce.',
-      tryThis: 'Turn the spring with the rotate keys. Which angle bounces the ball over the wall? In the Sandbox you can also change a spring\'s strength.',
+      tryThis: 'Turn the spring with the rotate keys. Which angle bounces the ball over the wall?',
       learned: 'Falling energy turned into spring energy, then back into motion. Energy changes form but never disappears.',
     },
   },

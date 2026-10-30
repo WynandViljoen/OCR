@@ -36,7 +36,7 @@ try {
   }
   let code;
   await check('a build is stored and read back with the same parts', async () => {
-    const parts = [good, { id: 2, type: 'spring', x: 5, y: 6, angle: 0.5, power: 2, flip: true, props: { mass: 3.5 } }, { id: 3, type: 'string', x: 0, y: 0, angle: 0, link: { a: 1, b: 2 } }];
+    const parts = [good, { id: 2, type: 'spring', x: 5, y: 6, angle: 0.5, power: 2, flip: true, fixed: true, props: { mass: 3.5 } }, { id: 3, type: 'string', x: 0, y: 0, angle: 0, link: { a: 1, b: 2 } }];
     const r = await post({ title: ' My <b>build ', author: 'Ana', version: '0.3', parts });
     assert.equal(r.status, 200);
     assert.match(r.json.code, /^[A-Za-z0-9]{8}$/);
