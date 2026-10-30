@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4j
+
+- **Dashboard levels now carry their number**, in the same order as the game's level list (for example "1. Ramps"): in the Records broken table, the Level filter and the Current community boards. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4i
 
 - **The High scores page has a Player filter** next to Level, Board and Now. It lists every name that has a record or a place on a board, narrows the Records broken table to that player, and in Current community boards shows only that player's entries (and only the levels where they have one). Server file only: copy `admin.php` (the cron job does).

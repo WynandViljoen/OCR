@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4i';
+const ADMIN_BUILD = '0.4j';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -421,7 +421,8 @@ function read_log(int $limit, array $filter): array {
 }
 
 function level_label(string $id): string {
-    return LEVEL_NAMES[$id] ?? $id;
+    $n = array_search($id, array_keys(LEVEL_NAMES), true);
+    return $n === false ? $id : ($n + 1) . '. ' . LEVEL_NAMES[$id];
 }
 
 function format_score(string $category, $v): string {
@@ -559,7 +560,7 @@ function scores_view() {
         . '<b>' . count($all) . '</b> broken in total, <b>' . $week . '</b> in the last 7 days.</p>';
     echo '<form class="inline" method="get" action="admin.php"><input type="hidden" name="view" value="scores"><select name="level"><option value="">All levels</option>';
     foreach (LEVEL_NAMES as $id => $label) {
-        echo '<option value="' . h($id) . '"' . ($level === $id ? ' selected' : '') . '>' . h($label) . '</option>';
+        echo '<option value="' . h($id) . '"' . ($level === $id ? ' selected' : '') . '>' . h(level_label($id)) . '</option>';
     }
     echo '</select><select name="cat"><option value="">All boards</option>';
     foreach (BOARDS as $id => $label) {
@@ -608,7 +609,7 @@ function scores_view() {
             if (!$has) continue;
         }
         $rev = (string) ($boards['_revs'][$id] ?? '');
-        echo '<tr><td><b>' . h($label) . '</b>' . ($rev !== '' ? '<br><span class="mute">level v' . h($rev) . '</span>' : '') . '</td>';
+        echo '<tr><td><b>' . h(level_label($id)) . '</b>' . ($rev !== '' ? '<br><span class="mute">level v' . h($rev) . '</span>' : '') . '</td>';
         foreach (BOARDS as $c => $_) {
             $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
             echo '<td>';
