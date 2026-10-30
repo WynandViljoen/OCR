@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4l
+
+- **Current community boards now show everyone tied for number one in bold**, each marked "1.", so the bold entries per player match the stars on the Players page. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4k
 
 - **Level list marks now follow the boards**: the three marks always stand for Shortest path, Fastest solve and Most spare tools, in that order. A gold star means you hold (or tie) number one on that board, a grey dot means not yet, so a player who only holds the fastest record sees dot, star, dot. Hover a mark to see which board it is.

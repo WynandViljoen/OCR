@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4k';
+const ADMIN_BUILD = '0.4l';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -614,18 +614,26 @@ function scores_view() {
             $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
             echo '<td>';
             if (!$list) echo '<span class="mute">-</span>';
+            $top = null;   // number one's score: everyone on it is bold (and holds a star)
+            foreach ($list as $row) {
+                if (is_array($row) && isset($row['value']) && is_numeric($row['value'])) {
+                    $v = (float) $row['value'];
+                    if ($top === null || ($c === 'spare' ? $v > $top : $v < $top)) $top = $v;
+                }
+            }
             foreach (array_slice($list, 0, 5) as $i => $row) {
                 if (!is_array($row) || !isset($row['name'], $row['value'])) continue;
                 if ($player !== '' && mb_strtolower((string) $row['name']) !== $player) continue;
-                echo ($i === 0 ? '<b>' : '') . ($i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
-                    . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($i === 0 ? '</b>' : '')
+                $first = $top !== null && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001;
+                echo ($first ? '<b>' : '') . ($first ? 1 : $i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
+                    . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($first ? '</b>' : '')
                     . (!empty($row['at']) ? ' <span class="mute">' . h(fmt_time((int) $row['at'])) . '</span>' : '') . '<br>';
             }
             echo '</td>';
         }
         echo '</tr>';
     }
-    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. The bold line is the current record. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
+    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
 }
 
 function dashboard() {

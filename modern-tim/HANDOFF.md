@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4l: admin.php boards table bolds every entry tied with number one (same rule as star_counts()).
 - v0.4k: level list marks are per board (shortest, fastest, spare) and use only boards fetched when the list opens (starBoards in main.ts).
 - v0.4j: admin.php level_label() prefixes the level number (order of LEVEL_NAMES = game order; keep them in step when adding levels).
 - v0.4i: admin.php Player filter (`player` param, lower-cased name) on the High scores page.

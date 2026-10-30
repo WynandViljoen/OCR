@@ -180,6 +180,7 @@ try {
     assert.ok(dee.includes('<b>Dee</b> 6 m') && !dee.includes('<b>Fay</b> 4 m'), 'filter: player');
     assert.ok(dee.includes('<option value="dee" selected>Dee</option>'), 'player list offers the name');
     assert.ok(!(await only('top')).includes('value="nobody"'), 'unknown names are ignored');
+    assert.ok((gears.match(/<b>1\. /g) || []).length >= 2, 'everyone tied for number one is bold');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');
