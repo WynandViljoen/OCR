@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.4 (major release)
+
+- **Level 20 is now a ball maze.** The mouse is replaced by a ball: *Cheese maze* became *Spring maze*, with the same walls and basket and a new solution. It now gives you four planks and a spring, so you can finish with a spare plank. Its boards were reset (new id `maze`).
+- Since 0.3k the pulley and crane levels (8, 15, 16, 17) were rebuilt, there is one general tip per level, the board controls moved under the board, and spare tools are possible on every level.
+- **Server files changed:** copy `scores.php` and `admin.php` (the cron job does). Until then the old `scores.php` rejects scores for level 20.
+
 ## Modern TIM 0.3n
 
 - **One tip per level, and never the answer.** The Hint button now shows a single general tip (the same one every time you press it). The second, more detailed tip and the orange ghost outline of the solution are gone. All 21 tips were rewritten to point at the idea without naming the parts or positions. Game only (no server files).

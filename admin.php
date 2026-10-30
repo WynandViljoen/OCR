@@ -40,7 +40,7 @@ const LEVEL_NAMES = [
     'ramps' => 'Ramps', 'conveyor' => 'Conveyors', 'springs' => 'Springs', 'levers' => 'Levers', 'dominoes' => 'Dominoes',
     'gears' => 'Gears', 'spin' => 'Spin it', 'pulleys2' => 'Pulleys', 'machine' => 'Big machine', 'overtop' => 'Over the Top',
     'bridge' => 'Domino Bridge', 'chain' => 'Chain reaction', 'double' => 'Double dominoes', 'reach' => 'Long reach',
-    'tackle2' => 'Heavy lifting', 'tradeoff2' => 'Force or distance', 'crane3' => 'Crane', 'skyhigh' => 'Sky high', 'slalom' => 'Spring slalom', 'cheese' => 'Cheese maze', 'energy' => 'Energy transfer',
+    'tackle2' => 'Heavy lifting', 'tradeoff2' => 'Force or distance', 'crane3' => 'Crane', 'skyhigh' => 'Sky high', 'slalom' => 'Spring slalom', 'maze' => 'Spring maze', 'energy' => 'Energy transfer',
 ];
 const BOARDS = ['shortest' => 'Shortest path', 'fastest' => 'Fastest solve', 'spare' => 'Most spare tools'];
 

@@ -3691,14 +3691,11 @@ const LEVELS = [
         }
     },
     {
-        id: 'cheese',
-        name: 'Cheese maze',
-        goal: 'Get the mouse to its cheese in the basket. The mouse slides along flat tracks, but two walls block the maze. Spring power is set for you.',
+        id: 'maze',
+        name: 'Spring maze',
+        goal: 'Get the ball through the maze into the basket. Two walls block the way, and you have one strong spring and four planks. Spring power is set for you.',
         hasGoal: true,
-        goalTargets: [
-            'mouse'
-        ],
-        hint: "The mouse cannot jump. What could carry it over the first wall?",
+        hint: "The ball cannot jump. What could throw it over the first wall?",
         fixed: [
             {
                 type: 'wall',
@@ -3709,7 +3706,7 @@ const LEVELS = [
                 angle: 30
             },
             {
-                type: 'mouse',
+                type: 'ball',
                 x: 80,
                 y: 100
             },
@@ -3730,7 +3727,7 @@ const LEVELS = [
             ...basketWithFunnel(850)
         ],
         inventory: {
-            plank: 3,
+            plank: 4,
             spring: 1
         },
         presets: {
@@ -3741,33 +3738,33 @@ const LEVELS = [
         solution: [
             {
                 type: 'plank',
-                x: 315,
-                y: 370,
-                angle: 35
+                x: 255,
+                y: 350,
+                angle: 40
             },
             {
                 type: 'spring',
-                x: 435,
+                x: 380,
                 y: 570,
-                angle: 10
+                angle: 15
             },
             {
                 type: 'plank',
-                x: 655,
-                y: 360,
-                angle: 30
+                x: 710,
+                y: 340,
+                angle: -10
             },
             {
                 type: 'plank',
-                x: 775,
-                y: 270,
-                angle: 10
+                x: 730,
+                y: 435,
+                angle: -20
             }
         ],
         science: {
             topic: 'Mazes and momentum',
-            text: 'A maze is a puzzle about getting past obstacles. A mouse on a slope gains speed, and a spring can turn that speed into a jump. Engineers test the whole route, then fix the weakest part first.',
-            tryThis: 'Run the mouse with no parts and see where it stops. That is the first problem to solve.',
+            text: 'A maze is a puzzle about getting past obstacles. A ball on a slope gains speed, and a spring can turn that speed into a jump. Engineers test the whole route, then fix the weakest part first.',
+            tryThis: 'Let the ball run with no parts and see where it stops. That is the first problem to solve.',
             learned: 'Solve a maze one gate at a time, starting with the first one that stops you.'
         }
     },
@@ -3929,7 +3926,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.3n';
+const VERSION = '0.4';
 
 return { VERSION };
 })();
