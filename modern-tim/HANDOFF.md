@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4u: admin.php Now filter is a checkbox dropdown (`now[]`; a plain `now=top` still works), `$nows` array.
 - v0.4t: admin.php board_status()/board_row_shown(): Player + Now filters apply to the community boards table as well as Records broken.
 - v0.4s: precision: distance 3 decimals (pathMeters/formatValue/scores.php/admin format_score), time 2 (steps/60 is never finer than 0.0167 s).
 - v0.4r: failure card has Edit only; REST_STEPS 75 (1.25 s), MIN_RUN_STEPS 60. check-failure guards the margin against the longest pause in any solution (0.9 s today).

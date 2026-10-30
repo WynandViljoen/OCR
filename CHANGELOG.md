@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4u
+
+- **The Now filter is a set of tick boxes** (#1, Tied #1, Beaten) in a dropdown, so several can be selected at once, for example #1 + Tied #1 for everything a player holds a star on. The dropdown names what is ticked, and no ticks means everything. It filters both the Current community boards and Records broken. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4t
 
 - **The Now filter (#1 / Tied #1 / Beaten) now applies to the Current community boards too**, together with the Player, Level and Board filters. #1 shows entries alone in first place, Tied #1 shows shared first places, Beaten shows entries behind number one; levels with nothing to show are hidden. Before, it only filtered the Records broken table. Server file only: copy `admin.php` (the cron job does).

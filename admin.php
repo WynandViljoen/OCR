@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4t';
+const ADMIN_BUILD = '0.4u';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -376,6 +376,10 @@ header .stamp{text-align:right;font-size:13px;line-height:1.3}nav a.on{backgroun
 .card b{display:block;font-size:24px}.card span{color:var(--mute);font-size:13px}
 .wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:12px}table{border-collapse:collapse;width:100%}
 th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--mute);font-weight:600;font-size:13px}tr:last-child td{border:0}
+.multi{display:inline-block;position:relative;vertical-align:middle}.multi summary{list-style:none;border:1px solid var(--line);background:var(--card);padding:6px 12px;border-radius:8px;cursor:pointer;white-space:nowrap}
+.multi summary::-webkit-details-marker{display:none}.multi summary::after{content:"\25BE";margin-left:6px;color:var(--mute)}
+.multi .menu{position:absolute;z-index:3;margin-top:4px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;display:grid;gap:6px;min-width:140px;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.multi .menu label{display:flex;gap:8px;align-items:center;cursor:pointer;white-space:nowrap}
 .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--line);margin-right:6px}.dot.on{background:var(--ok)}
 .mute{color:var(--mute)}.mono{font-family:ui-monospace,monospace;font-size:13px}a{color:var(--acc)}
 input[type=password],input[type=text],select{padding:7px 10px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit}
@@ -483,12 +487,12 @@ function board_status(array $list, string $category, array $row): string {
 }
 
 /** Does this board entry pass the Player and Now filters of the High scores page? */
-function board_row_shown(array $list, string $category, $row, string $player, string $now): bool {
+function board_row_shown(array $list, string $category, $row, string $player, array $nows): bool {
     if (!is_array($row) || !isset($row['name'], $row['value'])) return false;
     if ($player !== '' && mb_strtolower((string) $row['name']) !== $player) return false;
-    if ($now === '') return true;
+    if (!$nows) return true;
     $s = board_status($list, $category, $row);
-    return $now === 'top' ? $s === '#1' : ($now === 'tied' ? $s === 'Tied #1' : $s === 'Beaten');
+    return in_array($s === '#1' ? 'top' : ($s === 'Tied #1' ? 'tied' : 'beaten'), $nows, true);
 }
 
 /** The screenshot of a board's number one: kept on the row, or (older records) found in the records log. */
@@ -560,8 +564,11 @@ function scores_view() {
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
     $cat = (string) ($_GET['cat'] ?? '');
     $cat = isset(BOARDS[$cat]) ? $cat : '';
-    $now = (string) ($_GET['now'] ?? '');
-    $now = in_array($now, ['top', 'tied', 'beaten'], true) ? $now : '';
+    // Now filter: any of #1 / Tied #1 / Beaten (a single ?now=top still works); none ticked = everything.
+    $nowRaw = $_GET['now'] ?? [];
+    $nows = array_values(array_unique(array_filter(is_array($nowRaw) ? $nowRaw : [$nowRaw], function ($v) {
+        return in_array($v, ['top', 'tied', 'beaten'], true);
+    })));
     $boardsNow = read_boards();
     $rows = read_records(100000, $level, $cat);
     $names = [];
@@ -581,10 +588,10 @@ function scores_view() {
             return mb_strtolower((string) $e['name']) === $player;
         }));
     }
-    if ($now !== '') {
-        $rows = array_values(array_filter($rows, function ($e) use ($boardsNow, $now) {
+    if ($nows) {
+        $rows = array_values(array_filter($rows, function ($e) use ($boardsNow, $nows) {
             $s = standing($boardsNow, (string) $e['level'], (string) $e['category'], (string) $e['name']);
-            return $now === 'top' ? $s === '#1' : ($now === 'tied' ? $s === 'Tied #1' : $s === '');
+            return in_array($s === '#1' ? 'top' : ($s === 'Tied #1' ? 'tied' : ($s === '' ? 'beaten' : '')), $nows, true);
         }));
     }
     $rows = array_slice($rows, 0, 300);
@@ -608,11 +615,16 @@ function scores_view() {
     foreach ($names as $key => $label) {
         echo '<option value="' . h($key) . '"' . ($player === $key ? ' selected' : '') . '>' . h($label) . '</option>';
     }
-    echo '</select><select name="now">';
-    foreach (['' => 'Any Now', 'top' => '#1', 'tied' => 'Tied #1', 'beaten' => 'Beaten'] as $v => $label) {
-        echo '<option value="' . h($v) . '"' . ($now === $v ? ' selected' : '') . '>' . h($label) . '</option>';
+    $nowLabels = ['top' => '#1', 'tied' => 'Tied #1', 'beaten' => 'Beaten'];
+    $picked = array_map(function ($k) use ($nowLabels) {
+        return $nowLabels[$k];
+    }, $nows);
+    echo '</select><details class="multi"><summary>' . ($picked ? h(implode(' + ', $picked)) : 'Any Now') . '</summary><div class="menu">';
+    foreach ($nowLabels as $v => $label) {
+        echo '<label><input type="checkbox" name="now[]" value="' . h($v) . '"' . (in_array($v, $nows, true) ? ' checked' : '') . '> ' . h($label) . '</label>';
     }
-    echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
+    echo '</div></details>';
+    echo '<button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
     ob_start();   // the three tables are built in this order but shown as: community boards, refused scores, records broken
     echo $intro;
     echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
@@ -663,12 +675,12 @@ function scores_view() {
     echo '</tr>';
     foreach (LEVEL_NAMES as $id => $label) {
         if ($level !== '' && $level !== $id) continue;
-        if ($player !== '' || $now !== '') {
+        if ($player !== '' || $nows) {
             $has = false;
             foreach (BOARDS as $c => $_) {
                 $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
                 foreach (array_slice($list, 0, 5) as $row) {
-                    if (board_row_shown($list, $c, $row, $player, $now)) $has = true;
+                    if (board_row_shown($list, $c, $row, $player, $nows)) $has = true;
                 }
             }
             if (!$has) continue;
@@ -687,7 +699,7 @@ function scores_view() {
                 }
             }
             foreach (array_slice($list, 0, 5) as $i => $row) {
-                if (!board_row_shown($list, $c, $row, $player, $now)) continue;
+                if (!board_row_shown($list, $c, $row, $player, $nows)) continue;
                 $first = $top !== null && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001;
                 echo ($first ? '<b>' : '') . ($first ? 1 : $i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
                     . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($first ? '</b>' : '')

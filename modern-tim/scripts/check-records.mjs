@@ -197,6 +197,12 @@ try {
     assert.ok((bTied.match(/<b>1\. /g) || []).length >= 2 && !/<br>[2-9]\. /.test(bTied.replace(/<b>1\. [^]*?<\/b>/g, '')), 'boards: tied #1 only');
     const bNone = boardsOf(await (await fetch(`${base}/admin.php?view=scores&level=springs&now=tied`, { headers: { cookie: cookie() } })).text());
     assert.ok(!bNone.includes('Fay'), 'boards: nobody tied on springs');
+    const multi = await (await fetch(`${base}/admin.php?view=scores&level=springs&now%5B%5D=top&now%5B%5D=beaten`, { headers: { cookie: cookie() } })).text();
+    assert.ok(multi.includes('<b>Fay</b> 4.000 m') && multi.includes('<b>Dee</b> 6.000 m'), 'filter: several Now options at once');
+    assert.ok(multi.includes('value="top" checked') && multi.includes('value="beaten" checked') && !multi.includes('value="tied" checked'), 'ticked boxes stay ticked');
+    assert.ok(multi.includes('<summary>#1 + Beaten</summary>'), 'the dropdown names what is ticked');
+    const none = await (await fetch(`${base}/admin.php?view=scores&level=springs&now%5B%5D=tied`, { headers: { cookie: cookie() } })).text();
+    assert.ok(!none.includes('<b>Fay</b> 4.000 m'), 'filter: tied only');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');
