@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.4h
+
+- **Levels now remember the version they were last changed in, and a change scrubs that level's high scores.** Every level has a version in `modern-tim/src/game/level-revs.ts` (and `scores.php`). When it changes, `scores.php` clears the community boards for that level the next time anyone asks, and each player's game downloads the new versions on load and clears its own copy of that level's scores (and any runs still waiting to be sent), with a short message. A game that still has the old level cannot post scores to the new board. The dashboard's community boards table shows each level's version.
+- **Changes can no longer slip through unnoticed**: `npm run level-revs` fingerprints every level and fails if one changed without a bump; `npm run level-revs -- bump <id>` (or `bump all` after a physics change) records the change. This release only starts the tracking (all levels at 0.4g), so no scores are cleared by it.
+- **Level list stars are easier to see**: boards you have not won yet show as small grey dots, and a dot becomes a gold star once you hold (or tie) number one on that board.
+- Stars still come only from the live community boards: you hold a star only while you are number one or tied on that board.
+
 ## Modern TIM 0.4g
 
 - **The Now filter now matches the column exactly**: #1, Tied #1 or Beaten, with no combined option. #1 shows only players who are alone in first place; Tied #1 shows shared first places. Server file only: copy `admin.php` (the cron job does).

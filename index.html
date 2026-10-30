@@ -696,7 +696,9 @@ kbd {
 .menu-num { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--blue-soft); font-family: var(--font-display); font-weight: 700; }
 .menu-item.done .menu-num { background: var(--go); color: #fff; }
 .menu-name { flex: 1; min-width: 0; }
-.menu-stars { color: #e0a800; letter-spacing: 2px; white-space: nowrap; }
+.menu-stars { letter-spacing: 2px; white-space: nowrap; }
+.menu-stars .star-on { color: #e0a800; }
+.menu-stars .star-off { color: #8a8f98; }
 @media (max-width: 700px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } }
 
 </style>
@@ -3926,7 +3928,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4g';
+const VERSION = '0.4h';
 
 return { VERSION };
 })();
@@ -4227,9 +4229,10 @@ return { OVERLAP_TOLERANCE, footprint, shapesOverlap, footprintBounds, overlapsA
 })();
 
 // ---- game/profile.ts ----
-const { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores } = (() => {
+const { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels } = (() => {
 const NAME_KEY = 'modern-tim:player';
 const SCORES_KEY = 'modern-tim:scores';
+const REVS_KEY = 'modern-tim:level-revs';
 const MAX_NAME = 16;
 const BOARD_SIZE = 5;
 const PX_PER_METER = 100;
@@ -4391,12 +4394,38 @@ function saveScores(scores, store = browserStore()) {
         store?.setItem(SCORES_KEY, JSON.stringify(scores));
     } catch  {}
 }
+function scrubChangedLevels(serverRevs, scores, store = browserStore()) {
+    let seen = {};
+    try {
+        const raw = JSON.parse(store?.getItem(REVS_KEY) ?? '{}');
+        if (raw && typeof raw === 'object') seen = raw;
+    } catch  {
+        seen = {};
+    }
+    const scrubbed = [];
+    for (const [id, rev] of Object.entries(serverRevs)){
+        if (typeof rev !== 'string') continue;
+        if (seen[id] !== undefined && seen[id] !== rev && scores[id]) {
+            delete scores[id];
+            scrubbed.push(id);
+        } else if (seen[id] !== undefined && seen[id] !== rev) {
+            scrubbed.push(id);
+        }
+        seen[id] = rev;
+    }
+    try {
+        store?.setItem(REVS_KEY, JSON.stringify(seen));
+    } catch  {}
+    if (scrubbed.length) saveScores(scores, store);
+    return scrubbed;
+}
 
-return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores };
+return { NAME_KEY, SCORES_KEY, REVS_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, CATEGORY_INFO, sanitizeName, emptyBoard, stepsToSeconds, pathMeters, formatValue, recordRun, holdsBest, loadPlayer, savePlayer, parseBoard, loadScores, saveScores, scrubChangedLevels };
 })();
 
 // ---- game/community.ts ----
-const { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
+const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
+
 
 const ENDPOINT = 'scores.php';
 const PENDING_KEY = 'modern-tim:pending';
@@ -4430,6 +4459,18 @@ async function call(fetchFn, url, init) {
         if (timer) clearTimeout(timer);
     }
 }
+async function fetchRevs(fetchFn = (u, i)=>fetch(u, i)) {
+    const raw = await call(fetchFn, `${ENDPOINT}?revs=1&_=${Date.now()}`);
+    const revs = raw === REJECTED ? null : raw?.revs;
+    if (!revs || typeof revs !== 'object') return null;
+    const out = {};
+    for (const [id, v] of Object.entries(revs))if (typeof v === 'string') out[id] = v;
+    return out;
+}
+function scrubPending(levelIds, store = browserStore()) {
+    if (!levelIds.length) return;
+    savePending(loadPending(store).filter((r)=>!levelIds.includes(r.levelId)), store);
+}
 async function fetchCommunity(levelId, fetchFn = (u, i)=>fetch(u, i)) {
     const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
     const data = raw === REJECTED ? null : raw;
@@ -4455,6 +4496,9 @@ async function trySubmit(levelId, name, run, fetchFn = (u, i)=>fetch(u, i), extr
         pathMeters: run.pathMeters,
         seconds: run.seconds,
         spare: run.spare,
+        ...LEVEL_REVS[levelId] ? {
+            rev: LEVEL_REVS[levelId]
+        } : {},
         ...extras.version ? {
             version: extras.version
         } : {},
@@ -4523,7 +4567,7 @@ function mayBreakRecord(board, run) {
     return shortest !== undefined && run.pathMeters < shortest || fastest !== undefined && run.seconds < fastest || spare !== undefined && run.spare > spare;
 }
 
-return { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord };
+return { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord };
 })();
 
 // ---- game/builds.ts ----
@@ -8259,7 +8303,15 @@ track('visit', player, level.id);
 track('level', player, level.id);
 const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
-void flushPending().then((n)=>{
+void fetchRevs().then((revs)=>{
+    const gone = revs ? scrubChangedLevels(revs, allScores) : [];
+    if (gone.length) {
+        scrubPending(gone);
+        for (const id of gone)delete community[id];
+        refreshScores();
+        ui.toast(gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
+    }
+}).then(()=>flushPending()).then((n)=>{
     if (n > 0) loadCommunity();
 });
 ui.setPlayer(player);
@@ -8610,7 +8662,15 @@ function renderMenu() {
         name.textContent = l.name;
         const star = document.createElement('span');
         star.className = 'menu-stars';
-        star.textContent = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
+        star.replaceChildren();
+        if (st !== null) {
+            for(let i = 0; i < 3; i++){
+                const mark = document.createElement('span');
+                mark.className = i < st ? 'star-on' : 'star-off';
+                mark.textContent = i < st ? '★' : '•';
+                star.appendChild(mark);
+            }
+        }
         star.title = st === null ? '' : `You hold the community best for ${st} of 3 boards`;
         btn.append(num, name, star);
         btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);

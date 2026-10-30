@@ -682,5 +682,7 @@ kbd {
 .menu-num { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--blue-soft); font-family: var(--font-display); font-weight: 700; }
 .menu-item.done .menu-num { background: var(--go); color: #fff; }
 .menu-name { flex: 1; min-width: 0; }
-.menu-stars { color: #e0a800; letter-spacing: 2px; white-space: nowrap; }
+.menu-stars { letter-spacing: 2px; white-space: nowrap; }
+.menu-stars .star-on { color: #e0a800; }
+.menu-stars .star-off { color: #8a8f98; }
 @media (max-width: 700px) { .level-now { font-size: 0.8rem; padding-inline: 8px; } }

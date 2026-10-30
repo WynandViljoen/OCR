@@ -3,7 +3,9 @@
  *   npm run check-community
  */
 import assert from 'node:assert/strict';
-import { fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
+import { LEVEL_REVS } from '../src/game/level-revs';
+import { scrubChangedLevels, loadScores, saveScores, REVS_KEY } from '../src/game/profile';
+import { fetchRevs, scrubPending, fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
 
 let passed = 0;
 async function check(name: string, fn: () => Promise<void>) {
@@ -37,7 +39,7 @@ await check('a submission sends the run and reads the ranks back', async () => {
     sent = JSON.parse(init!.body!);
     return { ok: true, json: async () => ({ board: { spare: [{ name: 'Ana', value: 1, at: 1 }] }, results: { spare: { rank: 1, improved: true, record: true } } }) };
   });
-  assert.deepEqual(sent, { level: 'ramps', name: 'Ana', pathMeters: 5, seconds: 4, spare: 1 });
+  assert.deepEqual(sent, { level: 'ramps', name: 'Ana', pathMeters: 5, seconds: 4, spare: 1, rev: LEVEL_REVS.ramps });
   assert.equal(sub?.results.spare.record, true);
   assert.equal(sub?.results.shortest.rank, null);
 });
@@ -99,6 +101,25 @@ await check('a screenshot is only worth sending when a record could be broken; v
   assert.equal(sent.shot, 'data:image/jpeg;base64,AAAA');
   await trySubmit('ramps', 'Ana', run, f);
   assert.equal('shot' in sent, false);
+});
+
+await check('a changed level loses its local scores and waiting runs; unchanged and first-seen levels keep theirs', async () => {
+  const store = memory();
+  const mine = { shortest: [{ name: 'Ana', value: 5, at: 1 }], fastest: [], spare: [] };
+  saveScores({ ramps: mine, gears: mine }, store);
+  assert.deepEqual(scrubChangedLevels({ ramps: '1', gears: '1' }, loadScores(store), store), []); // first visit: only noted
+  assert.ok(store.data[REVS_KEY]);
+  const scores = loadScores(store);
+  assert.deepEqual(scrubChangedLevels({ ramps: '2', gears: '1', maze: '1' }, scores, store), ['ramps']);
+  assert.equal('ramps' in scores, false);
+  assert.equal('ramps' in loadScores(store), false);
+  assert.equal('gears' in loadScores(store), true);
+  assert.deepEqual(scrubChangedLevels({ ramps: '2', gears: '1' }, scores, store), []); // once only
+  savePending([{ levelId: 'ramps', name: 'Ana', run }, { levelId: 'gears', name: 'Ana', run }], store);
+  scrubPending(['ramps'], store);
+  assert.deepEqual(loadPending(store).map((r) => r.levelId), ['gears']);
+  assert.deepEqual(await fetchRevs(okJson({ revs: { ramps: '2', bad: 3 } })), { ramps: '2' });
+  assert.equal(await fetchRevs(async () => { throw new Error('offline'); }), null);
 });
 
 console.log(`\n${passed} checks passed`);

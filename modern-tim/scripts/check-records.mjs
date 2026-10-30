@@ -9,7 +9,7 @@
  * The admin password is the one hashed in admin.php ("HappyCampers").
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, existsSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -189,6 +189,24 @@ try {
     assert.ok(/<b>Fay<\/b>.*?<b>★ 1<\/b>/s.test(players), 'Fay has 1 star (only five rows fit a board, so her tied runs are not on the others)');
     const bad = await fetch(`${base}/admin.php?shot=../scores.php`, { headers: { cookie: cookie() } });
     assert.equal(bad.status, 404);
+  });
+  await check('changing a level version clears that level only, serves the versions, and refuses old copies of the level', async () => {
+    const before = await (await fetch(`${base}/scores.php?level=gears`)).json();
+    assert.ok(before.board.shortest.length > 0 && before.rev, 'gears has scores and a version');
+    assert.ok((await (await fetch(`${base}/scores.php?level=ramps`)).json()).board.shortest.length > 0);
+    const file = join(dir, 'scores.php');
+    writeFileSync(file, readFileSync(file, 'utf8').replace("'ramps' => '0.4g'", "'ramps' => '9.9z'"));
+    const revs = (await (await fetch(`${base}/scores.php?revs=1`)).json()).revs;
+    assert.equal(revs.ramps, '9.9z');
+    assert.equal(revs.gears, before.rev);
+    const after = await (await fetch(`${base}/scores.php?level=ramps`)).json();
+    assert.deepEqual(after.board.shortest, []);
+    assert.equal(after.rev, '9.9z');
+    assert.deepEqual((await (await fetch(`${base}/scores.php?level=gears`)).json()).board, before.board);
+    const old = await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'Zed', pathMeters: 3, seconds: 5, spare: 1, rev: '0.4g' }) });
+    assert.equal(old.status, 409);
+    const fresh = await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'Zed', pathMeters: 3, seconds: 5, spare: 1, rev: '9.9z' }) });
+    assert.equal(fresh.status, 200);
   });
   console.log(`\n${passed} checks passed`);
 } catch (err) {

@@ -6,6 +6,7 @@
  * `fetchCommunity` and `submitRun` return null and the game carries on with the
  * scores stored in this browser. Runs that could not be sent are kept and retried.
  */
+import { LEVEL_REVS } from './level-revs';
 import { CATEGORIES, parseBoard, sanitizeName, type Board, type Category, type Run } from './profile';
 
 export const ENDPOINT = 'scores.php';
@@ -69,6 +70,22 @@ async function call(fetchFn: FetchLike, url: string, init?: Parameters<FetchLike
   }
 }
 
+/** The version each level was last changed in, as the server has it (null if it cannot be reached). */
+export async function fetchRevs(fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Record<string, string> | null> {
+  const raw = await call(fetchFn, `${ENDPOINT}?revs=1&_=${Date.now()}`);
+  const revs = raw === REJECTED ? null : (raw as { revs?: unknown } | null)?.revs;
+  if (!revs || typeof revs !== 'object') return null;
+  const out: Record<string, string> = {};
+  for (const [id, v] of Object.entries(revs as Record<string, unknown>)) if (typeof v === 'string') out[id] = v;
+  return out;
+}
+
+/** Forget runs still waiting to be sent for levels that were changed (they were made on the old level). */
+export function scrubPending(levelIds: string[], store: StoreLike | null = browserStore()) {
+  if (!levelIds.length) return;
+  savePending(loadPending(store).filter((r) => !levelIds.includes(r.levelId)), store);
+}
+
 export async function fetchCommunity(levelId: string, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Board | null> {
   const raw = await call(fetchFn, `${ENDPOINT}?level=${encodeURIComponent(levelId)}&_=${Date.now()}`);
   const data = raw === REJECTED ? null : (raw as { board?: unknown } | null);
@@ -97,6 +114,7 @@ export async function trySubmit(levelId: string, name: string, run: Run, fetchFn
     pathMeters: run.pathMeters,
     seconds: run.seconds,
     spare: run.spare,
+    ...(LEVEL_REVS[levelId] ? { rev: LEVEL_REVS[levelId] } : {}),
     ...(extras.version ? { version: extras.version } : {}),
     ...(extras.shot ? { shot: extras.shot } : {}),
   });

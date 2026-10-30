@@ -20,9 +20,9 @@ import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track } from './game/tracker';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
-import { CATEGORIES, holdsBest } from './game/profile';
+import { CATEGORIES, holdsBest, scrubChangedLevels } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
+import { fetchCommunity, fetchRevs, flushPending, scrubPending, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -1736,9 +1736,21 @@ track('level', player, level.id);
 // First visit: ask for a name. Returning visit: it was stored, so just say hello.
 const versionTag = document.getElementById('version-tag');
 if (versionTag) versionTag.textContent = VERSION;
-void flushPending().then((n) => {
-  if (n > 0) loadCommunity();
-});
+// Levels that were changed since this browser last looked lose their scores (the server cleared its boards).
+void fetchRevs()
+  .then((revs) => {
+    const gone = revs ? scrubChangedLevels(revs, allScores) : [];
+    if (gone.length) {
+      scrubPending(gone);
+      for (const id of gone) delete community[id];
+      refreshScores();
+      ui.toast(gone.length === 1 ? 'A level was updated, so its high scores were reset.' : `${gone.length} levels were updated, so their high scores were reset.`);
+    }
+  })
+  .then(() => flushPending())
+  .then((n) => {
+    if (n > 0) loadCommunity();
+  });
 ui.setPlayer(player);
 if (player) ui.toast(`Welcome back, ${player}!`);
 else ui.openGate();
@@ -2097,7 +2109,16 @@ function renderMenu() {
     name.textContent = l.name;
     const star = document.createElement('span');
     star.className = 'menu-stars';
-    star.textContent = st === null ? '' : '★'.repeat(st) + '☆'.repeat(3 - st);
+    star.replaceChildren();
+    if (st !== null) {
+      // Earned boards are gold stars; the ones still to win are plain grey dots, easier to see than hollow stars.
+      for (let i = 0; i < 3; i++) {
+        const mark = document.createElement('span');
+        mark.className = i < st ? 'star-on' : 'star-off';
+        mark.textContent = i < st ? '★' : '•';
+        star.appendChild(mark);
+      }
+    }
     star.title = st === null ? '' : `You hold the community best for ${st} of 3 boards`;
     btn.append(num, name, star);
     btn.setAttribute('aria-label', `Level ${index + 1}: ${l.name}${done ? ', solved' : ''}${st === null ? '' : `, ${st} of 3 stars`}`);

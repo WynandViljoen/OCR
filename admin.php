@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4g';
+const ADMIN_BUILD = '0.4h';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -577,7 +577,8 @@ function scores_view() {
     echo '</tr>';
     foreach (LEVEL_NAMES as $id => $label) {
         if ($level !== '' && $level !== $id) continue;
-        echo '<tr><td><b>' . h($label) . '</b></td>';
+        $rev = (string) ($boards['_revs'][$id] ?? '');
+        echo '<tr><td><b>' . h($label) . '</b>' . ($rev !== '' ? '<br><span class="mute">level v' . h($rev) . '</span>' : '') . '</td>';
         foreach (BOARDS as $c => $_) {
             $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
             echo '<td>';
@@ -592,7 +593,7 @@ function scores_view() {
         }
         echo '</tr>';
     }
-    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. The bold line is the current record.</p>';
+    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. The bold line is the current record. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
 }
 
 function dashboard() {

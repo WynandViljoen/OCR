@@ -13,6 +13,7 @@
 
 export const NAME_KEY = 'modern-tim:player';
 export const SCORES_KEY = 'modern-tim:scores';
+export const REVS_KEY = 'modern-tim:level-revs';
 export const MAX_NAME = 16;
 export const BOARD_SIZE = 5;
 /** The playfield is 1000 px wide; scores are shown in metres at 100 px per metre. */
@@ -228,4 +229,37 @@ export function saveScores(scores: AllScores, store: StoreLike | null = browserS
   } catch {
     /* scores last for this visit only */
   }
+}
+
+/**
+ * The server says which game version each level was last changed in. When that differs from what this browser
+ * last saw for a level, the level was changed and its scores here are removed (the server already cleared the
+ * community board). A level seen for the first time is only noted. Returns the ids that were scrubbed.
+ */
+export function scrubChangedLevels(serverRevs: Record<string, string>, scores: AllScores, store: StoreLike | null = browserStore()): string[] {
+  let seen: Record<string, string> = {};
+  try {
+    const raw = JSON.parse(store?.getItem(REVS_KEY) ?? '{}');
+    if (raw && typeof raw === 'object') seen = raw as Record<string, string>;
+  } catch {
+    seen = {};
+  }
+  const scrubbed: string[] = [];
+  for (const [id, rev] of Object.entries(serverRevs)) {
+    if (typeof rev !== 'string') continue;
+    if (seen[id] !== undefined && seen[id] !== rev && scores[id]) {
+      delete scores[id];
+      scrubbed.push(id);
+    } else if (seen[id] !== undefined && seen[id] !== rev) {
+      scrubbed.push(id);
+    }
+    seen[id] = rev;
+  }
+  try {
+    store?.setItem(REVS_KEY, JSON.stringify(seen));
+  } catch {
+    /* next visit will try again */
+  }
+  if (scrubbed.length) saveScores(scores, store);
+  return scrubbed;
 }

@@ -35,6 +35,7 @@ header('Surrogate-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
 const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys2', 'machine', 'overtop', 'bridge', 'chain', 'reach', 'tackle2', 'tradeoff2', 'double', 'crane3', 'skyhigh', 'slalom', 'maze', 'energy'];
+const LEVEL_REVS = ['ramps' => '0.4g', 'conveyor' => '0.4g', 'springs' => '0.4g', 'levers' => '0.4g', 'dominoes' => '0.4g', 'gears' => '0.4g', 'spin' => '0.4g', 'pulleys2' => '0.4g', 'machine' => '0.4g', 'overtop' => '0.4g', 'bridge' => '0.4g', 'chain' => '0.4g', 'reach' => '0.4g', 'tackle2' => '0.4g', 'tradeoff2' => '0.4g', 'double' => '0.4g', 'crane3' => '0.4g', 'skyhigh' => '0.4g', 'slalom' => '0.4g', 'maze' => '0.4g', 'energy' => '0.4g'];   // see modern-tim/src/game/level-revs.ts
 const CATEGORIES = ['shortest', 'fastest', 'spare'];
 const LOWER_IS_BETTER = ['shortest' => true, 'fastest' => true];
 const BOARD_SIZE = 5;
@@ -182,6 +183,35 @@ function readAll($handle): array {
     return is_array($data) ? $data : [];
 }
 
+/**
+ * Compare each level's version in scores.php (LEVEL_REVS, the version it was last changed in) with the one the
+ * data file remembers. A level seen for the first time just gets its version recorded; a level whose version
+ * changed has its community boards cleared. Returns true when the data changed and needs saving.
+ */
+function syncRevs(array &$all): bool {
+    $changed = false;
+    $stored = is_array($all['_revs'] ?? null) ? $all['_revs'] : [];
+    foreach (LEVEL_REVS as $id => $rev) {
+        if (!isset($stored[$id])) {
+            $stored[$id] = $rev;
+            $changed = true;
+        } elseif ($stored[$id] !== $rev) {
+            unset($all[$id]);
+            $stored[$id] = $rev;
+            $changed = true;
+        }
+    }
+    if ($changed) $all['_revs'] = $stored;
+    return $changed;
+}
+
+function saveAll($handle, array $all) {
+    rewind($handle);
+    ftruncate($handle, 0);
+    fwrite($handle, json_encode($all, JSON_UNESCAPED_UNICODE));
+    fflush($handle);
+}
+
 function boardFor(array $all, string $level): array {
     $board = emptyBoard();
     foreach (CATEGORIES as $category) {
@@ -203,14 +233,19 @@ $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($method === 'GET') {
     $level = (string)($_GET['level'] ?? '');
-    if (!in_array($level, LEVELS, true)) fail(400, 'Unknown level.');
+    $wantRevs = isset($_GET['revs']);
+    if (!$wantRevs && !in_array($level, LEVELS, true)) fail(400, 'Unknown level.');
     $handle = @fopen(DATA_FILE, 'c+');
-    if (!$handle) fail(500, 'Scores cannot be read here.');
-    flock($handle, LOCK_SH);
+    if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be read here.');
     $all = readAll($handle);
+    if (syncRevs($all)) saveAll($handle, $all);
     flock($handle, LOCK_UN);
     fclose($handle);
-    echo json_encode(['board' => boardFor($all, $level)]);
+    if ($wantRevs) {
+        echo json_encode(['revs' => LEVEL_REVS]);
+        exit;
+    }
+    echo json_encode(['board' => boardFor($all, $level), 'rev' => LEVEL_REVS[$level]]);
     exit;
 }
 
@@ -235,6 +270,10 @@ $spare = (int)$spare;
 // Plausible limits for this game: a level is 10 m wide and solves within 30 s.
 if ($path <= 0 || $path > 500 || $seconds <= 0 || $seconds > 120 || $spare < 0 || $spare > 30) fail(400, 'Those numbers do not look right.');
 
+// A game that still has an older copy of this level must not put scores on the new board.
+$rev = $in['rev'] ?? null;
+if (is_string($rev) && $rev !== LEVEL_REVS[$level]) fail(409, 'This level has changed. Reload the game to get the new version.');
+
 $version = (string)($in['version'] ?? '');
 if (!preg_match('/^[0-9A-Za-z.\-]{1,12}$/', $version)) $version = '';
 
@@ -243,15 +282,13 @@ $values = ['shortest' => $path, 'fastest' => $seconds, 'spare' => (float)$spare]
 $handle = @fopen(DATA_FILE, 'c+');
 if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here.');
 $all = readAll($handle);
+syncRevs($all);
 $board = boardFor($all, $level);
 $before = $board;
 $results = recordRun($board, $name, $values, time(), $version);
 $broken = brokenRecords($before, $board, $results);
 $all[$level] = $board;
-rewind($handle);
-ftruncate($handle, 0);
-fwrite($handle, json_encode($all, JSON_UNESCAPED_UNICODE));
-fflush($handle);
+saveAll($handle, $all);
 flock($handle, LOCK_UN);
 fclose($handle);
 
