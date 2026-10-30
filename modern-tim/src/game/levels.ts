@@ -540,7 +540,7 @@ export const LEVELS: Level[] = [
     },
   },
   {
-    id: 'crane2',
+    id: 'crane3',
     name: 'Crane',
     goal: 'Lift the crate and swing the ball on top of it into the basket on the floor. The pulley has a motor, so it climbs its own rail. Where you put it decides where the crate swings.',
     hasGoal: true,
@@ -556,7 +556,7 @@ export const LEVELS: Level[] = [
       { type: 'wall', x: 280, y: 500, w: 8, h: 200 },
       ...basketWithFunnel(400),
     ],
-    inventory: { crate: 1, pulley: 1, rope: 1 },
+    inventory: { crate: 1, pulley: 1, rope: 1, plank: 1 },
     presets: { crate: { props: { weight: 0.012 } }, pulley: { props: { lift: 1, travel: 300 } } },
     solution: [
       { type: 'pulley', x: 540, y: 320, key: 'pul' },
@@ -672,7 +672,7 @@ export const LEVELS: Level[] = [
     goalTargets: ['ball'],
     hints: [
       "The bowling ball needs enough speed to push the small ball off the ledge. Two ramps on the left give it a long, steady run.",
-      "Put a plank tilted upwards at the end of the ledge, like a ski jump, to throw the small ball up and over the tall wall. One last plank near the basket catches it and guides it in.",
+      "Put a plank tilted upwards at the end of the ledge, like a ski jump, to throw the small ball up and over the tall wall. Three planks are enough, so the fourth is a spare.",
     ],
     fixed: [
       { type: 'heavyBall', x: 70, y: 70 },
@@ -683,10 +683,9 @@ export const LEVELS: Level[] = [
     ],
     inventory: { plank: 4 },
     solution: [
-      { type: 'plank', x: 110, y: 170, angle: 20 },
-      { type: 'plank', x: 300, y: 255, angle: 20 },
-      { type: 'plank', x: 625, y: 385, angle: -25 },
-      { type: 'plank', x: 810, y: 270, angle: 30 },
+      { type: 'plank', x: 135, y: 170, angle: 25 },
+      { type: 'plank', x: 295, y: 255, angle: 20 },
+      { type: 'plank', x: 600, y: 375, angle: -25 },
     ],
     science: {
       topic: 'Energy transfer',

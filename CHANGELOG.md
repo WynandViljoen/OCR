@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.3m
+
+- **Spare tools are now possible on every level.** *Energy transfer* (level 21) can be solved with three planks, so the fourth is a spare (the recorded solution and hint now say so). *Crane* (level 17) needed all of its parts, so it now comes with one extra plank; its boards were reset (new id `crane3`).
+- **Server files changed:** copy `scores.php` and `admin.php` (the cron job does).
+
 ## Modern TIM 0.3l
 
 - **Select / Pan and the zoom buttons moved out of the way.** They now sit together in one row just under the board, at the right, instead of floating over the bottom corners where they covered parts. The board is a little shorter on wide screens to make room. Game only (no server files).

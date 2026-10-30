@@ -31,7 +31,7 @@ header('CDN-Cache-Control: no-store');
 header('Surrogate-Control: no-store');
 header('X-Content-Type-Options: nosniff');
 
-const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys2', 'machine', 'overtop', 'bridge', 'chain', 'reach', 'tackle2', 'tradeoff2', 'double', 'crane2', 'skyhigh', 'slalom', 'cheese', 'energy'];
+const LEVELS = ['ramps', 'conveyor', 'springs', 'levers', 'dominoes', 'gears', 'spin', 'pulleys2', 'machine', 'overtop', 'bridge', 'chain', 'reach', 'tackle2', 'tradeoff2', 'double', 'crane3', 'skyhigh', 'slalom', 'cheese', 'energy'];
 const CATEGORIES = ['shortest', 'fastest', 'spare'];
 const LOWER_IS_BETTER = ['shortest' => true, 'fastest' => true];
 const BOARD_SIZE = 5;
