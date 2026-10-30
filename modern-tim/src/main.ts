@@ -101,7 +101,7 @@ const stageArea = document.getElementById('stage-area') as HTMLElement;
 function fitBoard() {
   const r = stageArea.getBoundingClientRect();
   const stacked = window.matchMedia('(max-width: 860px)').matches;
-  const maxH = stacked ? Infinity : r.height;
+  const maxH = stacked ? Infinity : r.height - 52; // room for the row of board controls under the board
   const w = Math.max(200, Math.min(r.width, (maxH * WORLD_W) / WORLD_H));
   board.style.width = `${w}px`;
   board.style.height = `${(w * WORLD_H) / WORLD_W}px`;

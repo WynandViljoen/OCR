@@ -238,6 +238,11 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
   box-shadow: 0 5px 0 var(--ink);
   background: #f4f8fd;
 }
+/* Select / Pan and zoom share one row under the board, so they never cover any part of it. */
+.board { overflow: visible; }
+.board > canvas { border-radius: calc(var(--radius) - 3px); }
+.stage-area { padding-bottom: 52px; }
+.board-controls { position: absolute; top: calc(100% + 10px); right: 0; display: flex; gap: 8px; z-index: 4; }
 #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
 .part-toolbar {
@@ -271,9 +276,6 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outl
 .part-toolbar.below::after { top: auto; bottom: 100%; }
 
 .zoom-controls {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
   display: flex;
   align-items: center;
   background: var(--panel);
@@ -544,7 +546,7 @@ kbd {
 .prop-sci { font-size: 0.74rem; color: var(--muted); }
 .prop-fact { margin-top: 8px !important; font-size: 0.84rem; font-weight: 700; background: #fff6cc; border-radius: 8px; padding: 4px 8px; }
 
-.mode-controls { position: absolute; left: 10px; bottom: 10px; display: flex; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; z-index: 4; }
+.mode-controls { display: flex; background: var(--panel); border: 2px solid var(--ink); border-radius: 12px; box-shadow: 0 3px 0 var(--ink); overflow: hidden; z-index: 4; }
 .mode-controls button { border: 0; background: transparent; height: 36px; padding: 0 12px; font-family: var(--font-display); font-weight: 700; font-size: 0.9rem; cursor: pointer; color: var(--ink); }
 .mode-controls button.on { background: var(--ink); color: #fff; }
 
@@ -631,10 +633,6 @@ kbd {
   .rotate-tip button { border: 0; background: transparent; color: inherit; font-size: 1rem; min-width: 36px; min-height: 36px; cursor: pointer; }
 
   /* Board controls: in a row just under the board, so they never hide any part of it. */
-  .board { overflow: visible; }
-  .stage-area { padding-bottom: 58px; }
-  .mode-controls { top: calc(100% + 12px); bottom: auto; left: 0; }
-  .zoom-controls { top: calc(100% + 12px); bottom: auto; right: 0; }
   .mode-controls button { height: 34px; padding: 0 9px; font-size: 0.8rem; }
   .zoom-controls button { height: 34px; min-width: 34px; }
   .zoom-controls #zoom-reset { min-width: 48px; font-size: 0.78rem; }

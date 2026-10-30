@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.3l
+
+- **Select / Pan and the zoom buttons moved out of the way.** They now sit together in one row just under the board, at the right, instead of floating over the bottom corners where they covered parts. The board is a little shorter on wide screens to make room. Game only (no server files).
+
 ## Modern TIM 0.3k
 
 - **Levels 8, 15, 16 and 17 rebuilt as multi-part machines.** A single lift no longer solves them. In *Pulleys*, *Heavy lifting* and *Force or distance* the heavy effort crate is now parked on a ledge, and you must free it with a bowling ball: ramps, a spring and (in Heavy lifting) a conveyor send the ball onto the ledge, then you rig the pulley and rope. In *Crane* the motor pulley lifts a crate with a ball on top; where you put the pulley decides where the crate swings and where the ball lands.
