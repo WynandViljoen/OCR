@@ -47,7 +47,27 @@ const MAX_BODY_BYTES = 400000;   // a score is tiny; the rest is room for one re
 const MAX_SHOT_BYTES = 250000;
 const MAX_SHOTS_KEPT = 150;
 
+/** A refused score is written down (who, which level, why) so a missing score can be explained afterwards. */
+function logReject(int $code, string $message) {
+    if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') return;
+    $in = $GLOBALS['in'] ?? null;
+    $entry = ['t' => time(), 'code' => $code, 'reason' => $message];
+    if (is_array($in)) {
+        foreach (['level', 'name', 'version', 'rev'] as $k) {
+            if (isset($in[$k]) && is_string($in[$k])) $entry[$k] = mb_substr($in[$k], 0, 40);
+        }
+        foreach (['pathMeters', 'seconds', 'spare'] as $k) {
+            if (isset($in[$k]) && is_numeric($in[$k])) $entry[$k] = $in[$k] + 0;
+        }
+    }
+    if (!is_dir(RECORD_DIR)) @mkdir(RECORD_DIR, 0750, true);
+    $p = RECORD_DIR . '/rejects.log';
+    if (is_file($p) && filesize($p) > 200000) @rename($p, RECORD_DIR . '/rejects.old.log');
+    @file_put_contents($p, json_encode($entry, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
+}
+
 function fail(int $code, string $message) {
+    logReject($code, $message);
     http_response_code($code);
     echo json_encode(['error' => $message]);
     exit;

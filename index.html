@@ -3928,7 +3928,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4l';
+const VERSION = '0.4m';
 
 return { VERSION };
 })();
@@ -4430,7 +4430,7 @@ const { ENDPOINT, PENDING_KEY, fetchRevs, scrubPending, fetchCommunity, trySubmi
 const ENDPOINT = 'scores.php';
 const PENDING_KEY = 'modern-tim:pending';
 const MAX_PENDING = 20;
-const TIMEOUT_MS = 6000;
+const TIMEOUT_MS = 12000;
 function browserStore() {
     try {
         return window.localStorage;
@@ -6709,23 +6709,29 @@ sim.onSolved = (info)=>{
     const results = player ? recordRun(allScores, level.id, player, run) : [];
     if (results.length) {
         saveScores(allScores);
-        refreshScores();
+        try {
+            refreshScores();
+        } catch (err) {
+            console.error(err);
+        }
     }
-    ui.setSolvedScores(describeRun(run, results, null));
-    track('solve', player, level.id, {
-        seconds: run.seconds
-    });
-    playSound('success');
-    burst(document.getElementById('confetti'));
     if (player && level.hasGoal) {
         const id = level.id;
         const name = player;
-        const shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+        let shot = '';
+        try {
+            shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+        } catch (err) {
+            console.error(err);
+        }
         void trySubmit(id, name, run, undefined, {
             version: VERSION,
             shot
         }).then((sub)=>{
-            if (sub === 'rejected') return;
+            if (sub === 'rejected') {
+                ui.toast('The community board did not accept this run.');
+                return;
+            }
             if (sub === 'retry') {
                 savePending([
                     ...loadPending(),
@@ -6750,6 +6756,19 @@ sim.onSolved = (info)=>{
             }
         });
     }
+    const safely = (fn)=>{
+        try {
+            fn();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+    safely(()=>ui.setSolvedScores(describeRun(run, results, null)));
+    safely(()=>track('solve', player, level.id, {
+            seconds: run.seconds
+        }));
+    safely(()=>playSound('success'));
+    safely(()=>burst(document.getElementById('confetti')));
     window.setTimeout(()=>{
         if (playing && sim.solved) ui.showSolved(true);
     }, 700);

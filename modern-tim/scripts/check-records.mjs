@@ -27,6 +27,7 @@ const port = 18000 + Math.floor(Math.random() * 1000);
 const server = spawn('php', ['-S', `127.0.0.1:${port}`, '-t', dir], { stdio: 'ignore' });
 const base = `http://127.0.0.1:${port}`;
 let passed = 0;
+let cookie = () => "";
 
 async function waitUp() {
   for (let i = 0; i < 50; i++) {
@@ -85,7 +86,7 @@ try {
     const take = (res) => {
       for (const c of res.headers.getSetCookie?.() ?? []) jar[c.split('=')[0]] = c.split(';')[0];
     };
-    const cookie = () => Object.values(jar).join('; ');
+    cookie = () => Object.values(jar).join('; ');
     let res = await fetch(`${base}/admin.php`);
     take(res);
     const csrf = /name="csrf" value="([a-f0-9]+)"/.exec(await res.text())?.[1];
@@ -212,6 +213,8 @@ try {
     assert.equal(old.status, 409);
     const fresh = await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'ramps', name: 'Zed', pathMeters: 3, seconds: 5, spare: 1, rev: '9.9z' }) });
     assert.equal(fresh.status, 200);
+    const page = await (await fetch(`${base}/admin.php?view=scores`, { headers: { cookie: cookie() } })).text();
+    assert.ok(page.includes('Scores the server refused') && page.includes('This level has changed'), 'a refused score is listed with its reason');
   });
   console.log(`\n${passed} checks passed`);
 } catch (err) {

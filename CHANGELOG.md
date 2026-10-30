@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.4m
+
+- **A solved run is now sent to the community board before anything else happens**, and the sound, confetti, tracking and score-card steps are each guarded, so a problem in one of them (for example sound or canvas trouble on a new device) can no longer stop the score from being sent.
+- **A refused score is no longer silent**: the game says "The community board did not accept this run", and `scores.php` writes every refused score (level, player, run, version and the reason) to `tim-data/rejects.log`. The dashboard's High scores page lists the newest 20 under "Scores the server refused", so a missing score can be explained.
+- The wait for the score server is 12 seconds instead of 6, for slow connections.
+
 ## Modern TIM 0.4l
 
 - **Current community boards now show everyone tied for number one in bold**, each marked "1.", so the bold entries per player match the stars on the Players page. Server file only: copy `admin.php` (the cron job does).

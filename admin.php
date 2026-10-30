@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4l';
+const ADMIN_BUILD = '0.4m';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -592,6 +592,25 @@ function scores_view() {
     }
     if (!$rows) echo '<tr><td colspan="9" class="mute">No broken records yet.</td></tr>';
     echo '</table></div><p class="mute">Newest first, up to 300 rows. <b>Now</b> = whether the player is still number one (or tied for it) on the community board. Times are ' . h(DISPLAY_TZ) . '.</p>';
+
+    $rej = [];
+    $rp = DATA_DIR . '/rejects.log';
+    if (is_file($rp)) {
+        foreach (array_reverse(file($rp, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: []) as $line) {
+            $r = json_decode($line, true);
+            if (is_array($r) && isset($r['t'], $r['reason'])) $rej[] = $r;
+            if (count($rej) >= 20) break;
+        }
+    }
+    if ($rej) {
+        echo '<h2>Scores the server refused</h2><div class="wrap"><table><tr><th>When</th><th>Level</th><th>Player</th><th>Run</th><th>Version</th><th>Why</th></tr>';
+        foreach ($rej as $r) {
+            $run = isset($r['pathMeters'], $r['seconds'], $r['spare']) ? $r['pathMeters'] . ' m, ' . $r['seconds'] . ' s, ' . $r['spare'] . ' spare' : '-';
+            echo '<tr><td>' . h(fmt_time((int) $r['t'])) . '</td><td>' . h(isset($r['level']) ? level_label((string) $r['level']) : '-') . '</td><td>' . h($r['name'] ?? '-')
+                . '</td><td>' . h($run) . '</td><td class="mute">' . h(isset($r['version']) ? 'v' . $r['version'] : '-') . '</td><td>' . h((string) $r['reason']) . ' <span class="mute">(' . (int) ($r['code'] ?? 0) . ')</span></td></tr>';
+        }
+        echo '</table></div><p class="mute">The newest 20 runs scores.php turned away, with the reason. Empty (hidden) when none were refused.</p>';
+    }
 
     $boards = read_boards();
     echo '<h2>Current community boards</h2><div class="wrap"><table><tr><th>Level</th>';

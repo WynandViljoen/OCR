@@ -12,7 +12,7 @@ import { CATEGORIES, parseBoard, sanitizeName, type Board, type Category, type R
 export const ENDPOINT = 'scores.php';
 export const PENDING_KEY = 'modern-tim:pending';
 const MAX_PENDING = 20;
-const TIMEOUT_MS = 6000;
+const TIMEOUT_MS = 12000;
 
 export interface CommunityResult {
   rank: number | null;

@@ -197,20 +197,28 @@ sim.onSolved = (info) => {
   const results = player ? recordRun(allScores, level.id, player, run) : [];
   if (results.length) {
     saveScores(allScores);
-    refreshScores();
+    try {
+      refreshScores();
+    } catch (err) {
+      console.error(err);
+    }
   }
-  ui.setSolvedScores(describeRun(run, results, null));
-  track('solve', player, level.id, { seconds: run.seconds });
-  playSound('success');
-  burst(document.getElementById('confetti') as HTMLCanvasElement);
-
   // Send it to the community board. If that fails, keep it and try again next visit.
   if (player && level.hasGoal) {
     const id = level.id;
     const name = player;
-    const shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+    let shot = '';
+    try {
+      shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+    } catch (err) {
+      console.error(err);
+    }
     void trySubmit(id, name, run, undefined, { version: VERSION, shot }).then((sub) => {
-      if (sub === 'rejected') return; // the server will never take it, so do not queue it
+      if (sub === 'rejected') {
+        // The server will never take it, so do not queue it, but say so instead of failing silently.
+        ui.toast('The community board did not accept this run.');
+        return;
+      }
       if (sub === 'retry') {
         savePending([...loadPending(), { levelId: id, name, run, version: VERSION }]);
         if (level.id === id) {
@@ -227,6 +235,19 @@ sim.onSolved = (info) => {
       }
     });
   }
+
+  // Nothing cosmetic may stop the score from being sent, so each of these is guarded.
+  const safely = (fn: () => void) => {
+    try {
+      fn();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  safely(() => ui.setSolvedScores(describeRun(run, results, null)));
+  safely(() => track('solve', player, level.id, { seconds: run.seconds }));
+  safely(() => playSound('success'));
+  safely(() => burst(document.getElementById('confetti') as HTMLCanvasElement));
 
   window.setTimeout(() => {
     if (playing && sim.solved) ui.showSolved(true);
