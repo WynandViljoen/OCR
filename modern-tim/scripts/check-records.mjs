@@ -170,6 +170,12 @@ try {
     for (const [n, v] of [['Gus', 5], ['Hal', 4], ['Ivy', 4]]) await send2(n, v);
     const gears = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();
     assert.ok(/<b>Hal<\/b> 4 m<\/td><td><b>Tied #1<\/b><\/td>/.test(gears), 'Hal is tied for number one');
+    const only = async (now) => await (await fetch(`${base}/admin.php?view=scores&level=springs&now=${now}`, { headers: { cookie: cookie() } })).text();
+    const top = await only('top');
+    assert.ok(top.includes('<b>Fay</b> 4 m') && !top.includes('<b>Dee</b> 6 m'), 'filter: number one now');
+    const beaten = await only('beaten');
+    assert.ok(beaten.includes('<b>Dee</b> 6 m') && !beaten.includes('<b>Fay</b> 4 m'), 'filter: beaten since');
+    assert.ok(/<b>Hal<\/b> 4 m/.test(await (await fetch(`${base}/admin.php?view=scores&level=gears&now=tied`, { headers: { cookie: cookie() } })).text()), 'filter: tied');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');

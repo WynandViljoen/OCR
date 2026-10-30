@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4e';
+const ADMIN_BUILD = '0.4f';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -521,7 +521,17 @@ function scores_view() {
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
     $cat = (string) ($_GET['cat'] ?? '');
     $cat = isset(BOARDS[$cat]) ? $cat : '';
-    $rows = read_records(300, $level, $cat);
+    $now = (string) ($_GET['now'] ?? '');
+    $now = in_array($now, ['top', 'tied', 'beaten'], true) ? $now : '';
+    $boardsNow = read_boards();
+    $rows = read_records(100000, $level, $cat);
+    if ($now !== '') {
+        $rows = array_values(array_filter($rows, function ($e) use ($boardsNow, $now) {
+            $s = standing($boardsNow, (string) $e['level'], (string) $e['category'], (string) $e['name']);
+            return $now === 'top' ? $s !== '' : ($now === 'tied' ? $s === 'Tied #1' : $s === '');
+        }));
+    }
+    $rows = array_slice($rows, 0, 300);
     $all = read_records(100000, '', '');
     $weekAgo = time() - 7 * 86400;
     $week = count(array_filter($all, function ($e) use ($weekAgo) {
@@ -538,9 +548,12 @@ function scores_view() {
     foreach (BOARDS as $id => $label) {
         echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
     }
+    echo '</select><select name="now">';
+    foreach (['' => 'Any standing now', 'top' => 'Number one now (or tied)', 'tied' => 'Tied for number one', 'beaten' => 'Beaten since'] as $v => $label) {
+        echo '<option value="' . h($v) . '"' . ($now === $v ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
     echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
     echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
-    $boardsNow = read_boards();
     foreach ($rows as $e) {
         $c = (string) $e['category'];
         $now = standing($boardsNow, (string) $e['level'], $c, (string) $e['name']);

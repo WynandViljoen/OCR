@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.4f: admin.php Records broken has a `now` filter (top/tied/beaten) applied after standing().
 - v0.4e: admin.php standing() fills the Now column of the Records broken table.
 - v0.4d: admin.php fmt_time() prints Y-m-d H:i.
 - v0.4c: admin.php ADMIN_BUILD must equal VERSION (check-versions); bump both every release.

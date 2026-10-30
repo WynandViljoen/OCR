@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.4f
+
+- **The Records broken table can now be filtered by the Now column**: Any standing, Number one now (or tied), Tied for number one, or Beaten since. It works together with the Level and Board filters. Server file only: copy `admin.php` (the cron job does).
+
 ## Modern TIM 0.4e
 
 - **The Records broken table has a new Now column** showing whether the player is still number one (**#1**), tied for number one (**Tied #1**) or has been passed (Beaten) on the community board today. It is worked out from the current boards each time the page loads. Server file only: copy `admin.php` (the cron job does).
