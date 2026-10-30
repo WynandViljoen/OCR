@@ -4067,6 +4067,9 @@ const moveBasket = (f, cx)=>[
     ];
 const NOV_BY_ID = {
     ramps: nov('ramps', {
+        inventory: {
+            plank: 3
+        },
         solution: [
             {
                 type: 'plank',
@@ -4099,6 +4102,9 @@ const NOV_BY_ID = {
             ]
     }),
     conveyor: nov('conveyor', {
+        inventory: {
+            conveyor: 3
+        },
         solution: [
             {
                 type: 'conveyor',
@@ -4244,6 +4250,10 @@ const NOV_BY_ID = {
         }
     }),
     spin: nov('spin', {
+        inventory: {
+            gear: 4,
+            bigGear: 2
+        },
         solution: [
             {
                 type: 'bigGear',
@@ -4304,6 +4314,12 @@ const NOV_BY_ID = {
             ]
     }),
     pulleys2: nov('pulleys2', {
+        inventory: {
+            pulley: 1,
+            rope: 1,
+            plank: 2,
+            spring: 1
+        },
         solution: [
             {
                 type: 'pulley',
@@ -4338,13 +4354,7 @@ const NOV_BY_ID = {
                     ...p,
                     x: p.x + 15
                 } : p),
-        goal: 'Lift the load crate up into the upside-down basket. The heavy crate on the high ledge would do it, but it is stuck there. You have only one plank to help the bowling ball free it.',
-        inventory: {
-            pulley: 1,
-            rope: 1,
-            plank: 1,
-            spring: 1
-        }
+        goal: 'Lift the load crate up into the upside-down basket. The heavy crate on the high ledge would do it, but it is stuck there. You have only one plank to help the bowling ball free it.'
     }),
     machine: nov('machine', {
         solution: [
@@ -4410,6 +4420,10 @@ const NOV_BY_ID = {
                 } : p)
     }),
     bridge: nov('bridge', {
+        inventory: {
+            domino: 10,
+            plank: 1
+        },
         solution: [
             {
                 type: 'plank',
@@ -4480,6 +4494,9 @@ const NOV_BY_ID = {
             ]
     }),
     chain: nov('chain', {
+        inventory: {
+            domino: 4
+        },
         solution: [
             {
                 type: 'domino',
@@ -4497,12 +4514,12 @@ const NOV_BY_ID = {
                 y: 145
             }
         ],
-        fixed: (f)=>moveBasket(f, 710),
-        inventory: {
-            domino: 3
-        }
+        fixed: (f)=>moveBasket(f, 710)
     }),
     double: nov('double', {
+        inventory: {
+            domino: 8
+        },
         solution: [
             {
                 type: 'domino',
@@ -4544,10 +4561,7 @@ const NOV_BY_ID = {
                     ...p,
                     x: 510,
                     angle: 14
-                } : p),
-        inventory: {
-            domino: 7
-        }
+                } : p)
     }),
     reach: nov('reach', {
         goal: 'The motor and the paddle are even farther apart, and you have only one big gear. Make the paddle bat the ball to the RIGHT.',
@@ -4609,6 +4623,13 @@ const NOV_BY_ID = {
         ]
     }),
     tackle2: nov('tackle2', {
+        inventory: {
+            pulley: 1,
+            rope: 1,
+            conveyor: 1,
+            plank: 2,
+            spring: 1
+        },
         solution: [
             {
                 type: 'pulley',
@@ -4649,6 +4670,12 @@ const NOV_BY_ID = {
                 } : p)
     }),
     tradeoff2: nov('tradeoff2', {
+        inventory: {
+            pulley: 1,
+            rope: 1,
+            plank: 3,
+            spring: 1
+        },
         solution: [
             {
                 type: 'pulley',

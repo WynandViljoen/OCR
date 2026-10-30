@@ -7,6 +7,7 @@
 - **Preview on the dashboard.** The High scores page shows "Preview November 2026 puzzles" while a set is shipped but not live. The link opens the game with the next set, a banner says nothing is saved, and nothing is saved or sent: no scores, no solved ticks, no community posts, no tracking. The link carries a secret key (made once, kept in `tim-data/preview.key`, checked by `scores.php`); anyone without it just gets the normal game.
 - `npm run check-levels` and `check-failure` now test every puzzle set (solution solves, empty board does not, no attributes, inventory respected, no pause long enough to look like a failure). `check-seasons` covers the set switch at midnight, the 409 for old games and the preview key; `check-versions` checks the two PHP files agree on `SEASON_SETS`.
 - **Changing one November puzzle after launch wipes only that puzzle.** After editing it run `npm run level-revs -- bump-nov <id>`: that level's November version changes, so its community boards, stars, local scores and "solved" tick are cleared and the other 20 are untouched. `npm run level-revs` fails if a November puzzle changed without a bump.
+- Every November puzzle can be solved with at least one part to spare (nine of them had an inventory that exactly matched the solution, so the Spare board could never be won), so all three stars are always reachable.
 - No "last season" button in the Community tab: the Stars tab already shows last season's winners.
 
 ## Modern TIM 0.4w
