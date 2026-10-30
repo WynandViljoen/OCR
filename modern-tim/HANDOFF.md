@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.3k: levels 8, 15, 16, 17 rebuilt (ids pulleys2, tackle2, tradeoff2, crane2 reset their boards); the effort crate is a fixed crate on a ledge with a key 'eff'.
 - v0.3j: three very hard levels added after Sky high (slalom, cheese, energy); ids are whitelisted in scores.php and named in admin.php.
 - v0.3i: canvas `contextmenu` handler ignores touch/pen (uses `PointerEvent.pointerType` or `lastPointerType` set in the pointerdown handler). Right-click delete stays for mouse; the toolbar ✕ (`#tb-delete`) is the touch way to delete.
 - v0.3h: `holdsBest(board, category, name)` in profile.ts returns 'first' | 'tied' | null; stars count both. Boards order ties by earliest `at`, so the first achiever stays #1 (the 5-row board limit means a 6th tied player would not be listed and gets no star). The admin "records broken" log still ignores ties.

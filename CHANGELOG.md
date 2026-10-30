@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.3k
+
+- **Levels 8, 15, 16 and 17 rebuilt as multi-part machines.** A single lift no longer solves them. In *Pulleys*, *Heavy lifting* and *Force or distance* the heavy effort crate is now parked on a ledge, and you must free it with a bowling ball: ramps, a spring and (in Heavy lifting) a conveyor send the ball onto the ledge, then you rig the pulley and rope. In *Crane* the motor pulley lifts a crate with a ball on top; where you put the pulley decides where the crate swings and where the ball lands.
+- Old scores for these four levels are scrapped: they got new level ids (`pulleys2`, `tackle2`, `tradeoff2`, `crane2`), so their boards start empty, and players see them as unsolved again. Other levels are unchanged.
+- **Server files changed:** copy `scores.php` and `admin.php` (the cron job does). Old entries for the four retired ids stay in `scores-data.json` but are ignored.
+- All four were solved on the real physics engine and in the browser; each is robust to small nudges and none solves with just the pulley and rope.
+
 ## Modern TIM 0.3j
 
 - **Three new, very hard levels (19 to 21).** *Spring slalom* (weave under, over and under three gates with a strong spring), *Cheese maze* (carry the mouse past two walls to the cheese; only the mouse counts) and *Energy transfer* (use ramps so the heavy bowling ball knocks the small ball over a tall wall). Each was solved on the real physics engine, with no attributes, within its inventory and with no overlapping parts; none solves with an empty board.
