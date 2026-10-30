@@ -29,7 +29,8 @@ const ADMIN_HASH = '$2y$10$2o0urLzMO6zfm0hP2RyzzOnQJjd3oaH8mC5vT.fUgrKrn8aegDCyO
 const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
-const ADMIN_BUILD = '0.3g';
+// Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
+const ADMIN_BUILD = '0.4c';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -550,7 +551,7 @@ function scores_view() {
         }
         echo '</tr>';
     }
-    echo '</table></div><p class="mute">Top 5 per board, one row per name. The bold line is the current record.</p>';
+    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. The bold line is the current record.</p>';
 }
 
 function dashboard() {
@@ -573,7 +574,7 @@ function dashboard() {
     page_head('Modern TIM admin', $auto);
     $stamp = new DateTime('@' . $now);
     $stamp->setTimezone(new DateTimeZone(DISPLAY_TZ));
-    echo '<main><header><h1>Modern TIM admin</h1><div class="stamp"><span id="clock" class="mono"></span><br><span class="mute">Page built ' . h($stamp->format('H:i:s T')) . '</span></div><nav>';
+    echo '<main><header><h1>Modern TIM admin</h1><div class="stamp"><span id="clock" class="mono"></span><br><span class="mute">Page built ' . h($stamp->format('H:i:s T')) . '</span><br><span class="mute">Dashboard v' . h(ADMIN_BUILD) . '</span></div><nav>';
     echo '<a class="btn" href="' . h($_SERVER['REQUEST_URI'] ?? 'admin.php') . '" title="Load the newest data">&#8635; Refresh</a>';
     foreach (['players' => 'Players', 'levels' => 'Levels', 'scores' => 'High scores', 'log' => 'Log'] as $k => $label) {
         echo '<a class="' . ($view === $k ? 'on' : '') . '" href="admin.php?view=' . $k . ($auto ? '&amp;auto=1' : '') . '">' . $label . '</a>';

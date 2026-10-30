@@ -164,6 +164,8 @@ try {
     const html = await (await fetch(`${base}/admin.php?view=scores&level=springs`, { headers: { cookie: cookie() } })).text();
     assert.ok(html.includes('<th>Version</th>') && html.includes('<th>Screenshot</th>'));
     assert.ok(html.includes('v0.4a'));
+    assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
+    assert.match(html, /v0\.4a<\/span> <span class="mute">[A-Z][a-z]{2} \d+, \d\d:\d\d<\/span>/, 'board entries show when they were logged');
     assert.ok(html.includes(`admin.php?shot=${rec[0].shot}`) && html.includes('>View</a>'));
     const img = await fetch(`${base}/admin.php?shot=${rec[0].shot}`, { headers: { cookie: cookie() } });
     assert.equal(img.headers.get('content-type'), 'image/jpeg');
