@@ -798,8 +798,7 @@ kbd {
                   <h2>Didn't work</h2>
                   <p id="failed-why" class="solved-learned"></p>
                   <div class="solved-actions">
-                    <button id="btn-edit" class="btn" type="button">Edit</button>
-                    <button id="btn-retry" class="btn btn-go" type="button">Retry ▶</button>
+                    <button id="btn-edit" class="btn btn-go" type="button">Edit</button>
                   </div>
                 </div>
               </div>
@@ -3944,7 +3943,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4q';
+const VERSION = '0.4r';
 
 return { VERSION };
 })();
@@ -5677,7 +5676,7 @@ return { traceBodies, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBe
 })();
 
 // ---- game/world.ts ----
-const { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
+const { REST_STEPS, WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
 
 
 
@@ -5686,8 +5685,8 @@ const { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation } = (() => {
 const { Engine, Composite, Bodies, Body, Events } = Matter;
 const REST_SPEED = 0.5;
 const REST_SPIN = 0.01;
-const REST_STEPS = 120;
-const MIN_RUN_STEPS = 180;
+const REST_STEPS = 75;
+const MIN_RUN_STEPS = 60;
 const WORLD_W = 1000;
 const WORLD_H = 620;
 const FLOOR_TOP = 600;
@@ -6186,7 +6185,7 @@ class Simulation {
     }
 }
 
-return { WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
+return { REST_STEPS, WORLD_W, WORLD_H, FLOOR_TOP, STEP_MS, Simulation };
 })();
 
 // ---- game/ui.ts ----
@@ -6228,7 +6227,6 @@ class UI {
         $('btn-next').addEventListener('click', ()=>handlers.onNext());
         $('btn-replay').addEventListener('click', ()=>handlers.onBackToEdit());
         $('btn-edit').addEventListener('click', ()=>handlers.onBackToEdit());
-        $('btn-retry').addEventListener('click', ()=>handlers.onRetry());
         $('tb-rot-l').addEventListener('click', ()=>handlers.onRotate(-1));
         $('tb-rot-r').addEventListener('click', ()=>handlers.onRotate(1));
         $('tb-flip').addEventListener('click', ()=>handlers.onFlip());
@@ -6782,10 +6780,6 @@ const ui = new UI({
     onSelectLevel: (i)=>loadLevel(i, true),
     onNext: ()=>loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
     onBackToEdit: ()=>stop(),
-    onRetry: ()=>{
-        stop();
-        start();
-    },
     onTogglePaths: (show)=>showPaths = show,
     onZoomIn: ()=>zoomStep(1.25),
     onZoomOut: ()=>zoomStep(1 / 1.25),

@@ -26,8 +26,6 @@ export interface UIHandlers {
   onSelectLevel(index: number): void;
   onNext(): void;
   onBackToEdit(): void;
-  /** The run failed and the player pressed Retry. */
-  onRetry(): void;
   onTogglePaths(show: boolean): void;
   onZoomIn(): void;
   onZoomOut(): void;
@@ -105,7 +103,6 @@ export class UI {
     $('btn-next').addEventListener('click', () => handlers.onNext());
     $('btn-replay').addEventListener('click', () => handlers.onBackToEdit());
     $('btn-edit').addEventListener('click', () => handlers.onBackToEdit());
-    $('btn-retry').addEventListener('click', () => handlers.onRetry());
     $('tb-rot-l').addEventListener('click', () => handlers.onRotate(-1));
     $('tb-rot-r').addEventListener('click', () => handlers.onRotate(1));
     $('tb-flip').addEventListener('click', () => handlers.onFlip());

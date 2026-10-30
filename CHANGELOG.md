@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.4r
+
+- **The "Didn't work" card has only Edit now** (Retry would just fail the same way again).
+- **Failures show up faster**: a run is called failed after 1.25 seconds of everything standing still (was 2 s), and from 1 second into the run (was 3 s). The longest pause in any of the 21 recorded solutions is 0.9 s, and `npm run check-failure` now fails if a solution pauses for more than 80% of the limit, so the limit cannot creep into a real solution.
+
 ## Modern TIM 0.4q
 
 - **The dashboard uses the full width of the screen**, and table cells wrap instead of forcing a sideways scroll.

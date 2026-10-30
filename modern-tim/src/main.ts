@@ -147,10 +147,6 @@ const ui = new UI({
   onSelectLevel: (i) => loadLevel(i, true),
   onNext: () => loadLevel(Math.min(levelIndex + 1, LEVELS.length - 1), true),
   onBackToEdit: () => stop(),
-  onRetry: () => {
-    stop();
-    start();
-  },
   onTogglePaths: (show) => (showPaths = show),
   onZoomIn: () => zoomStep(1.25),
   onZoomOut: () => zoomStep(1 / 1.25),

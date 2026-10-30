@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import Matter from 'matter-js';
 import { LEVELS, levelToParts, solutionToParts } from '../src/game/levels';
-import { Simulation, type FailReason } from '../src/game/world';
+import { REST_STEPS, Simulation, type FailReason } from '../src/game/world';
 
 let passed = 0;
 const check = (name: string, fn: () => void) => {
@@ -38,7 +38,7 @@ check('an empty board ends by itself as a failure once everything is still, and 
   const { sim, calls } = make('ramps', false);
   const t = runUntilDone(sim, 30);
   assert.equal(sim.failed, 'rest');
-  assert.ok(t >= 3 && t < 15, `failed after ${t}s`);
+  assert.ok(t >= 1 && t < 10, `failed after ${t}s`);
   for (let i = 0; i < 300; i++) sim.step();
   assert.deepEqual(calls, ['rest']);
 });
@@ -46,7 +46,12 @@ check('an empty board ends by itself as a failure once everything is still, and 
 check('a working solution is never called a failure', () => {
   for (const l of LEVELS.filter((x) => x.hasGoal && x.solution)) {
     const { sim, calls } = make(l.id, true);
-    runUntilDone(sim, 30);
+    let still = 0;
+    for (let i = 0; i < 1800 && !sim.solved && !sim.failed; i++) {
+      sim.step();
+      still = Math.max(still, (sim as unknown as { restSteps: number }).restSteps);
+    }
+    assert.ok(still <= REST_STEPS * 0.8, `${l.id}: its solution pauses ${still} steps, too close to the failure limit of ${REST_STEPS}`);
     assert.equal(sim.solved, true, l.id);
     assert.deepEqual(calls, [], l.id);
   }

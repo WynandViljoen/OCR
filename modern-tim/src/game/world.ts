@@ -33,8 +33,8 @@ const { Engine, Composite, Bodies, Body, Events } = Matter;
 export type FailReason = 'rest' | 'lost';
 const REST_SPEED = 0.5;    // px per step (30 px per second: a ball creeping along the floor counts as still)
 const REST_SPIN = 0.01;    // radians per step
-const REST_STEPS = 120;    // two seconds of stillness
-const MIN_RUN_STEPS = 180; // never fail in the first three seconds
+export const REST_STEPS = 75;      // 1.25 s of stillness (the longest pause in any recorded solution is 0.9 s: see check-failure)
+const MIN_RUN_STEPS = 60;  // never fail in the first second
 
 export const WORLD_W = 1000;
 export const WORLD_H = 620;
