@@ -188,6 +188,15 @@ try {
     assert.ok(dee.includes('<option value="dee" selected>Dee</option>'), 'player list offers the name');
     assert.ok(!(await only('top')).includes('value="nobody"'), 'unknown names are ignored');
     assert.ok((gears.match(/<b>1\. /g) || []).length >= 2, 'everyone tied for number one is bold');
+    const boardsOf = (page) => page.slice(page.indexOf('Current community boards'), page.indexOf('<h2>Records broken</h2>'));
+    const bTop = boardsOf(await only('top'));
+    assert.ok(bTop.includes('1. Fay 4.000 m') && !bTop.includes('Dee 6.000 m') && !bTop.includes('Eve'), 'boards: #1 only');
+    const bBeaten = boardsOf(await only('beaten'));
+    assert.ok(bBeaten.includes('Dee 6.000 m') && !bBeaten.includes('1. Fay'), 'boards: beaten only');
+    const bTied = boardsOf(await (await fetch(`${base}/admin.php?view=scores&level=gears&now=tied`, { headers: { cookie: cookie() } })).text());
+    assert.ok((bTied.match(/<b>1\. /g) || []).length >= 2 && !/<br>[2-9]\. /.test(bTied.replace(/<b>1\. [^]*?<\/b>/g, '')), 'boards: tied #1 only');
+    const bNone = boardsOf(await (await fetch(`${base}/admin.php?view=scores&level=springs&now=tied`, { headers: { cookie: cookie() } })).text());
+    assert.ok(!bNone.includes('Fay'), 'boards: nobody tied on springs');
     assert.ok(html.includes('v0.4a'));
     assert.ok(html.includes('Dashboard v'), 'the dashboard shows its version');
     assert.match(html, /v0\.4a<\/span>(?:<\/b>)? <span class="mute">\d{4}-\d\d-\d\d \d\d:\d\d<\/span>/, 'board entries show when they were logged');

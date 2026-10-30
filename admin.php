@@ -30,7 +30,7 @@ const DATA_DIR = __DIR__ . '/tim-data';
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4s';
+const ADMIN_BUILD = '0.4t';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -465,6 +465,32 @@ function shot_cell($file): string {
     return '<a href="' . h($u) . '" target="_blank" rel="noopener">View</a>';
 }
 
+/** One entry of a community board: '#1' (alone in first), 'Tied #1', or 'Beaten' (behind number one). */
+function board_status(array $list, string $category, array $row): string {
+    $top = null;
+    foreach ($list as $r) {
+        if (is_array($r) && isset($r['value']) && is_numeric($r['value'])) {
+            $v = (float) $r['value'];
+            if ($top === null || ($category === 'spare' ? $v > $top : $v < $top)) $top = $v;
+        }
+    }
+    if ($top === null || !isset($row['value']) || !is_numeric($row['value']) || abs((float) $row['value'] - $top) >= 0.0001) return 'Beaten';
+    $same = 0;
+    foreach ($list as $r) {
+        if (is_array($r) && isset($r['value']) && is_numeric($r['value']) && abs((float) $r['value'] - $top) < 0.0001) $same++;
+    }
+    return $same > 1 ? 'Tied #1' : '#1';
+}
+
+/** Does this board entry pass the Player and Now filters of the High scores page? */
+function board_row_shown(array $list, string $category, $row, string $player, string $now): bool {
+    if (!is_array($row) || !isset($row['name'], $row['value'])) return false;
+    if ($player !== '' && mb_strtolower((string) $row['name']) !== $player) return false;
+    if ($now === '') return true;
+    $s = board_status($list, $category, $row);
+    return $now === 'top' ? $s === '#1' : ($now === 'tied' ? $s === 'Tied #1' : $s === 'Beaten');
+}
+
 /** The screenshot of a board's number one: kept on the row, or (older records) found in the records log. */
 function board_shot(array $log, string $level, string $category, array $row): string {
     if (!empty($row['shot'])) return (string) $row['shot'];
@@ -592,13 +618,13 @@ function scores_view() {
     echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Now</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
     foreach ($rows as $e) {
         $c = (string) $e['category'];
-        $now = standing($boardsNow, (string) $e['level'], $c, (string) $e['name']);
+        $stand = standing($boardsNow, (string) $e['level'], $c, (string) $e['name']);
         $gain = isset($e['prevValue']) ? abs((float) $e['value'] - (float) $e['prevValue']) : null;
         $same = isset($e['prevName']) && mb_strtolower((string) $e['prevName']) === mb_strtolower((string) $e['name']);
         echo '<tr><td title="' . h(fmt_time((int) $e['t'])) . '">' . h(fmt_time((int) $e['t'])) . ' <span class="mute">(' . h(ago((int) $e['t'])) . ')</span></td>'
             . '<td><b>' . h(level_label((string) $e['level'])) . '</b></td><td>' . h(BOARDS[$c] ?? $c) . '</td>'
             . '<td><b>' . h($e['name']) . '</b> ' . h(format_score($c, $e['value'])) . '</td>'
-            . '<td>' . ($now === '' ? '<span class="mute">Beaten</span>' : '<b>' . h($now) . '</b>') . '</td>'
+            . '<td>' . ($stand === '' ? '<span class="mute">Beaten</span>' : '<b>' . h($stand) . '</b>') . '</td>'
             . '<td class="mute">' . (!empty($e['version']) ? 'v' . h($e['version']) : '-') . '</td>'
             . '<td>' . shot_cell($e['shot'] ?? '') . '</td>'
             . '<td class="mute">' . (isset($e['prevName']) ? h($e['prevName']) . ' ' . h(format_score($c, $e['prevValue'] ?? 0)) . ($same ? ' (their own)' : '') : '-') . '</td>'
@@ -637,11 +663,12 @@ function scores_view() {
     echo '</tr>';
     foreach (LEVEL_NAMES as $id => $label) {
         if ($level !== '' && $level !== $id) continue;
-        if ($player !== '') {
+        if ($player !== '' || $now !== '') {
             $has = false;
             foreach (BOARDS as $c => $_) {
-                foreach (is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [] as $row) {
-                    if (is_array($row) && isset($row['name']) && mb_strtolower((string) $row['name']) === $player) $has = true;
+                $list = is_array($boards[$id][$c] ?? null) ? $boards[$id][$c] : [];
+                foreach (array_slice($list, 0, 5) as $row) {
+                    if (board_row_shown($list, $c, $row, $player, $now)) $has = true;
                 }
             }
             if (!$has) continue;
@@ -660,8 +687,7 @@ function scores_view() {
                 }
             }
             foreach (array_slice($list, 0, 5) as $i => $row) {
-                if (!is_array($row) || !isset($row['name'], $row['value'])) continue;
-                if ($player !== '' && mb_strtolower((string) $row['name']) !== $player) continue;
+                if (!board_row_shown($list, $c, $row, $player, $now)) continue;
                 $first = $top !== null && is_numeric($row['value']) && abs((float) $row['value'] - $top) < 0.0001;
                 echo ($first ? '<b>' : '') . ($first ? 1 : $i + 1) . '. ' . h($row['name']) . ' ' . h(format_score($c, $row['value']))
                     . (!empty($row['v']) ? ' <span class="mute">v' . h((string) $row['v']) . '</span>' : '') . ($first ? '</b>' : '')
@@ -672,7 +698,7 @@ function scores_view() {
         }
         echo '</tr>';
     }
-    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). <b>View</b> on the record holder line is the screenshot of the run that set the record; it is replaced, and the old picture deleted, when someone beats it, and it stays empty (-) until a record is broken from the game. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
+    echo '</table></div><p class="mute">Top 5 per board, one row per name, with the game version and the date and time each entry was logged. Bold = number one, including everyone tied on it (one star each). The Player and Now filters apply here too: #1 = alone in first, Tied #1 = shared first, Beaten = behind number one. <b>View</b> on the record holder line is the screenshot of the run that set the record; it is replaced, and the old picture deleted, when someone beats it, and it stays empty (-) until a record is broken from the game. <b>Level v</b> is the game version the level was last changed in; changing it clears that level\'s boards.</p>';
     echo ob_get_clean() . $refusedHtml . $recordsHtml;
 }
 
