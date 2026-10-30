@@ -661,9 +661,9 @@ function loadLevel(index: number, restore: boolean) {
   refreshUI();
 }
 
-// --- Hints: 1 nudges, 2 names the parts, 3 shows a ghost of the solution ---------------------------
-let hintStep = 0;
-let hintGhost: ReturnType<(typeof PART_DEFS)['ball']['build']> | null = null;
+// --- Hint: one general tip per level, never the answer ---------------------------------------------
+let hintShown = false;
+let hintGhost: ReturnType<(typeof PART_DEFS)['ball']['build']> | null = null; // kept null: no solution outlines
 const hintBox = document.getElementById('hint-box') as HTMLElement;
 const hintBtn = document.getElementById('hint-btn') as HTMLButtonElement;
 
@@ -672,29 +672,23 @@ function hideHintGhost() {
 }
 
 function resetHints() {
-  hintStep = 0;
+  hintShown = false;
   hintGhost = null;
   hintBox.hidden = true;
   hintBtn.textContent = '💡 Hint';
-  hintBtn.disabled = !level.hints;
+  hintBtn.disabled = !level.hint;
 }
 
 function showHint() {
   if (playing) return;
-  if (!level.hints) {
+  if (!level.hint) {
     ui.toast('The sandbox has no puzzle, so no hints. Build anything!');
     return;
   }
-  hintStep = Math.min(3, hintStep + 1);
-  const text =
-    hintStep === 1 ? level.hints[0] : hintStep === 2 ? level.hints[1] : 'The faint orange outline shows one way to build it. Drag your own parts to match it.';
-  if (hintStep === 3 && level.solution) {
-    hintGhost = solutionToParts(level, () => -1).flatMap((p) => PART_DEFS[p.type].build(p, false));
-  }
-  hintBox.textContent = `💡 Hint ${hintStep} of 3: ${text}`;
+  hintBox.textContent = `💡 Hint: ${level.hint}`;
   hintBox.hidden = false;
-  hintBtn.textContent = hintStep < 3 ? `💡 More hint (${hintStep}/3)` : '💡 Hint (3/3)';
-  track('hint', player, level.id, { step: hintStep });
+  if (!hintShown) track('hint', player, level.id, { step: 1 });
+  hintShown = true;
 }
 hintBtn.addEventListener('click', showHint);
 

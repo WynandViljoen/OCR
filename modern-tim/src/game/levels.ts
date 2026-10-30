@@ -59,8 +59,8 @@ export interface Level {
    * needs a strong spring or a heavy crate says so here. The solution must NOT set attributes.
    */
   presets?: Partial<Record<PartType, Preset>>;
-  /** Hint 1 nudges, hint 2 names the parts; hint 3 (the ghost of the solution) comes from `solution`. */
-  hints?: [string, string];
+  /** One general nudge, never the solution. */
+  hint?: string;
   science: Science;
 }
 
@@ -76,10 +76,7 @@ function basketWithFunnel(cx: number): LevelPart[] {
 export const LEVELS: Level[] = [
   {
     id: 'ramps',
-    hints: [
-      "Gravity pulls straight down. What could turn that fall into a sideways roll?",
-      "Use a plank as a ramp under the ball, tilted down towards the basket.",
-    ],
+    hint: "Gravity only pulls down. What could turn that fall into a sideways roll?",
     name: 'Ramps',
     goal: 'Get the ball into the basket.',
     hasGoal: true,
@@ -95,10 +92,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'conveyor',
-    hints: [
-      "The ball cannot roll off its shelf by itself. What could carry it?",
-      "Place the conveyors so they carry the ball off the shelf. Check the arrows; F flips the direction.",
-    ],
+    hint: "The ball cannot get off the shelf on its own. Something has to keep pushing it.",
     name: 'Conveyors',
     goal: 'The ball is stuck on a shelf. Move it into the basket.',
     hasGoal: true,
@@ -121,10 +115,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'springs',
-    hints: [
-      "Something has to push the ball up and over the wall.",
-      "Put the spring on the floor where the ball lands, tilted a little towards the far side of the wall.",
-    ],
+    hint: "A wall blocks the way. Think about something that stores energy and gives it back.",
     name: 'Springs',
     goal: 'A wall is in the way. Bounce the ball over it.',
     hasGoal: true,
@@ -144,10 +135,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'levers',
-    hints: [
-      "A seesaw is a lever: weight on one end lifts the other end.",
-      "Drop the heavy ball onto the high end of the seesaw so the other end flings the blue ball.",
-    ],
+    hint: "A seesaw is a lever. What could you drop onto one end?",
     name: 'Levers',
     goal: 'Launch the blue ball into the basket using the seesaw.',
     hasGoal: true,
@@ -167,10 +155,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'dominoes',
-    hints: [
-      "One thing hitting the next makes a chain reaction.",
-      "Stand the dominoes in a row between the stuck ball and the far ball, close enough to touch when they fall.",
-    ],
+    hint: "One thing hitting the next makes a chain reaction. Where does the chain have to start?",
     name: 'Dominoes',
     goal: 'The ball gets stuck in the gap. Knock the far ball into the basket.',
     hasGoal: true,
@@ -198,10 +183,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'gears',
-    hints: [
-      "The motor turns one way, and every meshed gear flips the direction.",
-      "Link gears from the motor to the paddle gear. Count the gears to predict the paddle's direction; a crossed string flips it.",
-    ],
+    hint: "Every gear you mesh with flips the direction. Count the flips between the motor and the paddle.",
     name: 'Gears',
     goal: 'Connect the motor to the paddle gear so it bats the ball to the RIGHT.',
     hasGoal: true,
@@ -226,10 +208,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'spin',
-    hints: [
-      "Anything that hits a paddle makes the gear turn. The falling ball is your motor this time.",
-      "Fill the gap between the two paddle gears. Every mesh flips the spin direction, so count the gears: the right paddle must turn the SAME way as the left one to bat its ball to the RIGHT.",
-    ],
+    hint: "There is no motor, so look for another source of spin. What is moving that could turn the first gear?",
     name: 'Spin it',
     goal: 'No motor! The heavy ball spins the left paddle gear. Pass the spin along so the right paddle bats the small ball into the basket.',
     hasGoal: true,
@@ -260,10 +239,7 @@ export const LEVELS: Level[] = [
     goal: 'Lift the load crate up into the upside-down basket. The heavy crate on the high ledge would do it, but it is stuck there. Free it with the bowling ball.',
     hasGoal: true,
     goalTargets: ['crate'],
-    hints: [
-      "The ledge crate is the heavier one, so once it falls it will pull the load up through the pulley. The hard part is the bowling ball: it must land on the ledge and push the crate off.",
-      "Roll the ball down a plank, drop it on the spring, and use a second plank to catch it and guide it onto the ledge. Then hang the pulley above the ledge crate and run the rope: ledge crate, pulley, load.",
-    ],
+    hint: "The crate on the ledge is stuck, and the ball is the only thing that can free it. Solve the ball's journey first, then connect the crates.",
     fixed: [
       { type: 'crate', x: 250, y: 580, key: 'load' },
       { type: 'basket', x: 250, y: 225, angle: 180 },
@@ -289,10 +265,7 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'machine',
-    hints: [
-      "Break it into steps: up the hill, over the wall, into the basket.",
-      "Two conveyors carry the ball up the hill, then a spring on the floor flings it over the wall.",
-    ],
+    hint: "Break the trip into steps and solve one at a time.",
     name: 'Big machine',
     goal: 'Use everything you learned: get the ball up the hill, over the wall, and into the basket.',
     hasGoal: true,
@@ -323,10 +296,7 @@ export const LEVELS: Level[] = [
     name: 'Over the Top',
     goal: 'The basket sits on a high platform behind a wall, under a low ceiling. Get the ball in.',
     hasGoal: true,
-    hints: [
-      "A straight launch hits the ceiling or the wall. You need a high jump first, then a way to steer the ball back down.",
-      "Aim the spring up and to the right so the ball sails over the wall. A plank up in the air can then turn the ball so it drops onto the platform.",
-    ],
+    hint: "A straight launch hits the ceiling or the wall. Get height first, then steer.",
     fixed: [
       { type: 'ball', x: 150, y: 60 },
       { type: 'wall', x: 450, y: 480, w: 24, h: 240 },
@@ -352,10 +322,7 @@ export const LEVELS: Level[] = [
     name: 'Domino Bridge',
     goal: 'A heavy ball rolls onto the left shelf. Make a chain of dominoes that crosses the gap and tips the little ball into the funnel.',
     hasGoal: true,
-    hints: [
-      "Dominoes cannot stand on thin air, and you only have nine. Spread them out so each one still reaches the next when it falls.",
-      "Lay a plank across the gap first. Put the first domino where the heavy ball arrives and the last one right next to the small ball, with about the same space between all of them.",
-    ],
+    hint: "Dominoes cannot stand on thin air, and you have only a few. Where does each one need to be to reach the next?",
     fixed: [
       { type: 'heavyBall', x: 90, y: 40 },
       { type: 'plank', x: 130, y: 130, angle: 18, w: 140 },
@@ -381,10 +348,7 @@ export const LEVELS: Level[] = [
     name: 'Chain reaction',
     goal: 'Make a chain that carries the energy from the rolling ball to the sleeping ball, and on into the basket.',
     hasGoal: true,
-    hints: [
-      "The first ball rolls along the shelf and stops short of the heavy ball. Something has to carry its push across the gap.",
-      "Stand three dominoes on the shelf between the two heavy balls. When the heavy ball falls it lands on the seesaw and flicks the little ball.",
-    ],
+    hint: "The first ball stops short. How can its push be carried across the gap?",
     fixed: [
       { type: 'heavyBall', x: 100, y: 30 },
       { type: 'plank', x: 130, y: 120, angle: 20, w: 120 },
@@ -412,10 +376,7 @@ export const LEVELS: Level[] = [
     name: 'Double dominoes',
     goal: 'Two rows of dominoes, seven in total. The first row wakes the heavy ball, the second row wakes the little ball. Share the dominoes wisely.',
     hasGoal: true,
-    hints: [
-      "Neither ball can reach the next one by itself: both gaps need a chain. You only have seven dominoes for the two gaps.",
-      "Put three dominoes on the top shelf between the starting ball and the heavy ball, and four on the lower shelf where the heavy ball arrives.",
-    ],
+    hint: "Both gaps need a chain, but you cannot fill both. Think about how far one domino reaches.",
     fixed: [
       { type: 'heavyBall', x: 100, y: 30 },
       { type: 'plank', x: 130, y: 120, angle: 20, w: 120 },
@@ -448,10 +409,7 @@ export const LEVELS: Level[] = [
     name: 'Long reach',
     goal: 'The motor and the paddle are too far apart for a gear train. Make the paddle bat the ball to the RIGHT.',
     hasGoal: true,
-    hints: [
-      "Gears that touch can only reach so far, and the direction flips at every touch. A string can span a bigger gap.",
-      "Mesh two big gears onto the motor, then join the second one to the paddle with a string. A crossed string turns the other way from a straight one.",
-    ],
+    hint: "Gears that touch can only reach so far. What else can carry a turn over a distance?",
     fixed: [
       { type: 'motorGear', x: 130, y: 300, key: 'm' },
       { type: 'paddleGear', x: 558, y: 300, key: 'p' },
@@ -478,10 +436,7 @@ export const LEVELS: Level[] = [
     goal: 'The load is far too heavy to lift one-to-one, but your rope has four strands. The small crate is parked on a ledge: set it free with the bowling ball, and lift the load.',
     hasGoal: true,
     goalTargets: ['crate'],
-    hints: [
-      "Four strands share the load, so the small crate wins once it drops. First solve the release: the ball sits on a shelf and cannot move by itself, and the ledge is small.",
-      "A conveyor carries the ball off its shelf. A plank steers it down, and the spring throws it up onto the ledge. Pulley above the ledge crate, then rope: ledge crate, pulley, load.",
-    ],
+    hint: "Four strands make the lift easy but need lots of drop. First work out how to set the small crate free.",
     fixed: [
       { type: 'crate', x: 250, y: 580, key: 'load', props: { weight: 0.036 } },
       { type: 'basket', x: 250, y: 470, angle: 180 },
@@ -512,10 +467,7 @@ export const LEVELS: Level[] = [
     goal: 'Lift the load to the high basket. Your rope has two strands, so the small crate must fall twice as far as the load rises. It is parked on a ledge: knock it off with the bowling ball.',
     hasGoal: true,
     goalTargets: ['crate'],
-    hints: [
-      "Two strands halve the force you need but double the rope you use, so the crate has to fall a long way. That is why it sits on a high ledge. Releasing it is the puzzle.",
-      "The ball starts top right. A plank sends it down to a second plank and the spring, which throws it back up and over onto the ledge. Pulley above the ledge crate, then rope: ledge crate, pulley, load.",
-    ],
+    hint: "Two strands halve the force but double the rope you use. First work out how to set the crate free.",
     fixed: [
       { type: 'crate', x: 750, y: 580, key: 'load', props: { weight: 0.02 } },
       { type: 'basket', x: 750, y: 375, angle: 180 },
@@ -545,10 +497,7 @@ export const LEVELS: Level[] = [
     goal: 'Lift the crate and swing the ball on top of it into the basket on the floor. The pulley has a motor, so it climbs its own rail. Where you put it decides where the crate swings.',
     hasGoal: true,
     goalTargets: ['ball'],
-    hints: [
-      "The motor pulls the pulley up and the rope drags the crate out of the shaft. The rope swings the crate towards the pulley, and the ball falls off where the crate leans. Try the pulley close, then far, and watch where the ball lands.",
-      "Put the pulley well to the right of the basket, about halfway between the shaft and the right edge, with plenty of room above it. Hang your crate on its right side, near the floor. Rope: your crate, pulley, load.",
-    ],
+    hint: "The rope drags the crate towards the pulley. Where does the ball end up if you move the pulley?",
     fixed: [
       { type: 'crate', x: 250, y: 578, key: 'load', props: { weight: 0.012 } },
       { type: 'ball', x: 250, y: 544 },
@@ -575,10 +524,7 @@ export const LEVELS: Level[] = [
     name: 'Sky high',
     goal: 'A tall wall, a high platform and a low ceiling. This one needs more than a single bounce.',
     hasGoal: true,
-    hints: [
-      "The platform is higher than the wall, and the ceiling is in the way. Split the trip into steps: a launch, then two turns in the air.",
-      "Launch with the spring at a gentle angle, put one plank in the air to bend the path upward, and a second plank near the platform to guide the ball down into the basket.",
-    ],
+    hint: "The platform is higher than the wall and the ceiling is in the way. Split the trip into steps.",
     fixed: [
       { type: 'ball', x: 130, y: 60 },
       { type: 'wall', x: 430, y: 470, w: 24, h: 260 },
@@ -605,10 +551,7 @@ export const LEVELS: Level[] = [
     name: 'Spring slalom',
     goal: 'Weave through the gates: under the first wall, over the second, then under the third and on to the basket. You have one strong spring.',
     hasGoal: true,
-    hints: [
-      "The ball has to go low, then high, then low again. Break it into three legs and solve one at a time: a ramp to get it under the first wall, the spring to throw it up and over the standing wall, then planks to bring it down under the last gate.",
-      "A ramp on the left feeds the ball under the first hanging wall into the spring. Tilt the spring a little backwards. Then one plank to catch the ball after its flight and one to guide it over the last small wall into the basket.",
-    ],
+    hint: "Low, then high, then low again. Solve one gate at a time.",
     fixed: [
       { type: 'ball', x: 90, y: 50 },
       { type: 'wall', x: 300, y: 150, w: 20, h: 300 },
@@ -638,10 +581,7 @@ export const LEVELS: Level[] = [
     goal: 'Get the mouse to its cheese in the basket. The mouse slides along flat tracks, but two walls block the maze. Spring power is set for you.',
     hasGoal: true,
     goalTargets: ['mouse'],
-    hints: [
-      "The mouse cannot jump, so something has to carry it. Let it slide down the start ramp, over a plank, and into the spring so it flies over the first gate.",
-      "Under the hanging wall the mouse needs a low path, then the spring throws it over the standing wall. Use the last two planks to steer it down into the funnel above the cheese.",
-    ],
+    hint: "The mouse cannot jump. What could carry it over the first wall?",
     fixed: [
       { type: 'wall', x: 140, y: 150, w: 200, h: 16, angle: 30 },
       { type: 'mouse', x: 80, y: 100 },
@@ -670,10 +610,7 @@ export const LEVELS: Level[] = [
     goal: 'The heavy bowling ball must knock the small ball off its ledge, and the small ball must fly over the wall into the basket. Only the small ball counts.',
     hasGoal: true,
     goalTargets: ['ball'],
-    hints: [
-      "The bowling ball needs enough speed to push the small ball off the ledge. Two ramps on the left give it a long, steady run.",
-      "Put a plank tilted upwards at the end of the ledge, like a ski jump, to throw the small ball up and over the tall wall. Three planks are enough, so the fourth is a spare.",
-    ],
+    hint: "A heavy ball hits a light one hard. What could give the heavy ball a long run, and how could the small ball get over the wall?",
     fixed: [
       { type: 'heavyBall', x: 70, y: 70 },
       { type: 'wall', x: 440, y: 400, w: 140, h: 16 },

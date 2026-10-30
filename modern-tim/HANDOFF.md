@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.3n: one general `hint` string per level (no ghost of the solution).
 - v0.3m: energy solution uses 3 of 4 planks; crane id is now crane3 (boards reset) with a spare plank.
 - v0.3l: mode-controls + zoom-controls live in .board-controls under the board (fitBoard subtracts 52px).
 - v0.3k: levels 8, 15, 16, 17 rebuilt (ids pulleys2, tackle2, tradeoff2, crane2 reset their boards); the effort crate is a fixed crate on a ledge with a key 'eff'.

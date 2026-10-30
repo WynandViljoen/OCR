@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.3n
+
+- **One tip per level, and never the answer.** The Hint button now shows a single general tip (the same one every time you press it). The second, more detailed tip and the orange ghost outline of the solution are gone. All 21 tips were rewritten to point at the idea without naming the parts or positions. Game only (no server files).
+
 ## Modern TIM 0.3m
 
 - **Spare tools are now possible on every level.** *Energy transfer* (level 21) can be solved with three planks, so the fourth is a spare (the recorded solution and hint now say so). *Crane* (level 17) needed all of its parts, so it now comes with one extra plank; its boards were reset (new id `crane3`).
