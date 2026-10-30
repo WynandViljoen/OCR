@@ -9,7 +9,7 @@
  * The admin password is the one hashed in admin.php ("HappyCampers").
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdtempSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,6 +126,49 @@ try {
     assert.equal(login.headers.get('x-litespeed-cache-control'), 'no-cache', 'login page is not cacheable either');
     const filtered = await (await fetch(`${base}/admin.php?view=scores&level=gears`, { headers: { cookie: cookie() } })).text();
     assert.ok(filtered.includes('No broken records yet.'));
+  });
+  await check('a broken record keeps the game version and the screenshot; ties and first scores do not', async () => {
+    const jpeg = 'data:image/jpeg;base64,' + Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(400, 7)]).toString('base64');
+    const send = async (name, path, extra = {}) =>
+      (await fetch(`${base}/scores.php`, { method: 'POST', body: JSON.stringify({ level: 'springs', name, pathMeters: path, seconds: 9, spare: 1, ...extra }) })).json();
+    const shots = () => (existsSync(join(dir, 'tim-data', 'shots')) ? readdirSync(join(dir, 'tim-data', 'shots')) : []);
+    await send('Ann', 8, { version: '0.4a', shot: jpeg }); // first score: nothing to break, no picture kept
+    assert.equal(shots().length, 0);
+    await send('Bob', 8, { version: '0.4a', shot: jpeg }); // tie: no picture
+    assert.equal(shots().length, 0);
+    await send('Cy', 9, { version: '0.4a', shot: jpeg }); // worse: no picture
+    assert.equal(shots().length, 0);
+    const res = await send('Dee', 6, { version: '0.4a', shot: jpeg }); // breaks the record
+    assert.equal(shots().length, 1);
+    const rec = records().filter((e) => e.level === 'springs');
+    assert.equal(rec.length, 1);
+    assert.equal(rec[0].version, '0.4a');
+    assert.match(rec[0].shot, /^\d{8}-\d{6}-springs-[a-f0-9]{6}\.jpg$/);
+    assert.equal(res.board.shortest[0].v, '0.4a', 'the board row remembers the version');
+    await send('Eve', 5, { version: '0.4a', shot: 'data:image/jpeg;base64,AAAA' }); // junk picture: score kept, no file
+    assert.equal(shots().length, 1);
+    assert.equal(records().filter((e) => e.level === 'springs').length, 2);
+    await send('Fay', 4, { version: '<script>', shot: jpeg }); // bad version text is dropped, not stored
+    const row = (await (await fetch(`${base}/scores.php?level=springs`)).json()).board.shortest[0];
+    assert.equal(row.name, 'Fay');
+    assert.equal(row.v, undefined);
+    // The admin page lists version + screenshot link, and serves the picture only when signed in.
+    const jar = {};
+    const take = (r) => { for (const c of r.headers.getSetCookie?.() ?? []) jar[c.split('=')[0]] = c.split(';')[0]; };
+    const cookie = () => Object.values(jar).join('; ');
+    const anon = await fetch(`${base}/admin.php?shot=${rec[0].shot}`);
+    assert.ok((await anon.text()).includes('name="password"'), 'not signed in: asked for the password');
+    let r = await fetch(`${base}/admin.php`); take(r);
+    const csrf = /name="csrf" value="([a-f0-9]+)"/.exec(await r.text())?.[1];
+    r = await fetch(`${base}/admin.php`, { method: 'POST', redirect: 'manual', headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: cookie() }, body: new URLSearchParams({ csrf, password: 'HappyCampers', do: 'login' }) }); take(r);
+    const html = await (await fetch(`${base}/admin.php?view=scores&level=springs`, { headers: { cookie: cookie() } })).text();
+    assert.ok(html.includes('<th>Version</th>') && html.includes('<th>Screenshot</th>'));
+    assert.ok(html.includes('v0.4a'));
+    assert.ok(html.includes(`admin.php?shot=${rec[0].shot}`) && html.includes('>View</a>'));
+    const img = await fetch(`${base}/admin.php?shot=${rec[0].shot}`, { headers: { cookie: cookie() } });
+    assert.equal(img.headers.get('content-type'), 'image/jpeg');
+    const bad = await fetch(`${base}/admin.php?shot=../scores.php`, { headers: { cookie: cookie() } });
+    assert.equal(bad.status, 404);
   });
   console.log(`\n${passed} checks passed`);
 } catch (err) {

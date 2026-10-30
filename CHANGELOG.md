@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.4a
+
+- **The admin High scores page now shows the game version and a screenshot for each broken record.** The "Records broken" table has the columns *Score*, *Version* and *Screenshot* (a View link to the picture). The current community boards also show the version next to each score.
+- **Screenshots are only kept when a record is broken** (strictly better than the old number one): not for ties and not for the first score on a board. The game sends a small picture of the board only when a run could break a record, and the server checks again before saving it. Pictures are kept in `tim-data/shots` (closed to the web, newest 150 kept) and only shown to a signed-in admin.
+- **Server files changed:** copy `scores.php` and `admin.php` (the cron job does). Records broken before this update show - for version and screenshot.
+
 ## Modern TIM 0.4 (major release)
 
 - **Level 20 is now a ball maze.** The mouse is replaced by a ball: *Cheese maze* became *Spring maze*, with the same walls and basket and a new solution. It now gives you four planks and a spring, so you can finish with a spare plank. Its boards were reset (new id `maze`).

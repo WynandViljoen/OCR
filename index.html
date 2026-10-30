@@ -3926,7 +3926,7 @@ return { LEVELS, levelToParts, describePreset, withPreset, solutionToParts };
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4';
+const VERSION = '0.4a';
 
 return { VERSION };
 })();
@@ -4396,7 +4396,7 @@ return { NAME_KEY, SCORES_KEY, MAX_NAME, BOARD_SIZE, PX_PER_METER, CATEGORIES, C
 })();
 
 // ---- game/community.ts ----
-const { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending } = (() => {
+const { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord } = (() => {
 
 const ENDPOINT = 'scores.php';
 const PENDING_KEY = 'modern-tim:pending';
@@ -4448,13 +4448,19 @@ function parseResults(raw) {
     }
     return out;
 }
-async function trySubmit(levelId, name, run, fetchFn = (u, i)=>fetch(u, i)) {
+async function trySubmit(levelId, name, run, fetchFn = (u, i)=>fetch(u, i), extras = {}) {
     const body = JSON.stringify({
         level: levelId,
         name: sanitizeName(name),
         pathMeters: run.pathMeters,
         seconds: run.seconds,
-        spare: run.spare
+        spare: run.spare,
+        ...extras.version ? {
+            version: extras.version
+        } : {},
+        ...extras.shot ? {
+            shot: extras.shot
+        } : {}
     });
     const raw = await call(fetchFn, ENDPOINT, {
         method: 'POST',
@@ -4498,7 +4504,9 @@ async function flushPending(store = browserStore(), fetchFn) {
     let sent = 0;
     while(list.length){
         const next = list[0];
-        const r = await trySubmit(next.levelId, next.name, next.run, fetchFn);
+        const r = await trySubmit(next.levelId, next.name, next.run, fetchFn, {
+            version: next.version
+        });
         if (r === 'retry') break;
         list.shift();
         if (r !== 'rejected') sent++;
@@ -4506,8 +4514,16 @@ async function flushPending(store = browserStore(), fetchFn) {
     savePending(list, store);
     return sent;
 }
+function mayBreakRecord(board, run) {
+    if (!board) return false;
+    const top = (c)=>board[c]?.[0]?.value;
+    const shortest = top('shortest');
+    const fastest = top('fastest');
+    const spare = top('spare');
+    return shortest !== undefined && run.pathMeters < shortest || fastest !== undefined && run.seconds < fastest || spare !== undefined && run.spare > spare;
+}
 
-return { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending };
+return { ENDPOINT, PENDING_KEY, fetchCommunity, trySubmit, submitRun, loadPending, savePending, flushPending, mayBreakRecord };
 })();
 
 // ---- game/builds.ts ----
@@ -6615,6 +6631,27 @@ const ui = new UI({
     }
 });
 ui.presetNote = (type)=>describePreset(level, type);
+function captureBoardShot() {
+    try {
+        const w = 640;
+        const h = Math.round(w * canvas.height / Math.max(1, canvas.width));
+        const small = document.createElement('canvas');
+        small.width = w;
+        small.height = h;
+        const g = small.getContext('2d');
+        if (!g) return '';
+        g.drawImage(canvas, 0, 0, w, h);
+        for (const q of [
+            0.6,
+            0.45,
+            0.3
+        ]){
+            const url = small.toDataURL('image/jpeg', q);
+            if (url.length < 180000) return url;
+        }
+    } catch  {}
+    return '';
+}
 sim.onSolved = (info)=>{
     solvedLevels.add(level.id);
     saveSolved();
@@ -6639,7 +6676,11 @@ sim.onSolved = (info)=>{
     if (player && level.hasGoal) {
         const id = level.id;
         const name = player;
-        void trySubmit(id, name, run).then((sub)=>{
+        const shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+        void trySubmit(id, name, run, undefined, {
+            version: VERSION,
+            shot
+        }).then((sub)=>{
             if (sub === 'rejected') return;
             if (sub === 'retry') {
                 savePending([
@@ -6647,7 +6688,8 @@ sim.onSolved = (info)=>{
                     {
                         levelId: id,
                         name,
-                        run
+                        run,
+                        version: VERSION
                     }
                 ]);
                 if (level.id === id) {

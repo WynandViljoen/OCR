@@ -453,6 +453,16 @@ function read_boards(): array {
     return is_array($d) ? $d : [];
 }
 
+/** A plain link to the screenshot (served by this page only after sign-in). */
+function shot_cell($file): string {
+    $file = (string) $file;
+    if (!preg_match('/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/', $file) || !is_file(DATA_DIR . '/shots/' . $file)) {
+        return '<span class="mute">-</span>';
+    }
+    $u = 'admin.php?shot=' . rawurlencode($file);
+    return '<a href="' . h($u) . '" target="_blank" rel="noopener">View</a>';
+}
+
 function scores_view() {
     $level = (string) ($_GET['level'] ?? '');
     $level = isset(LEVEL_NAMES[$level]) ? $level : '';
@@ -476,7 +486,7 @@ function scores_view() {
         echo '<option value="' . h($id) . '"' . ($cat === $id ? ' selected' : '') . '>' . h($label) . '</option>';
     }
     echo '</select><button>Filter</button><a class="btn" href="admin.php?view=scores">Clear</a></form>';
-    echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>New record</th><th>Beat</th><th>By how much</th></tr>';
+    echo '<div class="wrap"><table><tr><th>When</th><th>Level</th><th>Board</th><th>Score</th><th>Version</th><th>Screenshot</th><th>Beat</th><th>By how much</th></tr>';
     foreach ($rows as $e) {
         $c = (string) $e['category'];
         $gain = isset($e['prevValue']) ? abs((float) $e['value'] - (float) $e['prevValue']) : null;
@@ -484,10 +494,12 @@ function scores_view() {
         echo '<tr><td title="' . h(fmt_time((int) $e['t'])) . '">' . h(fmt_time((int) $e['t'])) . ' <span class="mute">(' . h(ago((int) $e['t'])) . ')</span></td>'
             . '<td><b>' . h(level_label((string) $e['level'])) . '</b></td><td>' . h(BOARDS[$c] ?? $c) . '</td>'
             . '<td><b>' . h($e['name']) . '</b> ' . h(format_score($c, $e['value'])) . '</td>'
+            . '<td class="mute">' . (!empty($e['version']) ? 'v' . h($e['version']) : '-') . '</td>'
+            . '<td>' . shot_cell($e['shot'] ?? '') . '</td>'
             . '<td class="mute">' . (isset($e['prevName']) ? h($e['prevName']) . ' ' . h(format_score($c, $e['prevValue'] ?? 0)) . ($same ? ' (their own)' : '') : '-') . '</td>'
             . '<td class="mute">' . ($gain === null ? '-' : h(format_score($c, $gain))) . '</td></tr>';
     }
-    if (!$rows) echo '<tr><td colspan="6" class="mute">No broken records yet.</td></tr>';
+    if (!$rows) echo '<tr><td colspan="8" class="mute">No broken records yet.</td></tr>';
     echo '</table></div><p class="mute">Newest first, up to 300 rows. Times are ' . h(DISPLAY_TZ) . '.</p>';
 
     $boards = read_boards();
@@ -701,6 +713,20 @@ if (!is_admin()) {
     } else {
         login_page('');
     }
+    exit;
+}
+
+if (isset($_GET['shot'])) {
+    $f = (string) $_GET['shot'];
+    $p = DATA_DIR . '/shots/' . $f;
+    if (!preg_match('/^[0-9]{8}-[0-9]{6}-[a-z0-9]+-[a-f0-9]{6}\.jpg$/', $f) || !is_file($p)) {
+        http_response_code(404);
+        exit;
+    }
+    no_cache_headers();
+    header('Content-Type: image/jpeg');
+    header('Content-Length: ' . filesize($p));
+    readfile($p);
     exit;
 }
 

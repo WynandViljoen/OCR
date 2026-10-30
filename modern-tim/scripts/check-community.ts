@@ -3,7 +3,7 @@
  *   npm run check-community
  */
 import assert from 'node:assert/strict';
-import { fetchCommunity, flushPending, loadPending, savePending, submitRun, PENDING_KEY } from '../src/game/community';
+import { fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, submitRun, trySubmit, PENDING_KEY } from '../src/game/community';
 
 let passed = 0;
 async function check(name: string, fn: () => Promise<void>) {
@@ -78,6 +78,27 @@ await check('a run the server refuses for good is dropped and does not block the
   const ok = async () => ({ ok: true, status: 200, json: async () => ({ board: {}, results: {} }) });
   assert.equal(await flushPending(store, ok), 2);
   assert.deepEqual(loadPending(store), []);
+});
+
+await check('a screenshot is only worth sending when a record could be broken; version and picture go in the request', async () => {
+  const e = (value: number) => [{ name: 'Ana', value, at: 1 }];
+  const board = { shortest: e(5), fastest: e(4), spare: e(1) };
+  assert.equal(mayBreakRecord(board, { pathMeters: 5, seconds: 4, spare: 1 }), false); // ties do not count
+  assert.equal(mayBreakRecord(board, { pathMeters: 4.9, seconds: 4, spare: 1 }), true);
+  assert.equal(mayBreakRecord(board, { pathMeters: 5, seconds: 3.9, spare: 1 }), true);
+  assert.equal(mayBreakRecord(board, { pathMeters: 5, seconds: 4, spare: 2 }), true);
+  assert.equal(mayBreakRecord({ shortest: [], fastest: [], spare: [] }, run), false); // an empty board has no record yet
+  assert.equal(mayBreakRecord(null, run), false);
+  let sent: Record<string, unknown> = {};
+  const f = async (_u: string, init?: { body?: string }) => {
+    sent = JSON.parse(init?.body ?? '{}');
+    return { ok: true, status: 200, json: async () => ({ board: {}, results: {} }) };
+  };
+  await trySubmit('ramps', 'Ana', run, f, { version: '0.4a', shot: 'data:image/jpeg;base64,AAAA' });
+  assert.equal(sent.version, '0.4a');
+  assert.equal(sent.shot, 'data:image/jpeg;base64,AAAA');
+  await trySubmit('ramps', 'Ana', run, f);
+  assert.equal('shot' in sent, false);
 });
 
 console.log(`\n${passed} checks passed`);

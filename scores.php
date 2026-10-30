@@ -14,6 +14,9 @@
  * ties keep the earlier row, and 0 spare tools is not a score.
  * Names are not passwords: anyone can type any name.
  *
+ * Each row also remembers the game version ("version" in the POST), and a record-breaking run may send a
+ * board screenshot ("shot", a JPEG data URL) that is saved in tim-data/shots for the admin page.
+ *
  * Every time a run BREAKS a record (a new number one that is strictly better than the
  * old number one; a tie does not count, and neither does the very first score on an
  * empty board), one line is added to tim-data/records.log for the admin dashboard
@@ -39,6 +42,9 @@ const MAX_NAME = 16;
 const DATA_FILE = __DIR__ . '/scores-data.json';
 const RECORD_DIR = __DIR__ . '/tim-data';
 const RECORD_LOG_MAX_BYTES = 1500000;
+const MAX_BODY_BYTES = 400000;   // a score is tiny; the rest is room for one record-breaking screenshot
+const MAX_SHOT_BYTES = 250000;
+const MAX_SHOTS_KEPT = 150;
 
 function fail(int $code, string $message) {
     http_response_code($code);
@@ -72,8 +78,15 @@ function sortBoard(string $category, array &$list) {
     });
 }
 
+/** One board row; the game version it was achieved on is kept when the game sent it. */
+function rowFor(string $name, float $value, int $now, string $version): array {
+    $row = ['name' => $name, 'value' => $value, 'at' => $now];
+    if ($version !== '') $row['v'] = $version;
+    return $row;
+}
+
 /** Add one run to $board (in place). Returns results per category. */
-function recordRun(array &$board, string $name, array $values, int $now): array {
+function recordRun(array &$board, string $name, array $values, int $now, string $version = ''): array {
     $results = [];
     foreach (CATEGORIES as $category) {
         $value = $values[$category];
@@ -85,10 +98,10 @@ function recordRun(array &$board, string $name, array $values, int $now): array 
         }
         if ($eligible) {
             if ($found === null) {
-                $board[$category][] = ['name' => $name, 'value' => $value, 'at' => $now];
+                $board[$category][] = rowFor($name, $value, $now, $version);
                 $improved = true;
             } elseif (better($category, $value, (float)$board[$category][$found]['value'])) {
-                $board[$category][$found] = ['name' => $name, 'value' => $value, 'at' => $now];
+                $board[$category][$found] = rowFor($name, $value, $now, $version);
                 $improved = true;
             }
             sortBoard($category, $board[$category]);
@@ -124,6 +137,30 @@ function logRecord(array $entry) {
     @file_put_contents($p, json_encode($entry, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND | LOCK_EX);
 }
 
+/**
+ * Keep the screenshot the game sent with a record-breaking run (a JPEG data URL), so the admin can see
+ * how the level was beaten. Best effort: returns the file name, or '' if there is no usable picture.
+ */
+function saveShot(string $dataUrl, string $level): string {
+    if (strncmp($dataUrl, 'data:image/jpeg;base64,', 23) !== 0) return '';
+    $bin = base64_decode(substr($dataUrl, 23), true);
+    if ($bin === false || strlen($bin) < 200 || strlen($bin) > MAX_SHOT_BYTES || strncmp($bin, "\xFF\xD8\xFF", 3) !== 0) return '';
+    $dir = RECORD_DIR . '/shots';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0750, true);
+    }
+    $name = gmdate('Ymd-His') . '-' . $level . '-' . bin2hex(random_bytes(3)) . '.jpg';
+    if (@file_put_contents($dir . '/' . $name, $bin) === false) return '';
+    $all = glob($dir . '/*.jpg') ?: [];
+    if (count($all) > MAX_SHOTS_KEPT) {
+        sort($all);
+        foreach (array_slice($all, 0, count($all) - MAX_SHOTS_KEPT) as $old) {
+            @unlink($old);
+        }
+    }
+    return $name;
+}
+
 /** The records that this run broke: category => the old number one (name, value, at). */
 function brokenRecords(array $before, array $after, array $results): array {
     $broken = [];
@@ -152,7 +189,9 @@ function boardFor(array $all, string $level): array {
         if (is_array($rows)) {
             foreach ($rows as $row) {
                 if (isset($row['name'], $row['value']) && is_string($row['name']) && is_numeric($row['value'])) {
-                    $board[$category][] = ['name' => $row['name'], 'value' => (float)$row['value'], 'at' => (int)($row['at'] ?? 0)];
+                    $entry = ['name' => $row['name'], 'value' => (float)$row['value'], 'at' => (int)($row['at'] ?? 0)];
+                    if (isset($row['v']) && is_string($row['v']) && $row['v'] !== '') $entry['v'] = $row['v'];
+                    $board[$category][] = $entry;
                 }
             }
         }
@@ -177,7 +216,7 @@ if ($method === 'GET') {
 
 if ($method !== 'POST') fail(405, 'Use GET or POST.');
 
-$body = file_get_contents('php://input', false, null, 0, 4096);
+$body = file_get_contents('php://input', false, null, 0, MAX_BODY_BYTES);
 $in = json_decode($body === false ? '' : $body, true);
 if (!is_array($in)) fail(400, 'Bad request.');
 
@@ -196,6 +235,9 @@ $spare = (int)$spare;
 // Plausible limits for this game: a level is 10 m wide and solves within 30 s.
 if ($path <= 0 || $path > 500 || $seconds <= 0 || $seconds > 120 || $spare < 0 || $spare > 30) fail(400, 'Those numbers do not look right.');
 
+$version = (string)($in['version'] ?? '');
+if (!preg_match('/^[0-9A-Za-z.\-]{1,12}$/', $version)) $version = '';
+
 $values = ['shortest' => $path, 'fastest' => $seconds, 'spare' => (float)$spare];
 
 $handle = @fopen(DATA_FILE, 'c+');
@@ -203,7 +245,7 @@ if (!$handle || !flock($handle, LOCK_EX)) fail(500, 'Scores cannot be saved here
 $all = readAll($handle);
 $board = boardFor($all, $level);
 $before = $board;
-$results = recordRun($board, $name, $values, time());
+$results = recordRun($board, $name, $values, time(), $version);
 $broken = brokenRecords($before, $board, $results);
 $all[$level] = $board;
 rewind($handle);
@@ -213,6 +255,7 @@ fflush($handle);
 flock($handle, LOCK_UN);
 fclose($handle);
 
+$shotFile = $broken ? saveShot((string)($in['shot'] ?? ''), $level) : '';
 foreach ($broken as $category => $b) {
     logRecord([
         't' => time(),
@@ -222,6 +265,8 @@ foreach ($broken as $category => $b) {
         'value' => $b['new']['value'],
         'prevName' => $b['old']['name'],
         'prevValue' => $b['old']['value'],
+        'version' => $version,
+        'shot' => $shotFile,
     ]);
 }
 

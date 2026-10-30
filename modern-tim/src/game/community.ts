@@ -26,6 +26,13 @@ export interface PendingRun {
   levelId: string;
   name: string;
   run: Run;
+  /** The game version the run was made on (so a retry still reports the right one). */
+  version?: string;
+}
+/** Sent along with a score: the game version, and (only for a likely record) a small JPEG of the board. */
+export interface SubmitExtras {
+  version?: string;
+  shot?: string;
 }
 
 type FetchLike = (url: string, init?: { method?: string; body?: string; signal?: AbortSignal; headers?: Record<string, string>; cache?: 'no-store' }) => Promise<{ ok: boolean; status?: number; json(): Promise<unknown> }>;
@@ -83,8 +90,16 @@ function parseResults(raw: unknown): Record<Category, CommunityResult> {
 }
 
 /** 'retry' = could not reach the server (or it errored): keep the run and try later. 'rejected' = never going to be accepted. */
-export async function trySubmit(levelId: string, name: string, run: Run, fetchFn: FetchLike = (u, i) => fetch(u, i)): Promise<Submission | 'retry' | 'rejected'> {
-  const body = JSON.stringify({ level: levelId, name: sanitizeName(name), pathMeters: run.pathMeters, seconds: run.seconds, spare: run.spare });
+export async function trySubmit(levelId: string, name: string, run: Run, fetchFn: FetchLike = (u, i) => fetch(u, i), extras: SubmitExtras = {}): Promise<Submission | 'retry' | 'rejected'> {
+  const body = JSON.stringify({
+    level: levelId,
+    name: sanitizeName(name),
+    pathMeters: run.pathMeters,
+    seconds: run.seconds,
+    spare: run.spare,
+    ...(extras.version ? { version: extras.version } : {}),
+    ...(extras.shot ? { shot: extras.shot } : {}),
+  });
   const raw = await call(fetchFn, ENDPOINT, { method: 'POST', body, headers: { 'Content-Type': 'application/json' } });
   if (raw === REJECTED) return 'rejected';
   const data = raw as { board?: unknown; results?: unknown } | null;
@@ -126,11 +141,29 @@ export async function flushPending(store: StoreLike | null = browserStore(), fet
   let sent = 0;
   while (list.length) {
     const next = list[0];
-    const r = await trySubmit(next.levelId, next.name, next.run, fetchFn);
+    const r = await trySubmit(next.levelId, next.name, next.run, fetchFn, { version: next.version });
     if (r === 'retry') break;
     list.shift();
     if (r !== 'rejected') sent++;
   }
   savePending(list, store);
   return sent;
+}
+
+/**
+ * Could this run break a community record (be strictly better than the current number one on a board)?
+ * Only then does the game attach a screenshot. The server makes the real decision; this just avoids
+ * sending a picture with every solve. An empty or unknown board is not a record to break.
+ */
+export function mayBreakRecord(board: Board | null | undefined, run: Run): boolean {
+  if (!board) return false;
+  const top = (c: Category) => board[c]?.[0]?.value;
+  const shortest = top('shortest');
+  const fastest = top('fastest');
+  const spare = top('spare');
+  return (
+    (shortest !== undefined && run.pathMeters < shortest) ||
+    (fastest !== undefined && run.seconds < fastest) ||
+    (spare !== undefined && run.spare > spare)
+  );
 }

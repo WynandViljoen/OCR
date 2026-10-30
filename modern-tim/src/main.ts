@@ -22,7 +22,7 @@ import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, holdsBest } from './game/profile';
 import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
-import { fetchCommunity, flushPending, loadPending, savePending, trySubmit, type Submission } from './game/community';
+import { fetchCommunity, flushPending, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
   CATEGORY_INFO,
   stepsToSeconds,
@@ -165,6 +165,27 @@ const ui = new UI({
 });
 ui.presetNote = (type) => describePreset(level, type);
 
+/** A small JPEG of the board (for the admin page when a community record is broken), or '' if it cannot be made. */
+function captureBoardShot(): string {
+  try {
+    const w = 640;
+    const h = Math.round((w * canvas.height) / Math.max(1, canvas.width));
+    const small = document.createElement('canvas');
+    small.width = w;
+    small.height = h;
+    const g = small.getContext('2d');
+    if (!g) return '';
+    g.drawImage(canvas, 0, 0, w, h);
+    for (const q of [0.6, 0.45, 0.3]) {
+      const url = small.toDataURL('image/jpeg', q);
+      if (url.length < 180000) return url;
+    }
+  } catch {
+    /* a screenshot is a bonus; never block the score */
+  }
+  return '';
+}
+
 sim.onSolved = (info) => {
   solvedLevels.add(level.id);
   saveSolved();
@@ -187,10 +208,11 @@ sim.onSolved = (info) => {
   if (player && level.hasGoal) {
     const id = level.id;
     const name = player;
-    void trySubmit(id, name, run).then((sub) => {
+    const shot = mayBreakRecord(community[id], run) ? captureBoardShot() : '';
+    void trySubmit(id, name, run, undefined, { version: VERSION, shot }).then((sub) => {
       if (sub === 'rejected') return; // the server will never take it, so do not queue it
       if (sub === 'retry') {
-        savePending([...loadPending(), { levelId: id, name, run }]);
+        savePending([...loadPending(), { levelId: id, name, run, version: VERSION }]);
         if (level.id === id) {
           communityStatus = 'offline';
           refreshScores();
