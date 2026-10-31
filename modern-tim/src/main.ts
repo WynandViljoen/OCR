@@ -2139,7 +2139,7 @@ function renderBuilds() {
       const meta = document.createElement('span');
       meta.className = 'build-meta';
       const n = b.parts.length;
-      meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() : ''}`;
+      meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() + ' ' + new Date(b.savedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : ''}`;
       top.append(name, meta);
     }
     li.appendChild(top);
@@ -2447,7 +2447,7 @@ function editMyPuzzle(m: MyPuzzle) {
 }
 
 /** Check, then send the Sandbox board as a puzzle. Returns the sentence to show, and whether it worked. */
-async function doPublish(titleIn: string, puzzleId?: number): Promise<{ ok: boolean; text: string; id?: number }> {
+async function doPublish(titleIn: string, puzzleId?: number): Promise<{ ok: boolean; text: string; id?: number; dup?: number }> {
   if (!player) return { ok: false, text: 'Choose a player name first (top right).' };
   const dev = deviceId();
   if (!dev) return { ok: false, text: 'This browser has no id yet. Reload the game and try again in a moment.' };
@@ -2457,7 +2457,7 @@ async function doPublish(titleIn: string, puzzleId?: number): Promise<{ ok: bool
   const title = titleIn.trim().slice(0, 28) || editingPuzzle?.title || '';
   if (!title) return { ok: false, text: 'Give your puzzle a name.' };
   const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), seconds: check.seconds, id: editingPuzzle?.id ?? puzzleId });
-  if (!r.ok) return { ok: false, text: r.error };
+  if (!r.ok) return { ok: false, text: r.error, dup: r.dup };
   editingPuzzle = null;
   return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.', id: Number(r.value.id) || undefined };
 }
@@ -2511,6 +2511,17 @@ async function saveAndPublish() {
   const sentSig = sigHash(designSig(exportParts()));
   const r = await doPublish(name, build.puzzle);
   if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id, sentSig));
+  if (!r.ok && r.dup) {
+    // This exact puzzle is already on the server (sent from another build or an older version): link it to this build.
+    saveBuilds(player, linkBuildPuzzle(all, build.id, r.dup, sentSig));
+    refreshSandboxState();
+    askYes.disabled = false;
+    askYes.hidden = true;
+    (document.getElementById('pubask-no') as HTMLElement).textContent = 'Close';
+    askMsg.classList.remove('bad');
+    askMsg.textContent = `You had already sent this puzzle (${puzzleTag(r.dup)}). It is now shown on this build in My builds.`;
+    return;
+  }
   if (r.ok) refreshSandboxState();
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);

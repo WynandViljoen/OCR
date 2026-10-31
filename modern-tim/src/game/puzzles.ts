@@ -68,7 +68,7 @@ export interface MyPuzzle {
 }
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
-export type Reply<T> = { ok: true; value: T } | { ok: false; error: string };
+export type Reply<T> = { ok: true; value: T } | { ok: false; error: string; dup?: number };
 const PZ_OFFLINE = 'Cannot reach the server right now. Try again in a moment.';
 
 async function pzCall(fetchFn: FetchLike, url: string, init?: RequestInit): Promise<{ ok: boolean; data: Record<string, unknown> | null; status: number; text: string } | null> {
@@ -122,7 +122,7 @@ export async function getPuzzle(id: number, preview?: { key: string; version: st
 async function pzPost(body: Record<string, unknown>, fetchFn: FetchLike): Promise<Reply<Record<string, unknown>>> {
   const r = await pzCall(fetchFn, PUZZLE_ENDPOINT, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
   if (!r) return { ok: false, error: PZ_OFFLINE };
-  if (!r.ok) return { ok: false, error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`) };
+  if (!r.ok) return { ok: false, error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`), ...(typeof r.data?.dup === 'number' ? { dup: r.data.dup } : {}) };
   if (!r.data) return { ok: false, error: `The server sent something odd${r.text ? `: ${r.text}` : ''}. Please tell the admin.` };
   return { ok: true, value: r.data };
 }

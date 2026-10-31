@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.5m: build rows show time; share.php 409 duplicate reply carries `dup` (existing puzzle id); saveAndPublish links the build to it.
 - v0.5l: admin.php page_head($refresh) now injects a nonce script (30 s, visibilitychange/focus catch-up, skips while an input is focused or a text box has text) instead of meta refresh.
 - v0.5k: Build.sent (sigHash of designSig at publish) drives designSubmitted() and the stale warning in showPuzzleStates(); editMyPuzzle reuses the linked build.
 - v0.5j: builds.ts nameTaken(); addBuild returns null / renameBuild is a no-op for a taken name; main.ts checks first to show a message (Save current, rename, saveSandboxDesign). Bundle note: imports are stripped, so never alias imports (`as`) in main.ts.

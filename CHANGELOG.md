@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.5m
+
+- **My builds shows the time** next to the date of each save.
+- **A puzzle that was sent but is not shown on its build** now fixes itself: if you press Publish and the server says you already sent that exact puzzle, the build is linked to it (the 🌍 line appears in My builds) and the window says which puzzle it is, instead of just refusing.
+
 ## Modern TIM 0.5l
 
 - **Admin auto-refresh fixed.** The old refresh was a page tag that browsers pause in background tabs, so the page could sit for minutes with "Auto-refresh: on". It is now a small script: it reloads every 30 seconds while the tab is showing, catches up the moment you come back to the tab, and never reloads while you are typing in a box (a rejection reason is no longer wiped).

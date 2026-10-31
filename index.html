@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5l';
+const VERSION = '0.5m';
 
 return { VERSION };
 })();
@@ -6057,7 +6057,10 @@ async function pzPost(body, fetchFn) {
     };
     if (!r.ok) return {
         ok: false,
-        error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`)
+        error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`),
+        ...typeof r.data?.dup === 'number' ? {
+            dup: r.data.dup
+        } : {}
     };
     if (!r.data) return {
         ok: false,
@@ -10375,7 +10378,10 @@ function renderBuilds() {
             const meta = document.createElement('span');
             meta.className = 'build-meta';
             const n = b.parts.length;
-            meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() : ''}`;
+            meta.textContent = `${n} part${n === 1 ? '' : 's'}${b.savedAt ? ' · ' + new Date(b.savedAt).toLocaleDateString() + ' ' + new Date(b.savedAt).toLocaleTimeString([], {
+                hour: 'numeric',
+                minute: '2-digit'
+            }) : ''}`;
             top.append(name, meta);
         }
         li.appendChild(top);
@@ -10724,7 +10730,8 @@ async function doPublish(titleIn, puzzleId) {
     });
     if (!r.ok) return {
         ok: false,
-        text: r.error
+        text: r.error,
+        dup: r.dup
     };
     editingPuzzle = null;
     return {
@@ -10776,6 +10783,16 @@ async function saveAndPublish() {
     const sentSig = sigHash(designSig(exportParts()));
     const r = await doPublish(name, build.puzzle);
     if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id, sentSig));
+    if (!r.ok && r.dup) {
+        saveBuilds(player, linkBuildPuzzle(all, build.id, r.dup, sentSig));
+        refreshSandboxState();
+        askYes.disabled = false;
+        askYes.hidden = true;
+        document.getElementById('pubask-no').textContent = 'Close';
+        askMsg.classList.remove('bad');
+        askMsg.textContent = `You had already sent this puzzle (${puzzleTag(r.dup)}). It is now shown on this build in My builds.`;
+        return;
+    }
     if (r.ok) refreshSandboxState();
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);

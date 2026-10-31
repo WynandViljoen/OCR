@@ -463,7 +463,7 @@ function puzzle_post_api(array $in) {
                 if (!is_array($other) || ($other['device'] ?? '') !== $device) continue;
                 foreach (['cur', 'draft'] as $k) {
                     if (is_array($other[$k] ?? null) && puzzle_sig($other[$k]['fixed'], $other[$k]['solution']) === $sig) {
-                        return ['error' => 'You already sent this puzzle. Change something before sending it again.', 'code' => 409];
+                        return ['error' => 'You already sent this puzzle. Change something before sending it again.', 'code' => 409, 'dup' => (int) $other['id']];
                     }
                 }
             }
@@ -485,7 +485,14 @@ function puzzle_post_api(array $in) {
             $db['puzzles'][$rec['id']] = $rec;
             return ['id' => (int) $rec['id'], 'status' => is_array($rec['cur'] ?? null) ? 'live-edit' : 'pending'];
         }, true);
-        if (isset($res['error'])) fail((int) $res['code'], (string) $res['error']);
+        if (isset($res['error'])) {
+            if (isset($res['dup'])) {
+                http_response_code(409);
+                echo json_encode(['error' => (string) $res['error'], 'dup' => (int) $res['dup']]);
+                exit;
+            }
+            fail((int) $res['code'], (string) $res['error']);
+        }
         echo json_encode($res);
         exit;
     }
