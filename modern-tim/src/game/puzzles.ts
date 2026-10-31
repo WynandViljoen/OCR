@@ -131,12 +131,13 @@ export interface SubmitInput {
   fixed: WirePart[];
   solution: WirePart[];
   shot: string;
+  seconds?: number;
   /** Set when editing one of your own puzzles. */
   id?: number;
 }
 
 export const submitPuzzle = (i: SubmitInput, fetchFn: FetchLike = (u, x) => fetch(u, x)) =>
-  pzPost({ action: 'submit', device: i.device, creator: i.creator, title: i.title, fixed: i.fixed, solution: i.solution, shot: i.shot, id: i.id ?? 0 }, fetchFn);
+  pzPost({ action: 'submit', device: i.device, creator: i.creator, title: i.title, fixed: i.fixed, solution: i.solution, shot: i.shot, seconds: i.seconds ?? 0, id: i.id ?? 0 }, fetchFn);
 export const withdrawPuzzle = (device: string, id: number, fetchFn: FetchLike = (u, x) => fetch(u, x)) => pzPost({ action: 'withdraw', device, id }, fetchFn);
 export const completePuzzle = (device: string, id: number, rev: number, fetchFn: FetchLike = (u, x) => fetch(u, x)) => pzPost({ action: 'complete', device, id, rev }, fetchFn);
 export const votePuzzle = (device: string, id: number, vote: 1 | -1, fetchFn: FetchLike = (u, x) => fetch(u, x)) => pzPost({ action: 'vote', device, id, vote }, fetchFn);
@@ -217,6 +218,8 @@ export interface PuzzleCheck {
   ok: boolean;
   /** What to tell the player when ok is false. */
   problem: string;
+  /** How long the creator's solution takes to reach the basket, in simulated seconds. */
+  seconds?: number;
 }
 
 /** Does the puzzle solve with its solution and not solve without? Runs on its own simulation. */
@@ -234,5 +237,5 @@ export function checkPuzzle(fixed: WirePart[], solution: WirePart[]): PuzzleChec
   id = 1;
   const withSolution = pzSimulate([...levelToParts(level, nextId), ...solutionToParts(level, nextId)]);
   if (!withSolution.solved) return { ok: false, problem: 'Your own parts do not get the ball into the basket within 30 seconds. Press Start and make it work first.' };
-  return { ok: true, problem: '' };
+  return { ok: true, problem: '', seconds: Math.round(withSolution.seconds * 10) / 10 };
 }

@@ -2305,7 +2305,7 @@ async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string }
   if (!check.ok) return { ok: false, text: check.problem };
   const title = titleIn.trim().slice(0, 28) || editingPuzzle?.title || '';
   if (!title) return { ok: false, text: 'Give your puzzle a name.' };
-  const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), id: editingPuzzle?.id });
+  const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), seconds: check.seconds, id: editingPuzzle?.id });
   if (!r.ok) return { ok: false, text: r.error };
   editingPuzzle = null;
   cmEditing.hidden = true;

@@ -32,7 +32,7 @@ const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4za';
+const ADMIN_BUILD = '0.5';
 const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
 const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 const ONLINE_SECONDS = 300;
@@ -1017,7 +1017,7 @@ function puzzle_card(array $rec, array $v, string $kind, int $pos, int $total) {
     $rate .= '</select></label>';
     $actions = '';
     $ver = $kind === 'draft' ? 'draft' : 'cur';
-    $play = $key !== '' ? '<a class="btn" target="_blank" rel="noopener" href="./?preview=' . h($key) . '&amp;puzzle=' . $id . '&amp;version=' . $ver . '">&#9654; Play-test</a> ' : '';
+    $play = $key !== '' ? '<a class="btn" target="_blank" rel="noopener" href="./?preview=' . h($key) . '&amp;puzzle=' . $id . '&amp;version=' . $ver . '">&#9654; Play this puzzle (like a future month)</a> ' : '';
     if ($kind === 'draft') {
         $actions = $rate . ' <button name="do" value="p_approve">Approve</button></form> '
             . '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
@@ -1030,7 +1030,7 @@ function puzzle_card(array $rec, array $v, string $kind, int $pos, int $total) {
     }
     echo '<div class="card" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px"><div>' . $thumb . '</div><div style="flex:1;min-width:260px">'
         . '<b style="font-size:17px">' . ($kind === 'cur' ? '#' . ($pos + 1) . ' ' : '') . h($v['title'] ?? '') . '</b> <span class="mute">by ' . h($rec['creator'] ?? '') . ' &middot; puzzle ' . $id . ' &middot; version ' . (int) ($v['rev'] ?? 1) . '</span><br>'
-        . '<span class="mute">' . count($v['fixed'] ?? []) . ' fixed parts, ' . count($v['solution'] ?? []) . ' parts in the tray &middot; sent ' . h(fmt_time((int) ($v['at'] ?? 0))) . '</span>';
+        . '<span class="mute">' . count($v['fixed'] ?? []) . ' fixed parts, ' . count($v['solution'] ?? []) . ' parts in the tray &middot; <b>solution runs ' . (isset($v['seconds']) && $v['seconds'] > 0 ? h(number_format((float) $v['seconds'], 1)) . ' s' : 'unknown') . '</b> &middot; sent ' . h(fmt_time((int) ($v['at'] ?? 0))) . '</span>';
     if ($kind === 'cur') {
         $up = $down = 0;
         foreach ((array) ($rec['votes'] ?? []) as $x) { if ($x === 1) $up++; elseif ($x === -1) $down++; }

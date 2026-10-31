@@ -4033,7 +4033,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4za';
+const VERSION = '0.5';
 
 return { VERSION };
 })();
@@ -6032,6 +6032,7 @@ const submitPuzzle = (i, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
         fixed: i.fixed,
         solution: i.solution,
         shot: i.shot,
+        seconds: i.seconds ?? 0,
         id: i.id ?? 0
     }, fetchFn);
 const withdrawPuzzle = (device, id, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
@@ -6195,7 +6196,8 @@ function checkPuzzle(fixed, solution) {
     };
     return {
         ok: true,
-        problem: ''
+        problem: '',
+        seconds: Math.round(withSolution.seconds * 10) / 10
     };
 }
 
@@ -10496,6 +10498,7 @@ async function doPublish(titleIn) {
         fixed,
         solution,
         shot: captureBoardShot(),
+        seconds: check.seconds,
         id: editingPuzzle?.id
     });
     if (!r.ok) return {

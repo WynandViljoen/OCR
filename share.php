@@ -422,7 +422,8 @@ function puzzle_post_api(array $in) {
         if (is_string($clean)) fail(400, $clean);
         if (rate_limited()) fail(429, 'You have sent a lot just now. Please wait a little and try again.');
         $shotIn = is_string($in['shot'] ?? null) ? $in['shot'] : '';
-        $res = puzzle_db(function (&$db) use ($device, $creator, $title, $clean, $shotIn, $id) {
+        $seconds = isset($in['seconds']) && is_numeric($in['seconds']) ? max(0.0, min(30.0, round((float) $in['seconds'], 1))) : 0.0;
+        $res = puzzle_db(function (&$db) use ($device, $creator, $title, $clean, $shotIn, $seconds, $id) {
             $mineCount = 0;
             foreach ($db['puzzles'] as $rec) {
                 if (is_array($rec) && ($rec['device'] ?? '') === $device && $rec['id'] !== $id && (is_array($rec['cur'] ?? null) || is_array($rec['draft'] ?? null))) $mineCount++;
@@ -445,7 +446,7 @@ function puzzle_post_api(array $in) {
             $shot = save_puzzle_shot($shotIn, (int) $rec['id']);
             $rev = (int) ($rec['cur']['rev'] ?? 0) + 1;
             if (is_array($rec['draft'] ?? null)) $rev = max($rev, (int) $rec['draft']['rev']);
-            $rec['draft'] = ['title' => $title, 'fixed' => $clean[0], 'solution' => $clean[1], 'shot' => $shot, 'rev' => $rev, 'at' => time()];
+            $rec['draft'] = ['title' => $title, 'fixed' => $clean[0], 'solution' => $clean[1], 'shot' => $shot, 'seconds' => $seconds, 'rev' => $rev, 'at' => time()];
             $rec['reason'] = '';
             $db['puzzles'][$rec['id']] = $rec;
             return ['id' => (int) $rec['id'], 'status' => is_array($rec['cur'] ?? null) ? 'live-edit' : 'pending'];

@@ -1,5 +1,13 @@
 # Changelog
 
+## Modern TIM 0.5
+
+Major release: community puzzles are complete (publishing, approval dashboard, play-testing).
+
+- The Puzzles page now shows **how long the creator's solution runs** (measured when the puzzle was published), next to the solution screenshot.
+- Each waiting or live puzzle has a **Play this puzzle** link that opens it in the game the same way a future month's puzzle preview works: nothing saved, with a button to show the creator's solution.
+- Version numbering: the next minor releases are 0.5a, 0.5b, and so on.
+
 ## Modern TIM 0.4za
 
 Publishing made easy.
