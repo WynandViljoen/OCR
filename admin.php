@@ -32,7 +32,7 @@ const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.5m';
+const ADMIN_BUILD = '0.5n';
 const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
 const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 const ONLINE_SECONDS = 300;
@@ -390,7 +390,7 @@ input[type=password],input[type=text],select{padding:7px 10px;border-radius:8px;
     if ($refresh) {
         // Reload every 30 seconds, but catch up when the tab comes back to the front (browsers pause background
         // timers), and never while someone is typing in a box (a rejection reason would be lost).
-        echo '<script nonce="' . $GLOBALS['tim_nonce'] . '">(function(){var t=Date.now();function busy(){var a=document.activeElement;if(a&&(a.tagName==="INPUT"||a.tagName==="SELECT"||a.tagName==="TEXTAREA"))return true;var i=document.querySelectorAll("input[type=text]");for(var k=0;k<i.length;k++){if(i[k].value)return true;}return false;}function go(){if(document.hidden||busy()||Date.now()-t<30000)return;location.reload();}setInterval(go,4000);document.addEventListener("visibilitychange",go);window.addEventListener("focus",go);})();</script>';
+        echo '<script nonce="' . $GLOBALS['tim_nonce'] . '">(function(){var t=Date.now();function busy(){var a=document.activeElement;if(a&&(a.tagName==="INPUT"||a.tagName==="SELECT"||a.tagName==="TEXTAREA"))return true;var i=document.querySelectorAll("input[type=text]");for(var k=0;k<i.length;k++){if(i[k].value!==i[k].defaultValue)return true;}return false;}function go(){if(document.hidden||busy()||Date.now()-t<30000)return;location.reload();}setInterval(go,4000);document.addEventListener("visibilitychange",go);window.addEventListener("focus",go);})();</script>';
     }
 }
 
@@ -937,9 +937,19 @@ function puzzle_action(array $post) {
     $id = (int) ($post['id'] ?? 0);
     $reason = trim(mb_substr((string) ($post['reason'] ?? ''), 0, 160));
     $diff = (int) ($post['difficulty'] ?? 0);
-    puzzles_edit(function (&$db) use ($do, $id, $reason, $diff) {
+    $title = trim(mb_substr(trim((string) preg_replace('/[\x00-\x1f\x7f<>]+/', ' ', (string) ($post['title'] ?? ''))), 0, 28));
+    puzzles_edit(function (&$db) use ($do, $id, $reason, $diff, $title) {
         $rec = $db['puzzles'][$id] ?? null;
         if (!is_array($rec)) return false;
+        if ($do === 'p_rename') {
+            // The puzzle keeps its number and its creator; only the name changes (for example an inappropriate one).
+            if ($title === '') return false;
+            foreach (['cur', 'draft'] as $k) {
+                if (is_array($rec[$k] ?? null)) $db['puzzles'][$id][$k]['title'] = $title;
+            }
+            $db['puzzles'][$id]['title_admin'] = $title;
+            return true;
+        }
         if ($do === 'p_rate') {
             $db['puzzles'][$id]['difficulty'] = ($diff >= 1 && $diff <= 10) ? $diff : null;
             return true;
@@ -947,6 +957,7 @@ function puzzle_action(array $post) {
         if ($do === 'p_approve' && is_array($rec['draft'] ?? null)) {
             puzzle_drop_shot($rec['cur']['shot'] ?? '');
             $rec['cur'] = $rec['draft'];
+            if (!empty($rec['title_admin'])) $rec['cur']['title'] = $rec['title_admin'];
             $rec['draft'] = null;
             $rec['reason'] = '';
             // A new rating comes with the approval if the box was filled in.
@@ -1019,21 +1030,26 @@ function puzzle_card(array $rec, array $v, string $kind, int $pos, int $total) {
     $rate .= '</select></label>';
     $actions = '';
     $ver = $kind === 'draft' ? 'draft' : 'cur';
+    if ($kind === 'gone') $rate = '';
     $play = $key !== '' ? '<a class="btn" target="_blank" rel="noopener" href="./?preview=' . h($key) . '&amp;puzzle=' . $id . '&amp;version=' . $ver . '">&#9654; Play this puzzle (like a future month)</a> ' : '';
     if ($kind === 'draft') {
         $actions = $rate . ' <button name="do" value="p_approve">Approve</button></form> '
             . '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
             . '<input type="text" name="reason" maxlength="160" placeholder="Reason shown to the creator"><button name="do" value="p_reject">Reject</button></form>';
+    } elseif ($kind === 'gone') {
+        $actions = '<span class="mute">Removed by its creator ' . h(fmt_time((int) ($rec['gone'] ?? 0))) . '. It is no longer in the game; you keep the solution and screenshot.</span>';
     } else {
         $actions = $rate . ' <button name="do" value="p_rate">Save</button></form> '
             . $form('p_up', '&#9650;') . $form('p_down', '&#9660;') . $form('p_top', 'Top') . $form('p_bottom', 'Bottom')
             . '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
             . '<input type="text" name="reason" maxlength="160" placeholder="Reason (optional)"><button name="do" value="p_pull">Take out of game</button></form>';
     }
+    $renameForm = '<form method="post" action="admin.php" class="inline" style="margin:6px 0"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
+        . '<input type="text" name="title" maxlength="28" value="' . h($v['title'] ?? '') . '" aria-label="Puzzle name"><button name="do" value="p_rename">Rename</button></form>';
     echo '<div class="card" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px"><div>' . $thumb . '</div><div style="flex:1;min-width:260px">'
         . '<b style="font-size:17px">' . ($kind === 'cur' ? '#' . ($pos + 1) . ' ' : '') . h($v['title'] ?? '') . '</b> <span class="mute">by ' . h($rec['creator'] ?? '') . ' &middot; puzzle <b>#' . sprintf('%04X', $id) . '</b> &middot; version ' . (int) ($v['rev'] ?? 1) . '</span><br>'
-        . '<span class="mute">' . count($v['fixed'] ?? []) . ' fixed parts, ' . count($v['solution'] ?? []) . ' parts in the tray &middot; <b>solution runs ' . (isset($v['seconds']) && $v['seconds'] > 0 ? h(number_format((float) $v['seconds'], 1)) . ' s' : 'unknown') . '</b> &middot; sent ' . h(fmt_time((int) ($v['at'] ?? 0))) . '</span>';
-    if ($kind === 'cur') {
+        . $renameForm . '<span class="mute">' . count($v['fixed'] ?? []) . ' fixed parts, ' . count($v['solution'] ?? []) . ' parts in the tray &middot; <b>solution runs ' . (isset($v['seconds']) && $v['seconds'] > 0 ? h(number_format((float) $v['seconds'], 1)) . ' s' : 'unknown') . '</b> &middot; sent ' . h(fmt_time((int) ($v['at'] ?? 0))) . '</span>';
+    if ($kind === 'cur' || $kind === 'gone') {
         $up = $down = 0;
         foreach ((array) ($rec['votes'] ?? []) as $x) { if ($x === 1) $up++; elseif ($x === -1) $down++; }
         echo '<br>Rating: ' . h(puzzle_label($rec['difficulty'] ?? null)) . ' &middot; solved by ' . count((array) ($rec['done'] ?? [])) . ' &middot; &#128077; ' . $up . ' &#128078; ' . $down;
@@ -1045,9 +1061,13 @@ function puzzle_card(array $rec, array $v, string $kind, int $pos, int $total) {
 
 function puzzles_view() {
     $db = puzzles_read();
-    $waiting = $live = $rejected = [];
+    $waiting = $live = $rejected = $removed = [];
     foreach ($db['puzzles'] as $rec) {
         if (!is_array($rec)) continue;
+        if (!empty($rec['gone'])) {
+            $removed[] = $rec;
+            continue;
+        }
         if (is_array($rec['draft'] ?? null)) $waiting[] = $rec;
         if (!is_array($rec['cur'] ?? null) && !is_array($rec['draft'] ?? null)) $rejected[] = $rec;
     }
@@ -1055,7 +1075,7 @@ function puzzles_view() {
         return ($a['draft']['at'] ?? 0) <=> ($b['draft']['at'] ?? 0);
     });
     foreach ($db['order'] as $id) {
-        if (isset($db['puzzles'][$id]) && is_array($db['puzzles'][$id]['cur'] ?? null)) $live[] = $db['puzzles'][$id];
+        if (isset($db['puzzles'][$id]) && empty($db['puzzles'][$id]['gone']) && is_array($db['puzzles'][$id]['cur'] ?? null)) $live[] = $db['puzzles'][$id];
     }
     echo '<div class="cards" style="margin-top:12px"><div class="card"><b>' . count($waiting) . '</b><span>waiting for approval</span></div>'
         . '<div class="card"><b>' . count($live) . '</b><span>live in the game</span></div>'
@@ -1067,6 +1087,10 @@ function puzzles_view() {
     echo '<h2>Live (the order players see)</h2>';
     if (!$live) echo '<p class="mute">No community puzzle is live yet.</p>';
     foreach ($live as $i => $rec) puzzle_card($rec, $rec['cur'], 'cur', $i, count($live));
+    if ($removed) {
+        echo '<h2>Removed by their creator (solutions kept)</h2>';
+        foreach ($removed as $rec) puzzle_card($rec, $rec['cur'], 'gone', 0, 0);
+    }
     echo '<h2>Rejected or taken out</h2>';
     if (!$rejected) echo '<p class="mute">None.</p>';
     foreach ($rejected as $rec) {

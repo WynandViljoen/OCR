@@ -392,7 +392,7 @@ function puzzle_get_api() {
                 $v = $version === 'draft' ? ($rec['draft'] ?? null) : ($rec['cur'] ?? null);
                 return is_array($v) ? puzzle_play($rec, $v, true) : null;
             }
-            return is_array($rec['cur'] ?? null) ? puzzle_play($rec, $rec['cur'], false) : null;
+            return (is_array($rec['cur'] ?? null) && empty($rec['gone'])) ? puzzle_play($rec, $rec['cur'], false) : null;
         }, false);
         if ($res === null) fail(404, 'That puzzle is not available.');
         echo json_encode($res);
@@ -403,7 +403,7 @@ function puzzle_get_api() {
         $res = puzzle_db(function (&$db) use ($device) {
             $out = [];
             foreach ($db['puzzles'] as $rec) {
-                if (!is_array($rec) || ($rec['device'] ?? '') !== $device) continue;
+                if (!is_array($rec) || !empty($rec['gone']) || ($rec['device'] ?? '') !== $device) continue;
                 $v = is_array($rec['draft'] ?? null) ? $rec['draft'] : $rec['cur'];
                 if (!is_array($v)) {
                     $v = ['title' => '', 'fixed' => [], 'solution' => []];
@@ -451,16 +451,16 @@ function puzzle_post_api(array $in) {
         $res = puzzle_db(function (&$db) use ($device, $creator, $title, $clean, $shotIn, $seconds, $id) {
             $mineCount = 0;
             foreach ($db['puzzles'] as $rec) {
-                if (is_array($rec) && ($rec['device'] ?? '') === $device && $rec['id'] !== $id && (is_array($rec['cur'] ?? null) || is_array($rec['draft'] ?? null))) $mineCount++;
+                if (is_array($rec) && empty($rec['gone']) && ($rec['device'] ?? '') === $device && $rec['id'] !== $id && (is_array($rec['cur'] ?? null) || is_array($rec['draft'] ?? null))) $mineCount++;
             }
             $rec = null;
             if ($id > 0) {
                 $rec = $db['puzzles'][$id] ?? null;
-                if (!is_array($rec) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours.', 'code' => 403];
+                if (!is_array($rec) || !empty($rec['gone']) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours or was removed.', 'code' => 403];
             }
             $sig = puzzle_sig($clean[0], $clean[1]);
             foreach ($db['puzzles'] as $other) {
-                if (!is_array($other) || ($other['device'] ?? '') !== $device) continue;
+                if (!is_array($other) || !empty($other['gone']) || ($other['device'] ?? '') !== $device) continue;
                 foreach (['cur', 'draft'] as $k) {
                     if (is_array($other[$k] ?? null) && puzzle_sig($other[$k]['fixed'], $other[$k]['solution']) === $sig) {
                         return ['error' => 'You already sent this puzzle. Change something before sending it again.', 'code' => 409, 'dup' => (int) $other['id']];
@@ -500,11 +500,19 @@ function puzzle_post_api(array $in) {
     if ($action === 'withdraw') {
         $res = puzzle_db(function (&$db) use ($device, $id) {
             $rec = $db['puzzles'][$id] ?? null;
-            if (!is_array($rec)) return ['error' => 'That puzzle no longer exists on the server. Close this window and open it again.', 'code' => 404];
+            if (!is_array($rec) || !empty($rec['gone'])) return ['error' => 'That puzzle no longer exists on the server. Close this window and open it again.', 'code' => 404];
             if (($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle was sent from another browser (its id ends ' . substr((string) ($rec['device'] ?? ''), -4) . ', this browser ends ' . substr($device, -4) . ').', 'code' => 403];
             drop_puzzle_shot($rec['draft']['shot'] ?? '');
-            drop_puzzle_shot($rec['cur']['shot'] ?? '');
-            unset($db['puzzles'][$id]);
+            if (is_array($rec['cur'] ?? null)) {
+                // It was approved once: the player takes it out of the game, but the admin keeps the puzzle, its
+                // solution and its screenshot (the dashboard lists it as removed by its creator).
+                $rec['draft'] = null;
+                $rec['gone'] = time();
+                $db['puzzles'][$id] = $rec;
+            } else {
+                drop_puzzle_shot($rec['cur']['shot'] ?? '');
+                unset($db['puzzles'][$id]);
+            }
             $db['order'] = array_values(array_filter($db['order'], function ($x) use ($id) {
                 return $x !== $id;
             }));
@@ -520,7 +528,7 @@ function puzzle_post_api(array $in) {
         $vote = isset($in['vote']) && is_int($in['vote']) ? $in['vote'] : 0;
         $res = puzzle_db(function (&$db) use ($device, $id, $action, $rev, $vote) {
             $rec = $db['puzzles'][$id] ?? null;
-            if (!is_array($rec) || !is_array($rec['cur'] ?? null)) return ['error' => 'That puzzle is not available.', 'code' => 404];
+            if (!is_array($rec) || !empty($rec['gone']) || !is_array($rec['cur'] ?? null)) return ['error' => 'That puzzle is not available.', 'code' => 404];
             if ($action === 'complete') {
                 if ($rev !== (int) $rec['cur']['rev']) return ['error' => 'This puzzle was changed. Reload it.', 'code' => 409];
                 if (count((array) $rec['done']) < 5000) $rec['done'][$device] = time();

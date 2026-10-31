@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.5n
+
+- **Approved puzzles stay in Site Admin.** If a creator removes a puzzle that was approved, it leaves the game and their list, but Site Admin keeps it under "Removed by their creator" with its screenshot, solution run time and the Play link. A puzzle that was never approved is still deleted completely when removed.
+- **Rename a puzzle in Site Admin.** Each puzzle card has a name box and a Rename button. The puzzle keeps its number (#tag) and its creator; only the name changes, and the new name also wins if the creator later sends an edit.
+- The admin page's auto-refresh no longer treats a pre-filled name box as "someone is typing".
+
 ## Modern TIM 0.5m
 
 - **My builds shows the time** next to the date of each save.
