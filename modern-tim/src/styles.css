@@ -724,3 +724,14 @@ kbd {
 .season-head { margin: 6px 0 2px; font-size: 0.78rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
 #preview-bar{position:sticky;top:0;z-index:50;background:#b45309;color:#fff;font:600 14px/1.2 system-ui,sans-serif;text-align:center;padding:6px 10px}
+
+/* Community puzzles */
+.cm-head { margin: 12px 0 4px; font-size: 1rem; }
+.cm-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line, rgba(128,128,128,.35)); border-radius: 10px; }
+.cm-row .cm-meta { opacity: 0.75; font-size: 0.85rem; }
+.cm-row .cm-acts { display: flex; gap: 6px; }
+.cm-badge { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(128,128,128,.2); }
+.cm-form { margin-top: 12px; display: grid; gap: 8px; }
+.solved-rate { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 8px 0; flex-wrap: wrap; }
+.solved-rate .on { outline: 3px solid currentColor; }
+#preview-bar button { margin-left: 10px; }

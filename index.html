@@ -739,6 +739,17 @@ kbd {
 
 #preview-bar{position:sticky;top:0;z-index:50;background:#b45309;color:#fff;font:600 14px/1.2 system-ui,sans-serif;text-align:center;padding:6px 10px}
 
+/* Community puzzles */
+.cm-head { margin: 12px 0 4px; font-size: 1rem; }
+.cm-row { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--line, rgba(128,128,128,.35)); border-radius: 10px; }
+.cm-row .cm-meta { opacity: 0.75; font-size: 0.85rem; }
+.cm-row .cm-acts { display: flex; gap: 6px; }
+.cm-badge { font-size: 0.8rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(128,128,128,.2); }
+.cm-form { margin-top: 12px; display: grid; gap: 8px; }
+.solved-rate { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 8px 0; flex-wrap: wrap; }
+.solved-rate .on { outline: 3px solid currentColor; }
+#preview-bar button { margin-left: 10px; }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -766,6 +777,7 @@ kbd {
             </div>
           </div>
           <button id="btn-sandbox" class="btn" type="button" title="Free build, no goal"><span aria-hidden="true">🛠️</span> <span class="lbl">Sandbox</span></button>
+          <button id="btn-community" class="btn" type="button" title="Play puzzles made by other players, or publish your own"><span aria-hidden="true">🌍</span> <span class="lbl">Community</span></button>
         </nav>
         <div class="controls">
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
@@ -841,9 +853,16 @@ kbd {
                   <h2>Solved!</h2>
                   <p id="solved-learned" class="solved-learned"></p>
                   <ul id="solved-scores" class="solved-scores" aria-label="Your scores" hidden></ul>
+                  <div id="solved-rate" class="solved-rate" hidden>
+                    <span>Did you like this puzzle?</span>
+                    <button id="rate-up" class="btn" type="button" aria-label="Thumbs up">👍</button>
+                    <button id="rate-down" class="btn" type="button" aria-label="Thumbs down">👎</button>
+                    <span id="rate-msg" role="status"></span>
+                  </div>
                   <div class="solved-actions">
                     <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
                     <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
+                    <button id="btn-more" class="btn btn-go" type="button" hidden>More community puzzles ▶</button>
                   </div>
                 </div>
               </div>
@@ -920,6 +939,28 @@ kbd {
         <div class="gate-actions">
           <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
           <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="community" class="gate" role="dialog" aria-modal="true" aria-labelledby="community-title" hidden>
+      <div class="gate-card builds-card">
+        <h2 id="community-title">Community puzzles</h2>
+        <p class="builds-sub">Puzzles made by players. Solve them for fun: no stars here, just a thumbs up or down when you finish.</p>
+        <p id="cm-msg" class="builds-msg" role="status" hidden></p>
+        <ul id="cm-list" class="builds-list"></ul>
+        <h3 class="cm-head">My puzzles <span id="cm-count"></span></h3>
+        <ul id="cm-mine" class="builds-list"></ul>
+        <form id="cm-form" class="cm-form" novalidate hidden>
+          <p class="builds-sub">Publish what is on the Sandbox board. 📌 Fixed parts are the puzzle; every other part becomes the player&rsquo;s tray (it must solve it). The dashboard approves it before anyone sees it.</p>
+          <div class="builds-save">
+            <label class="sr-only" for="cm-name">Puzzle name</label>
+            <input id="cm-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
+            <button id="cm-publish" class="btn btn-go" type="submit">Publish</button>
+          </div>
+          <p id="cm-editing" class="builds-sub" hidden></p>
+        </form>
+        <div class="gate-actions">
+          <button id="cm-close" class="btn btn-go" type="button">Close</button>
         </div>
       </div>
     </div>
@@ -3978,7 +4019,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4y';
+const VERSION = '0.4z';
 
 return { VERSION };
 })();
@@ -5860,6 +5901,292 @@ function shareUrl(code, loc) {
 return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
 })();
 
+// ---- game/puzzles.ts ----
+const { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle } = (() => {
+
+
+
+const PUZZLE_ENDPOINT = 'share.php';
+const MAX_PUZZLES = 5;
+const MAX_PUZZLE_TITLE = 28;
+const PZ_TIMEOUT = 8000;
+const PZ_STEPS = 60 * 30;
+const PZ_OFFLINE = 'Cannot reach the server right now. Try again in a moment.';
+async function pzCall(fetchFn, url, init) {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = ctl ? setTimeout(()=>ctl.abort(), PZ_TIMEOUT) : 0;
+    try {
+        const res = await fetchFn(url, {
+            ...init,
+            signal: ctl?.signal,
+            cache: 'no-store'
+        });
+        let data = null;
+        try {
+            data = await res.json();
+        } catch  {
+            data = null;
+        }
+        return {
+            ok: res.ok,
+            data
+        };
+    } catch  {
+        return null;
+    } finally{
+        if (timer) clearTimeout(timer);
+    }
+}
+const pzErr = (d, fallback)=>d && typeof d.error === 'string' ? d.error : fallback;
+const pzQ = (device)=>device ? `&device=${encodeURIComponent(device)}` : '';
+async function listPuzzles(device, fetchFn = (u, i)=>fetch(u, i)) {
+    const r = await pzCall(fetchFn, `${PUZZLE_ENDPOINT}?puzzle=list${pzQ(device)}`);
+    if (!r) return {
+        ok: false,
+        error: PZ_OFFLINE
+    };
+    if (!r.ok || !Array.isArray(r.data?.puzzles)) return {
+        ok: false,
+        error: pzErr(r.data, 'Community puzzles are not available right now.')
+    };
+    return {
+        ok: true,
+        value: r.data.puzzles
+    };
+}
+async function myPuzzles(device, fetchFn = (u, i)=>fetch(u, i)) {
+    if (!device) return {
+        ok: true,
+        value: []
+    };
+    const r = await pzCall(fetchFn, `${PUZZLE_ENDPOINT}?puzzle=mine${pzQ(device)}`);
+    if (!r) return {
+        ok: false,
+        error: PZ_OFFLINE
+    };
+    if (!r.ok || !Array.isArray(r.data?.puzzles)) return {
+        ok: false,
+        error: pzErr(r.data, 'Your puzzles cannot be shown right now.')
+    };
+    return {
+        ok: true,
+        value: r.data.puzzles
+    };
+}
+async function getPuzzle(id, preview, fetchFn = (u, i)=>fetch(u, i)) {
+    const extra = preview ? `&preview=${encodeURIComponent(preview.key)}&version=${encodeURIComponent(preview.version)}` : '';
+    const r = await pzCall(fetchFn, `${PUZZLE_ENDPOINT}?puzzle=get&id=${id}${extra}`);
+    if (!r) return {
+        ok: false,
+        error: PZ_OFFLINE
+    };
+    if (!r.ok || !Array.isArray(r.data?.fixed)) return {
+        ok: false,
+        error: pzErr(r.data, 'That puzzle is not available.')
+    };
+    return {
+        ok: true,
+        value: r.data
+    };
+}
+async function pzPost(body, fetchFn) {
+    const r = await pzCall(fetchFn, PUZZLE_ENDPOINT, {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!r) return {
+        ok: false,
+        error: PZ_OFFLINE
+    };
+    if (!r.ok) return {
+        ok: false,
+        error: pzErr(r.data, 'That did not work. Try again.')
+    };
+    return {
+        ok: true,
+        value: r.data ?? {}
+    };
+}
+const submitPuzzle = (i, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
+        action: 'submit',
+        device: i.device,
+        creator: i.creator,
+        title: i.title,
+        fixed: i.fixed,
+        solution: i.solution,
+        shot: i.shot,
+        id: i.id ?? 0
+    }, fetchFn);
+const withdrawPuzzle = (device, id, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
+        action: 'withdraw',
+        device,
+        id
+    }, fetchFn);
+const completePuzzle = (device, id, rev, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
+        action: 'complete',
+        device,
+        id,
+        rev
+    }, fetchFn);
+const votePuzzle = (device, id, vote, fetchFn = (u, x)=>fetch(u, x))=>pzPost({
+        action: 'vote',
+        device,
+        id,
+        vote
+    }, fetchFn);
+function splitBoard(parts) {
+    const wire = (p)=>{
+        const w = {
+            id: p.id,
+            type: p.type,
+            x: Math.round(p.x * 10) / 10,
+            y: Math.round(p.y * 10) / 10,
+            angle: Math.round(p.angle * 10000) / 10000
+        };
+        if (p.w !== undefined) w.w = p.w;
+        if (p.h !== undefined) w.h = p.h;
+        if (p.flip) w.flip = true;
+        if (p.link) w.link = p.link.via !== undefined ? {
+            a: p.link.a,
+            b: p.link.b,
+            via: p.link.via
+        } : {
+            a: p.link.a,
+            b: p.link.b
+        };
+        return w;
+    };
+    const own = parts.filter((p)=>!p.locked);
+    return {
+        fixed: own.filter((p)=>p.fixed).map(wire),
+        solution: own.filter((p)=>!p.fixed).map(wire)
+    };
+}
+function pzLevelPart(p) {
+    const out = {
+        type: p.type,
+        x: p.x,
+        y: p.y,
+        key: String(p.id)
+    };
+    if (p.angle) out.angle = p.angle * 180 / Math.PI;
+    if (p.w !== undefined) out.w = p.w;
+    if (p.h !== undefined) out.h = p.h;
+    if (p.flip) out.flip = true;
+    if (p.link) out.link = {
+        a: String(p.link.a),
+        b: String(p.link.b),
+        ...p.link.via !== undefined ? {
+            via: String(p.link.via)
+        } : {}
+    };
+    return out;
+}
+function inventoryOf(solution) {
+    const inv = {};
+    for (const p of solution)inv[p.type] = (inv[p.type] ?? 0) + 1;
+    return inv;
+}
+const communityId = (id)=>`community-${id}`;
+function puzzleToLevel(p) {
+    const fixed = p.fixed.filter((w)=>Object.prototype.hasOwnProperty.call(PART_DEFS, w.type)).map(pzLevelPart);
+    const solution = p.solution?.filter((w)=>Object.prototype.hasOwnProperty.call(PART_DEFS, w.type)).map(pzLevelPart);
+    const rating = p.label ? ` Rated ${p.label}.` : '';
+    return {
+        id: communityId(p.id),
+        name: p.title,
+        goal: `Get the ball into the basket! A puzzle by ${p.creator}.${rating}`,
+        hasGoal: true,
+        fixed,
+        inventory: p.inventory ?? inventoryOf(p.solution ?? []),
+        solution,
+        science: {
+            topic: 'A community puzzle',
+            text: `${p.creator} made this puzzle. Look at what is fixed in place, then work out how to use the parts in your tray.`,
+            tryThis: 'Not sure where to start? Look at where the ball begins and where the basket is, then work backwards.',
+            learned: 'Another puzzle solved. Tell the maker what you thought with the thumbs below.'
+        },
+        community: {
+            id: p.id,
+            rev: p.rev,
+            creator: p.creator,
+            label: p.label ?? ''
+        }
+    };
+}
+function pzSimulate(parts) {
+    const sim = new Simulation();
+    sim.goalEnabled = true;
+    sim.goalTargets = [
+        'ball'
+    ];
+    sim.load(parts, true);
+    let steps = 0;
+    while(!sim.solved && !sim.failed && steps < PZ_STEPS){
+        sim.step();
+        steps++;
+    }
+    return {
+        solved: sim.solved,
+        seconds: steps / 60
+    };
+}
+function checkPuzzle(fixed, solution) {
+    if (!fixed.some((p)=>p.type === 'ball')) return {
+        ok: false,
+        problem: 'Place the ball and mark it as fixed (the 📌 Fix button), so players know what to get home.'
+    };
+    if (![
+        ...fixed,
+        ...solution
+    ].some((p)=>p.type === 'basket')) return {
+        ok: false,
+        problem: 'The puzzle needs a basket as its goal.'
+    };
+    if (solution.length === 0) return {
+        ok: false,
+        problem: 'Players need parts to build with. Leave some parts un-fixed: they become the tray.'
+    };
+    if (fixed.some((p)=>p.type === 'string' || p.type === 'rope')) return {
+        ok: false,
+        problem: 'Strings and ropes cannot be fixed. Players add them themselves.'
+    };
+    const level = puzzleToLevel({
+        id: 0,
+        title: 'x',
+        creator: 'x',
+        rev: 1,
+        fixed,
+        solution
+    });
+    let id = 1;
+    const nextId = ()=>id++;
+    const alone = pzSimulate(levelToParts(level, nextId));
+    if (alone.solved) return {
+        ok: false,
+        problem: 'The puzzle solves itself with nothing added. Make it need the parts.'
+    };
+    id = 1;
+    const withSolution = pzSimulate([
+        ...levelToParts(level, nextId),
+        ...solutionToParts(level, nextId)
+    ]);
+    if (!withSolution.solved) return {
+        ok: false,
+        problem: 'Your own parts do not get the ball into the basket within 30 seconds. Press Start and make it work first.'
+    };
+    return {
+        ok: true,
+        problem: ''
+    };
+}
+
+return { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle };
+})();
+
 // ---- game/tracker.ts ----
 const { TRACK_ENDPOINT, DEVICE_KEY, deviceId, disableTracking, track } = (() => {
 
@@ -7342,7 +7669,7 @@ class UI {
     setLevels(levels, current, _solved) {
         const l = levels[current];
         const sandbox = !l.hasGoal;
-        $('level-now-text').textContent = sandbox ? 'Campaign levels' : `Level ${current + 1} · ${l.name}`;
+        $('level-now-text').textContent = sandbox ? 'Campaign levels' : l.community ? `Community · ${l.name}` : `Level ${current + 1} · ${l.name}`;
         $('btn-campaign').classList.toggle('dim', sandbox);
         $('btn-sandbox').classList.toggle('active', sandbox);
     }
@@ -7839,6 +8166,7 @@ return { leftText, UI };
 
 
 
+
 const GRID = 10;
 const ROTATE_STEP = Math.PI / 12;
 const SOLVED_KEY = 'modern-tim:solved';
@@ -7869,9 +8197,11 @@ let showPaths = true;
 const previewParams = new URLSearchParams(window.location.search);
 const previewKey = previewParams.get('preview') ?? '';
 const previewSet = previewParams.get('set') ?? '';
-const previewing = previewKey !== '' && previewSet !== '' && applyLevelSet(previewSet);
+const previewPuzzle = Number(previewParams.get('puzzle') ?? 0) || 0;
+const previewSetOk = previewKey !== '' && previewSet !== '' && applyLevelSet(previewSet);
+const previewing = previewSetOk || previewKey !== '' && previewPuzzle > 0;
 if (previewing) disableTracking();
-else applyLevelSet(rememberedSet());
+if (!previewSetOk) applyLevelSet(rememberedSet());
 let solvedLevels = previewing ? new Set() : loadSolved();
 let player = loadPlayer();
 const allScores = previewing ? {} : loadScores();
@@ -7929,7 +8259,7 @@ const ui = new UI({
         e.target.releasePointerCapture?.(e.pointerId);
     },
     onToggleRun: ()=>playing ? stop() : start(),
-    onReset: ()=>loadLevel(levelIndex, false),
+    onReset: ()=>loadLevel(levelIndex, false, level.community ? level : undefined),
     onUndo: ()=>undo(),
     onRotate: (dir)=>rotate(dir),
     onFlip: ()=>flip(),
@@ -7987,6 +8317,10 @@ function captureBoardShot() {
     return '';
 }
 sim.onSolved = (info)=>{
+    if (level.community) {
+        onCommunitySolved();
+        return;
+    }
     solvedLevels.add(level.id);
     saveSolved();
     ui.setLevels(LEVELS, levelIndex, solvedLevels);
@@ -8114,7 +8448,7 @@ function refreshScores() {
     });
 }
 function loadCommunity() {
-    if (!level.hasGoal) return;
+    if (!level.hasGoal || level.community) return;
     const id = level.id;
     if (previewing) {
         community[id] = emptyBoard();
@@ -8484,11 +8818,11 @@ function updateToolbar() {
         fix: level.id === 'sandbox' && sel.type !== 'string' && sel.type !== 'rope' ? sel.fixed ? 'unfix' : 'fix' : null
     });
 }
-function loadLevel(index, restore) {
+function loadLevel(index, restore, custom) {
     const buildsDialog = document.getElementById('builds');
     if (buildsDialog) buildsDialog.hidden = true;
     levelIndex = index;
-    level = LEVELS[index];
+    level = custom ?? LEVELS[index];
     if (booted) track('level', player, level.id);
     resetHints();
     idCounter = 1;
@@ -8507,10 +8841,13 @@ function loadLevel(index, restore) {
     ui.setZoom(1);
     rebuild();
     persistSandbox();
-    ui.setLevels(LEVELS, levelIndex, solvedLevels);
+    ui.setLevels(custom ? [
+        custom
+    ] : LEVELS, custom ? 0 : levelIndex, solvedLevels);
     const buildsButton = document.getElementById('btn-builds');
     if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
-    ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
+    ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
+    setCommunityBits(!!custom);
     ui.setSolvedScores([]);
     refreshScores();
     loadCommunity();
@@ -9674,7 +10011,33 @@ function switchToLiveSet(set) {
     rememberSet(set);
     loadLevel(Math.max(0, LEVELS.findIndex((l)=>l.hasGoal && !solvedLevels.has(l.id))), true);
 }
-if (previewing) {
+if (previewing && previewPuzzle > 0) {
+    const bar = document.createElement('div');
+    bar.id = 'preview-bar';
+    bar.textContent = `PREVIEW: community puzzle ${previewPuzzle}. Nothing you do here is saved or sent.`;
+    const showSol = document.createElement('button');
+    showSol.className = 'btn';
+    showSol.type = 'button';
+    showSol.textContent = 'Show the creator\'s solution';
+    showSol.addEventListener('click', ()=>{
+        if (playing || !level.community) return;
+        parts.push(...solutionToParts(level, nextId));
+        rebuild();
+        refreshUI();
+    });
+    bar.appendChild(showSol);
+    document.body.prepend(bar);
+    void getPuzzle(previewPuzzle, {
+        key: previewKey,
+        version: previewParams.get('version') === 'draft' ? 'draft' : 'cur'
+    }).then((r)=>{
+        if (!r.ok) {
+            window.location.replace(window.location.pathname);
+            return;
+        }
+        loadLevel(levelIndex, false, puzzleToLevel(r.value));
+    });
+} else if (previewing) {
     const bar = document.createElement('div');
     bar.id = 'preview-bar';
     bar.textContent = `PREVIEW: next month's puzzles. Nothing you do here is saved or sent.`;
@@ -9919,6 +10282,263 @@ function closeBuilds() {
 buildsEl.addEventListener('keydown', (e)=>{
     e.stopPropagation();
     if (e.key === 'Escape') closeBuilds();
+});
+const cmEl = document.getElementById('community');
+const cmList = document.getElementById('cm-list');
+const cmMine = document.getElementById('cm-mine');
+const cmCount = document.getElementById('cm-count');
+const cmMsg = document.getElementById('cm-msg');
+const cmForm = document.getElementById('cm-form');
+const cmName = document.getElementById('cm-name');
+const cmPublish = document.getElementById('cm-publish');
+const cmEditing = document.getElementById('cm-editing');
+let editingPuzzle = null;
+let withdrawAsk = 0;
+function cmSay(text, bad = false) {
+    cmMsg.textContent = text;
+    cmMsg.classList.toggle('bad', bad);
+    cmMsg.hidden = !text;
+}
+function setCommunityBits(custom) {
+    const more = document.getElementById('btn-more');
+    const rate = document.getElementById('solved-rate');
+    if (more) more.hidden = !custom;
+    if (rate) rate.hidden = true;
+}
+function cmRow(main, meta) {
+    const li = document.createElement('li');
+    li.className = 'cm-row';
+    const left = document.createElement('div');
+    const b = document.createElement('b');
+    b.textContent = main;
+    const m = document.createElement('div');
+    m.className = 'cm-meta';
+    m.textContent = meta;
+    left.append(b, m);
+    const acts = document.createElement('div');
+    acts.className = 'cm-acts';
+    li.append(left, acts);
+    return {
+        li,
+        acts
+    };
+}
+function cmButton(label, fn, go = false) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = go ? 'btn btn-go' : 'btn';
+    b.textContent = label;
+    b.addEventListener('click', fn);
+    return b;
+}
+const STATUS_TEXT = {
+    pending: 'Waiting for approval',
+    live: 'Live',
+    'live-edit': 'Live (your edit is waiting)',
+    rejected: 'Not accepted'
+};
+async function renderCommunity() {
+    const dev = deviceId();
+    cmList.innerHTML = '';
+    cmMine.innerHTML = '';
+    const loading = document.createElement('li');
+    loading.className = 'builds-empty';
+    loading.textContent = 'Loading…';
+    cmList.appendChild(loading);
+    const [all, mine] = await Promise.all([
+        listPuzzles(dev),
+        myPuzzles(dev)
+    ]);
+    cmList.innerHTML = '';
+    if (!all.ok) {
+        cmSay(all.error, true);
+    } else if (!all.value.length) {
+        const li = document.createElement('li');
+        li.className = 'builds-empty';
+        li.textContent = 'No community puzzles yet. Be the first: build one in the Sandbox!';
+        cmList.appendChild(li);
+    } else {
+        for (const p of all.value){
+            const meta = `by ${p.creator}${p.label ? ` · ${p.label}` : ''} · 👍 ${p.up} 👎 ${p.down}${p.completed ? ' · ✅ solved' : ''}`;
+            const { li, acts } = cmRow(p.title, meta);
+            acts.appendChild(cmButton('Play', ()=>void playCommunityPuzzle(p.id), true));
+            cmList.appendChild(li);
+        }
+    }
+    const list = mine.ok ? mine.value : [];
+    cmCount.textContent = `(${list.filter((x)=>x.status !== 'rejected').length} of ${MAX_PUZZLES} used)`;
+    if (!list.length) {
+        const li = document.createElement('li');
+        li.className = 'builds-empty';
+        li.textContent = 'You have not published a puzzle yet.';
+        cmMine.appendChild(li);
+    }
+    for (const m of list){
+        const { li, acts } = cmRow(m.title || `Puzzle ${m.id}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
+        acts.appendChild(cmButton('Edit', ()=>editMyPuzzle(m)));
+        const w = cmButton(withdrawAsk === m.id ? 'Sure? Remove it' : 'Remove', ()=>{
+            if (withdrawAsk !== m.id) {
+                withdrawAsk = m.id;
+                void renderCommunity();
+                return;
+            }
+            withdrawAsk = 0;
+            void withdrawPuzzle(dev, m.id).then((r)=>{
+                cmSay(r.ok ? 'Removed.' : r.error, !r.ok);
+                void renderCommunity();
+            });
+        });
+        acts.appendChild(w);
+        cmMine.appendChild(li);
+    }
+}
+function openCommunity() {
+    withdrawAsk = 0;
+    cmSay('');
+    cmForm.hidden = level.id !== 'sandbox';
+    cmEditing.hidden = !editingPuzzle;
+    if (editingPuzzle) cmEditing.textContent = `Editing “${editingPuzzle.title}”. Publishing sends the new version for approval; the old one stays live until then.`;
+    cmEl.hidden = false;
+    void renderCommunity();
+}
+function closeCommunity() {
+    cmEl.hidden = true;
+}
+async function playCommunityPuzzle(id) {
+    cmSay('Opening…');
+    const r = await getPuzzle(id);
+    if (!r.ok) {
+        cmSay(r.error, true);
+        return;
+    }
+    closeCommunity();
+    loadLevel(levelIndex, false, puzzleToLevel(r.value));
+}
+function editMyPuzzle(m) {
+    const raw = [
+        ...m.fixed.map((p)=>({
+                ...p,
+                fixed: true
+            })),
+        ...m.solution
+    ];
+    const mineParts = importParts(raw);
+    loadLevel(sandboxIndex(), true);
+    pushUndo();
+    parts = [
+        ...parts.filter((p)=>p.locked),
+        ...mineParts
+    ];
+    changed();
+    editingPuzzle = {
+        id: m.id,
+        title: m.title
+    };
+    cmName.value = m.title;
+    closeCommunity();
+    ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
+}
+async function publishPuzzle() {
+    if (!player) {
+        cmSay('Choose a player name first (top right).', true);
+        return;
+    }
+    const dev = deviceId();
+    if (!dev) {
+        cmSay('This browser has no id yet. Reload the game and try again in a moment.', true);
+        return;
+    }
+    const { fixed, solution } = splitBoard(parts);
+    const check = checkPuzzle(fixed, solution);
+    if (!check.ok) {
+        cmSay(check.problem, true);
+        return;
+    }
+    const title = cmName.value.trim().slice(0, 28) || editingPuzzle?.title || '';
+    if (!title) {
+        cmSay('Give your puzzle a name.', true);
+        return;
+    }
+    cmPublish.disabled = true;
+    cmSay('Sending…');
+    const r = await submitPuzzle({
+        device: dev,
+        creator: player,
+        title,
+        fixed,
+        solution,
+        shot: captureBoardShot(),
+        id: editingPuzzle?.id
+    });
+    cmPublish.disabled = false;
+    if (!r.ok) {
+        cmSay(r.error, true);
+        return;
+    }
+    editingPuzzle = null;
+    cmEditing.hidden = true;
+    cmName.value = '';
+    cmSay('Sent! Your puzzle shows up for players once it has been approved.');
+    void renderCommunity();
+}
+function onCommunitySolved() {
+    ui.setStatus('Solved!', 'solved');
+    ui.setSolvedScores([]);
+    const c = level.community;
+    const rate = document.getElementById('solved-rate');
+    const msg = document.getElementById('rate-msg');
+    const up = document.getElementById('rate-up');
+    const down = document.getElementById('rate-down');
+    up.classList.remove('on');
+    down.classList.remove('on');
+    msg.textContent = '';
+    const dev = deviceId();
+    rate.hidden = previewing || !dev;
+    if (!previewing && dev) {
+        void completePuzzle(dev, c.id, c.rev).then((r)=>{
+            if (r.ok && level.community?.id === c.id) {
+                const v = Number(r.value.vote ?? 0);
+                up.classList.toggle('on', v === 1);
+                down.classList.toggle('on', v === -1);
+            } else if (!r.ok) {
+                msg.textContent = r.error;
+            }
+        });
+    }
+    playSound('success');
+    try {
+        burst(document.getElementById('confetti'));
+    } catch  {}
+    window.setTimeout(()=>{
+        if (playing && sim.solved) ui.showSolved(true);
+    }, 700);
+}
+function castVote(v) {
+    const c = level.community;
+    const dev = deviceId();
+    if (!c || !dev || previewing) return;
+    const msg = document.getElementById('rate-msg');
+    void votePuzzle(dev, c.id, v).then((r)=>{
+        if (!r.ok) {
+            msg.textContent = r.error;
+            return;
+        }
+        msg.textContent = 'Thanks!';
+        document.getElementById('rate-up')?.classList.toggle('on', v === 1);
+        document.getElementById('rate-down')?.classList.toggle('on', v === -1);
+    });
+}
+document.getElementById('btn-community')?.addEventListener('click', openCommunity);
+document.getElementById('cm-close')?.addEventListener('click', closeCommunity);
+document.getElementById('btn-more')?.addEventListener('click', openCommunity);
+document.getElementById('rate-up')?.addEventListener('click', ()=>castVote(1));
+document.getElementById('rate-down')?.addEventListener('click', ()=>castVote(-1));
+cmForm.addEventListener('submit', (e)=>{
+    e.preventDefault();
+    void publishPuzzle();
+});
+document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !cmEl.hidden) closeCommunity();
 });
 buildsBtn.addEventListener('click', openBuilds);
 document.getElementById('builds-close')?.addEventListener('click', closeBuilds);

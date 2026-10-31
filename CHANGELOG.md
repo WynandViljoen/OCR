@@ -1,5 +1,14 @@
 # Changelog
 
+## Modern TIM 0.4z
+
+Community puzzles: players publish puzzles from the Sandbox, the dashboard approves them, everyone can play.
+
+- **Publish.** In the Sandbox, 🔒 Fixed parts are the puzzle (the ball, the basket, the scenery) and every other part is the creator's solution, which becomes the player's tray. **🌍 Community → Publish** first checks that the puzzle solves with the solution, does not solve alone, has a fixed ball and a basket, then sends it with a screenshot. Each browser (by its device id, not the player name) may have 5 puzzles waiting or live. Edit or remove your own puzzles from the same window. Editing a live puzzle sends the new version for approval; the old one stays live until then.
+- **Community window.** Lists the approved puzzles in the order the admin chose, with the creator, the admin's difficulty label (Easy, Medium, Hard, Expert), thumbs and a tick for the ones you solved. Completion only: no stars and no scores. After solving, players can give a 👍 or 👎 (only after finishing it).
+- **Dashboard → Puzzles page.** Waiting, Live and Rejected lists. Each waiting puzzle shows the solution screenshot, a **▶ Play-test** link (opens the puzzle with the creator's solution available, nothing saved), a 1 to 10 difficulty box and Approve, or Reject with a reason the creator sees. Live puzzles can be re-rated, moved up, down, to the top or bottom (new approvals go to the end), or taken out of the game. Needs no new files: the puzzle server lives in `share.php`, data in `tim-data/puzzles.json` and `tim-data/puzzle-shots/`.
+- New check: `npm run check-puzzles`.
+
 ## Modern TIM 0.4y
 
 First step towards community puzzles (the Sandbox becoming a puzzle maker).

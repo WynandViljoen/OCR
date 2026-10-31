@@ -22,7 +22,8 @@
     "level-revs": "tsx scripts/level-revs.ts",
     "check-bundle": "node scripts/check-bundle.mjs",
     "check-failure": "tsx scripts/check-failure.ts",
-    "check-seasons": "node scripts/check-seasons.mjs"
+    "check-seasons": "node scripts/check-seasons.mjs",
+    "check-puzzles": "tsx scripts/check-puzzles.ts"
   },
   "dependencies": {
     "matter-js": "^0.20.0"

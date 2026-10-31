@@ -10,7 +10,10 @@
  *
  * Builds are kept as small JSON files in tim-data/shares/ (closed to the web by .htaccess).
  * Nothing the player sends is stored as is: the part list is rebuilt from known part types
- * and numbers only, so a link can never carry script or odd data. Limits: 64 KB per build,
+ * and numbers only, so a link can never carry script or odd data.
+ *
+ * The same file also serves the community puzzles (so the cron job needs no new file): see the "Community
+ * puzzles" section below. GET share.php?puzzle=list|get|mine, and POST bodies with an `action`. Limits: 64 KB per build,
  * 300 parts, 20 new links per hour per visitor (a salted hash of the address, never the
  * address itself), and 20000 links in total.
  */
@@ -37,6 +40,14 @@ const CODE_LENGTH = 8;
 const CODE_ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const DATA_DIR = __DIR__ . '/tim-data';
 const SHARE_DIR = DATA_DIR . '/shares';
+const MAX_PUZZLE_BODY = 400000;
+const MAX_PUZZLE_TITLE = 28;
+const MAX_PUZZLE_PARTS = 120;
+const MAX_PUZZLES_PER_DEVICE = 5;
+const MAX_PUZZLES_TOTAL = 3000;
+const MAX_PUZZLE_SHOT = 250000;
+const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
+const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 
 function fail(int $code, string $message) {
     http_response_code($code);
@@ -169,7 +180,317 @@ function rate_limited(): bool {
     return $limited;
 }
 
+
+// ---------------------------------------------------------------------------
+// Community puzzles
+//
+// A player builds a puzzle in the Sandbox (fixed parts + the parts of their own solution) and publishes it. It
+// waits in the admin dashboard (admin.php?view=puzzles) until it is approved. Players then see the puzzle's fixed
+// parts and a tray made from the solution's parts; the solution itself never leaves the server except to the
+// creator and to the admin's preview. One browser (its device id, not the name) has at most 5 puzzles that are
+// waiting or live; a rejected one does not count. Everything is kept in tim-data/puzzles.json:
+//   { next, order: [live ids, in the order players see them], puzzles: { id: record } }
+//   record: { id, device, creator, cur: version|null (live), draft: version|null (waiting), reason, difficulty,
+//             at, done: {device: time}, votes: {device: 1|-1} }
+//   version: { title, fixed: [part], solution: [part], shot, rev, at }
+// admin.php reads and writes the same file under the same lock.
+// ---------------------------------------------------------------------------
+
+function valid_device($d): bool {
+    return is_string($d) && preg_match('/^[a-f0-9]{16}\.[a-f0-9]{12}$/', $d) === 1;
+}
+
+/** Run $fn(&$db) with the puzzle file locked; the file is rewritten when $fn returns true. Returns $fn's result. */
+function puzzle_db(callable $fn, bool $write) {
+    ensure_dirs();
+    $fh = @fopen(PUZZLE_FILE, 'c+');
+    if (!$fh || !flock($fh, $write ? LOCK_EX : LOCK_SH)) fail(500, 'Puzzles cannot be read here.');
+    $raw = stream_get_contents($fh);
+    $db = $raw ? json_decode($raw, true) : null;
+    if (!is_array($db)) $db = [];
+    $db += ['next' => 1, 'order' => [], 'puzzles' => []];
+    if (!is_array($db['puzzles'])) $db['puzzles'] = [];
+    if (!is_array($db['order'])) $db['order'] = [];
+    $result = $fn($db);
+    if ($write && $result !== false && $result !== null && !(is_array($result) && isset($result['error']))) {
+        ftruncate($fh, 0);
+        rewind($fh);
+        fwrite($fh, json_encode($db, JSON_UNESCAPED_UNICODE));
+        fflush($fh);
+    }
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    return $result;
+}
+
+function difficulty_label($d): string {
+    if (!is_int($d) || $d < 1) return '';
+    if ($d <= 3) return 'Easy';
+    if ($d <= 6) return 'Medium';
+    if ($d <= 8) return 'Hard';
+    return 'Expert';
+}
+
+/** How many of each part type the player's tray holds: the creator's solution. */
+function puzzle_inventory(array $solution): array {
+    $inv = [];
+    foreach ($solution as $p) {
+        $t = (string) $p['type'];
+        $inv[$t] = ($inv[$t] ?? 0) + 1;
+    }
+    return $inv;
+}
+
+function puzzle_public(array $rec, string $device = ''): array {
+    $v = $rec['cur'];
+    $up = $down = 0;
+    foreach ((array) ($rec['votes'] ?? []) as $vote) {
+        if ($vote === 1) $up++;
+        elseif ($vote === -1) $down++;
+    }
+    $out = [
+        'id' => (int) $rec['id'],
+        'title' => (string) $v['title'],
+        'creator' => (string) $rec['creator'],
+        'rev' => (int) $v['rev'],
+        'difficulty' => is_int($rec['difficulty'] ?? null) ? $rec['difficulty'] : null,
+        'label' => difficulty_label($rec['difficulty'] ?? null),
+        'parts' => count($v['fixed']) + count($v['solution']),
+        'up' => $up,
+        'down' => $down,
+        'done' => count((array) ($rec['done'] ?? [])),
+    ];
+    if ($device !== '') {
+        $out['mine'] = isset($rec['device']) && $rec['device'] === $device;
+        $out['completed'] = isset($rec['done'][$device]);
+        $out['vote'] = (int) ($rec['votes'][$device] ?? 0);
+    }
+    return $out;
+}
+
+/** Everything a game needs to play one version (no solution, unless $withSolution). */
+function puzzle_play(array $rec, array $v, bool $withSolution): array {
+    $out = [
+        'id' => (int) $rec['id'],
+        'title' => (string) $v['title'],
+        'creator' => (string) $rec['creator'],
+        'rev' => (int) $v['rev'],
+        'difficulty' => is_int($rec['difficulty'] ?? null) ? $rec['difficulty'] : null,
+        'label' => difficulty_label($rec['difficulty'] ?? null),
+        'fixed' => $v['fixed'],
+        'inventory' => puzzle_inventory($v['solution']),
+    ];
+    if ($withSolution) $out['solution'] = $v['solution'];
+    return $out;
+}
+
+/** Check and rebuild the parts of a submitted puzzle. Returns [fixed, solution] or an error string. */
+function clean_puzzle_parts($fixedIn, $solutionIn) {
+    if (!is_array($fixedIn) || !is_array($solutionIn)) return 'The puzzle has no parts.';
+    if (count($fixedIn) < 1) return 'Fix at least one part: the ball and the basket are part of the puzzle.';
+    if (count($solutionIn) < 1) return 'The puzzle needs a solution: place the parts that solve it.';
+    if (count($fixedIn) + count($solutionIn) > MAX_PUZZLE_PARTS) return 'That is too many parts for one puzzle.';
+    $fixed = [];
+    $solution = [];
+    $ids = [];
+    foreach ([[$fixedIn, 'fixed'], [$solutionIn, 'solution']] as $pair) {
+        foreach ($pair[0] as $p) {
+            $c = clean_part($p);
+            if ($c === null) return 'The puzzle has a part that cannot be used.';
+            if (isset($ids[$c['id']])) return 'The puzzle has two parts with the same number.';
+            $ids[$c['id']] = true;
+            unset($c['fixed']);
+            if ($pair[1] === 'fixed') {
+                if ($c['type'] === 'string' || $c['type'] === 'rope') return 'Strings and ropes cannot be fixed: players add them themselves.';
+                $fixed[] = $c;
+            } else {
+                $solution[] = $c;
+            }
+        }
+    }
+    foreach (array_merge($fixed, $solution) as $c) {
+        if (isset($c['link'])) {
+            foreach (['a', 'b', 'via'] as $k) {
+                if (isset($c['link'][$k]) && !isset($ids[$c['link'][$k]])) return 'A string or rope joins a part that is not in the puzzle.';
+            }
+        }
+    }
+    $hasBall = false;
+    $hasBasket = false;
+    foreach ($fixed as $c) if ($c['type'] === 'ball') $hasBall = true;
+    foreach (array_merge($fixed, $solution) as $c) if ($c['type'] === 'basket') $hasBasket = true;
+    if (!$hasBall) return 'The puzzle needs a fixed ball: that is what the player has to get home.';
+    if (!$hasBasket) return 'The puzzle needs a basket as the goal.';
+    return [$fixed, $solution];
+}
+
+function save_puzzle_shot(string $dataUrl, int $id): string {
+    if (strncmp($dataUrl, 'data:image/jpeg;base64,', 23) !== 0) return '';
+    $bin = base64_decode(substr($dataUrl, 23), true);
+    if ($bin === false || strlen($bin) < 200 || strlen($bin) > MAX_PUZZLE_SHOT || strncmp($bin, "\xFF\xD8\xFF", 3) !== 0) return '';
+    if (!is_dir(PUZZLE_SHOT_DIR)) @mkdir(PUZZLE_SHOT_DIR, 0750, true);
+    $name = 'p' . $id . '-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(2)) . '.jpg';
+    if (@file_put_contents(PUZZLE_SHOT_DIR . '/' . $name, $bin) === false) return '';
+    return $name;
+}
+
+function drop_puzzle_shot($name) {
+    if (is_string($name) && preg_match('/^p[0-9]+-[0-9]{14}-[a-f0-9]{4}\.jpg$/', $name)) @unlink(PUZZLE_SHOT_DIR . '/' . $name);
+}
+
+function puzzle_preview_ok(): bool {
+    $p = DATA_DIR . '/preview.key';
+    $k = is_file($p) ? trim((string) @file_get_contents($p)) : '';
+    return $k !== '' && isset($_GET['preview']) && hash_equals($k, (string) $_GET['preview']);
+}
+
+function puzzle_get_api() {
+    $what = (string) $_GET['puzzle'];
+    $device = isset($_GET['device']) && valid_device($_GET['device']) ? (string) $_GET['device'] : '';
+    if ($what === 'list') {
+        $list = puzzle_db(function (&$db) use ($device) {
+            $out = [];
+            foreach ($db['order'] as $id) {
+                $rec = $db['puzzles'][$id] ?? null;
+                if (is_array($rec) && is_array($rec['cur'] ?? null)) $out[] = puzzle_public($rec, $device);
+            }
+            return $out;
+        }, false);
+        echo json_encode(['puzzles' => $list]);
+        exit;
+    }
+    if ($what === 'get') {
+        $id = (int) ($_GET['id'] ?? 0);
+        $preview = puzzle_preview_ok();
+        if (isset($_GET['preview']) && !$preview) fail(403, 'That preview link is not valid.');
+        $version = (string) ($_GET['version'] ?? 'cur');
+        $res = puzzle_db(function (&$db) use ($id, $preview, $version) {
+            $rec = $db['puzzles'][$id] ?? null;
+            if (!is_array($rec)) return null;
+            if ($preview) {
+                $v = $version === 'draft' ? ($rec['draft'] ?? null) : ($rec['cur'] ?? null);
+                return is_array($v) ? puzzle_play($rec, $v, true) : null;
+            }
+            return is_array($rec['cur'] ?? null) ? puzzle_play($rec, $rec['cur'], false) : null;
+        }, false);
+        if ($res === null) fail(404, 'That puzzle is not available.');
+        echo json_encode($res);
+        exit;
+    }
+    if ($what === 'mine') {
+        if ($device === '') fail(400, 'No device id yet.');
+        $res = puzzle_db(function (&$db) use ($device) {
+            $out = [];
+            foreach ($db['puzzles'] as $rec) {
+                if (!is_array($rec) || ($rec['device'] ?? '') !== $device) continue;
+                $v = is_array($rec['draft'] ?? null) ? $rec['draft'] : $rec['cur'];
+                if (!is_array($v)) {
+                    $v = ['title' => '', 'fixed' => [], 'solution' => []];
+                }
+                $status = is_array($rec['draft'] ?? null) ? (is_array($rec['cur'] ?? null) ? 'live-edit' : 'pending') : (is_array($rec['cur'] ?? null) ? 'live' : 'rejected');
+                $out[] = ['id' => (int) $rec['id'], 'status' => $status, 'reason' => (string) ($rec['reason'] ?? ''), 'title' => (string) $v['title'], 'fixed' => $v['fixed'], 'solution' => $v['solution'], 'difficulty' => $rec['difficulty'] ?? null];
+            }
+            return $out;
+        }, false);
+        echo json_encode(['puzzles' => $res, 'slots' => MAX_PUZZLES_PER_DEVICE]);
+        exit;
+    }
+    fail(400, 'Unknown request.');
+}
+
+function puzzle_post_api(array $in) {
+    $action = (string) $in['action'];
+    $device = $in['device'] ?? '';
+    if (!valid_device($device)) fail(400, 'This browser has no id yet. Reload the game and try again.');
+    $device = (string) $device;
+    $id = isset($in['id']) && is_int($in['id']) ? $in['id'] : 0;
+
+    if ($action === 'submit') {
+        $creator = clean_text($in['creator'] ?? '', MAX_AUTHOR);
+        if ($creator === '') fail(400, 'A player name is needed to publish.');
+        $title = clean_text($in['title'] ?? '', MAX_PUZZLE_TITLE);
+        if ($title === '') fail(400, 'Give the puzzle a name.');
+        $clean = clean_puzzle_parts($in['fixed'] ?? null, $in['solution'] ?? null);
+        if (is_string($clean)) fail(400, $clean);
+        if (rate_limited()) fail(429, 'You have sent a lot just now. Please wait a little and try again.');
+        $shotIn = is_string($in['shot'] ?? null) ? $in['shot'] : '';
+        $res = puzzle_db(function (&$db) use ($device, $creator, $title, $clean, $shotIn, $id) {
+            $mineCount = 0;
+            foreach ($db['puzzles'] as $rec) {
+                if (is_array($rec) && ($rec['device'] ?? '') === $device && $rec['id'] !== $id && (is_array($rec['cur'] ?? null) || is_array($rec['draft'] ?? null))) $mineCount++;
+            }
+            $rec = null;
+            if ($id > 0) {
+                $rec = $db['puzzles'][$id] ?? null;
+                if (!is_array($rec) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours.', 'code' => 403];
+            }
+            if ($mineCount >= MAX_PUZZLES_PER_DEVICE) return ['error' => 'You already have ' . MAX_PUZZLES_PER_DEVICE . ' puzzles waiting or live. Withdraw one to make room.', 'code' => 409];
+            if ($rec === null) {
+                if (count($db['puzzles']) >= MAX_PUZZLES_TOTAL) return ['error' => 'There is no room for more puzzles right now.', 'code' => 503];
+                $newId = (int) $db['next'];
+                $db['next'] = $newId + 1;
+                $rec = ['id' => $newId, 'device' => $device, 'creator' => $creator, 'cur' => null, 'draft' => null, 'reason' => '', 'difficulty' => null, 'at' => time(), 'done' => [], 'votes' => []];
+            } else {
+                drop_puzzle_shot($rec['draft']['shot'] ?? '');
+                $rec['creator'] = $creator;
+            }
+            $shot = save_puzzle_shot($shotIn, (int) $rec['id']);
+            $rev = (int) ($rec['cur']['rev'] ?? 0) + 1;
+            if (is_array($rec['draft'] ?? null)) $rev = max($rev, (int) $rec['draft']['rev']);
+            $rec['draft'] = ['title' => $title, 'fixed' => $clean[0], 'solution' => $clean[1], 'shot' => $shot, 'rev' => $rev, 'at' => time()];
+            $rec['reason'] = '';
+            $db['puzzles'][$rec['id']] = $rec;
+            return ['id' => (int) $rec['id'], 'status' => is_array($rec['cur'] ?? null) ? 'live-edit' : 'pending'];
+        }, true);
+        if (isset($res['error'])) fail((int) $res['code'], (string) $res['error']);
+        echo json_encode($res);
+        exit;
+    }
+
+    if ($action === 'withdraw') {
+        $res = puzzle_db(function (&$db) use ($device, $id) {
+            $rec = $db['puzzles'][$id] ?? null;
+            if (!is_array($rec) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours.', 'code' => 403];
+            drop_puzzle_shot($rec['draft']['shot'] ?? '');
+            drop_puzzle_shot($rec['cur']['shot'] ?? '');
+            unset($db['puzzles'][$id]);
+            $db['order'] = array_values(array_filter($db['order'], function ($x) use ($id) {
+                return $x !== $id;
+            }));
+            return ['ok' => true];
+        }, true);
+        if (isset($res['error'])) fail((int) $res['code'], (string) $res['error']);
+        echo json_encode($res);
+        exit;
+    }
+
+    if ($action === 'complete' || $action === 'vote') {
+        $rev = isset($in['rev']) && is_int($in['rev']) ? $in['rev'] : -1;
+        $vote = isset($in['vote']) && is_int($in['vote']) ? $in['vote'] : 0;
+        $res = puzzle_db(function (&$db) use ($device, $id, $action, $rev, $vote) {
+            $rec = $db['puzzles'][$id] ?? null;
+            if (!is_array($rec) || !is_array($rec['cur'] ?? null)) return ['error' => 'That puzzle is not available.', 'code' => 404];
+            if ($action === 'complete') {
+                if ($rev !== (int) $rec['cur']['rev']) return ['error' => 'This puzzle was changed. Reload it.', 'code' => 409];
+                if (count((array) $rec['done']) < 5000) $rec['done'][$device] = time();
+            } else {
+                if (!isset($rec['done'][$device])) return ['error' => 'Solve the puzzle first, then you can rate it.', 'code' => 403];
+                if ($vote !== 1 && $vote !== -1) return ['error' => 'Bad vote.', 'code' => 400];
+                $rec['votes'][$device] = $vote;
+            }
+            $db['puzzles'][$id] = $rec;
+            return puzzle_public($rec, $device);
+        }, true);
+        if (isset($res['error'])) fail((int) $res['code'], (string) $res['error']);
+        echo json_encode($res);
+        exit;
+    }
+    fail(400, 'Unknown request.');
+}
+
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+
+if ($method === 'GET' && isset($_GET['puzzle'])) puzzle_get_api();
 
 if ($method === 'GET') {
     $code = (string) ($_GET['c'] ?? '');
@@ -183,9 +504,11 @@ if ($method === 'GET') {
 
 if ($method !== 'POST') fail(405, 'Use GET or POST.');
 
-$body = file_get_contents('php://input', false, null, 0, MAX_BODY + 1);
-if ($body === false || strlen($body) > MAX_BODY) fail(413, 'That build is too big to share.');
+$body = file_get_contents('php://input', false, null, 0, MAX_PUZZLE_BODY + 1);
+if ($body === false || strlen($body) > MAX_PUZZLE_BODY) fail(413, 'That is too big to send.');
 $in = json_decode($body, true);
+if (is_array($in) && isset($in['action']) && is_string($in['action'])) puzzle_post_api($in);
+if (strlen($body) > MAX_BODY) fail(413, 'That build is too big to share.');
 if (!is_array($in) || !isset($in['parts']) || !is_array($in['parts'])) fail(400, 'Bad request.');
 if (count($in['parts']) < 1) fail(400, 'There is nothing on the board to share yet.');
 if (count($in['parts']) > MAX_PARTS) fail(400, 'Too many parts to share.');

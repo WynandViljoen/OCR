@@ -32,7 +32,9 @@ const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.4y';
+const ADMIN_BUILD = '0.4z';
+const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
+const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 const ONLINE_SECONDS = 300;
 const LOG_MAX_BYTES = 1500000;
 const MAX_BODY = 4096;
@@ -361,7 +363,7 @@ function page_head(string $title, bool $refresh = false) {
     header('X-Robots-Tag: noindex, nofollow');
     header('X-Frame-Options: DENY');
     $GLOBALS['tim_nonce'] = bin2hex(random_bytes(12));
-    header("Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-" . $GLOBALS['tim_nonce'] . "'; form-action 'self'; frame-ancestors 'none'");
+    header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'nonce-" . $GLOBALS['tim_nonce'] . "'; form-action 'self'; frame-ancestors 'none'");
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">';
     if ($refresh) {
         echo '<meta http-equiv="refresh" content="30">';
@@ -883,8 +885,196 @@ function scores_view() {
     echo $boardsHtml . $refusedHtml . $recordsHtml . $hall;
 }
 
+
+/** Lock puzzles.json (same file and lock as share.php), run $fn(&$db), save when it returns true. */
+function puzzles_edit(callable $fn): bool {
+    ensure_dir();
+    $fh = @fopen(PUZZLE_FILE, 'c+');
+    if (!$fh || !flock($fh, LOCK_EX)) return false;
+    $raw = stream_get_contents($fh);
+    $db = $raw ? json_decode($raw, true) : null;
+    if (!is_array($db)) $db = [];
+    $db += ['next' => 1, 'order' => [], 'puzzles' => []];
+    $changed = $fn($db);
+    if ($changed) {
+        ftruncate($fh, 0);
+        rewind($fh);
+        fwrite($fh, json_encode($db, JSON_UNESCAPED_UNICODE));
+        fflush($fh);
+    }
+    flock($fh, LOCK_UN);
+    fclose($fh);
+    return true;
+}
+
+function puzzles_read(): array {
+    $db = read_json('puzzles.json');
+    if (!isset($db['puzzles']) || !is_array($db['puzzles'])) $db['puzzles'] = [];
+    if (!isset($db['order']) || !is_array($db['order'])) $db['order'] = [];
+    return $db;
+}
+
+function puzzle_shot_file(string $name): string {
+    if (!preg_match('/^p[0-9]+-[0-9]{14}-[a-f0-9]{4}\.jpg$/', $name)) return '';
+    $p = PUZZLE_SHOT_DIR . '/' . $name;
+    return is_file($p) ? $p : '';
+}
+
+function puzzle_drop_shot($name) {
+    if (is_string($name) && puzzle_shot_file($name) !== '') @unlink(PUZZLE_SHOT_DIR . '/' . $name);
+}
+
+function puzzle_label($d): string {
+    if (!is_int($d) || $d < 1) return '-';
+    return $d . '/10 ' . ($d <= 3 ? 'Easy' : ($d <= 6 ? 'Medium' : ($d <= 8 ? 'Hard' : 'Expert')));
+}
+
+/** The dashboard's actions on community puzzles. */
+function puzzle_action(array $post) {
+    $do = (string) ($post['do'] ?? '');
+    $id = (int) ($post['id'] ?? 0);
+    $reason = trim(mb_substr((string) ($post['reason'] ?? ''), 0, 160));
+    $diff = (int) ($post['difficulty'] ?? 0);
+    puzzles_edit(function (&$db) use ($do, $id, $reason, $diff) {
+        $rec = $db['puzzles'][$id] ?? null;
+        if (!is_array($rec)) return false;
+        if ($do === 'p_rate') {
+            $db['puzzles'][$id]['difficulty'] = ($diff >= 1 && $diff <= 10) ? $diff : null;
+            return true;
+        }
+        if ($do === 'p_approve' && is_array($rec['draft'] ?? null)) {
+            puzzle_drop_shot($rec['cur']['shot'] ?? '');
+            $rec['cur'] = $rec['draft'];
+            $rec['draft'] = null;
+            $rec['reason'] = '';
+            // A new rating comes with the approval if the box was filled in.
+            if ($diff >= 1 && $diff <= 10) $rec['difficulty'] = $diff;
+            $db['puzzles'][$id] = $rec;
+            if (!in_array($id, $db['order'], true)) $db['order'][] = $id;
+            return true;
+        }
+        if ($do === 'p_reject' && is_array($rec['draft'] ?? null)) {
+            puzzle_drop_shot($rec['draft']['shot'] ?? '');
+            $rec['draft'] = null;
+            $rec['reason'] = $reason !== '' ? $reason : 'Not accepted this time.';
+            $db['puzzles'][$id] = $rec;
+            return true;
+        }
+        if ($do === 'p_pull' && is_array($rec['cur'] ?? null)) {
+            // Take a live puzzle out of the game; the creator sees it as rejected and can edit and resubmit.
+            $rec['draft'] = is_array($rec['draft'] ?? null) ? $rec['draft'] : $rec['cur'];
+            if ($rec['draft'] === $rec['cur']) {
+                $rec['cur'] = null;
+                $rec['draft'] = null;
+                $rec['reason'] = $reason !== '' ? $reason : 'Taken out of the game.';
+            } else {
+                puzzle_drop_shot($rec['cur']['shot'] ?? '');
+                $rec['cur'] = null;
+                $rec['reason'] = '';
+            }
+            $db['puzzles'][$id] = $rec;
+            $db['order'] = array_values(array_filter($db['order'], function ($x) use ($id) {
+                return $x !== $id;
+            }));
+            return true;
+        }
+        if ($do === 'p_delete') {
+            puzzle_drop_shot($rec['cur']['shot'] ?? '');
+            puzzle_drop_shot($rec['draft']['shot'] ?? '');
+            unset($db['puzzles'][$id]);
+            $db['order'] = array_values(array_filter($db['order'], function ($x) use ($id) {
+                return $x !== $id;
+            }));
+            return true;
+        }
+        if ($do === 'p_up' || $do === 'p_down' || $do === 'p_top' || $do === 'p_bottom') {
+            $i = array_search($id, $db['order'], true);
+            if ($i === false) return false;
+            $o = $db['order'];
+            array_splice($o, $i, 1);
+            $to = $do === 'p_up' ? max(0, $i - 1) : ($do === 'p_down' ? min(count($o), $i + 1) : ($do === 'p_top' ? 0 : count($o)));
+            array_splice($o, $to, 0, [$id]);
+            $db['order'] = $o;
+            return true;
+        }
+        return false;
+    });
+}
+
+function puzzle_card(array $rec, array $v, string $kind, int $pos, int $total) {
+    $id = (int) $rec['id'];
+    $key = preview_key();
+    $csrf = h($_SESSION['csrf']);
+    $thumb = puzzle_shot_file((string) ($v['shot'] ?? '')) !== ''
+        ? '<a href="admin.php?pshot=' . h($v['shot']) . '" target="_blank" rel="noopener"><img src="admin.php?pshot=' . h($v['shot']) . '" alt="Solution" style="width:240px;max-width:100%;border-radius:8px;border:1px solid var(--line)"></a>'
+        : '<span class="mute">no screenshot</span>';
+    $form = function ($do, $label, $extra = '') use ($id, $csrf) {
+        return '<form method="post" action="admin.php" style="display:inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '"><button name="do" value="' . $do . '">' . $label . '</button>' . $extra . '</form> ';
+    };
+    $rate = '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
+        . '<label>Difficulty <select name="difficulty"><option value="0">-</option>';
+    for ($d = 1; $d <= 10; $d++) $rate .= '<option value="' . $d . '"' . (($rec['difficulty'] ?? null) === $d ? ' selected' : '') . '>' . $d . '</option>';
+    $rate .= '</select></label>';
+    $actions = '';
+    $ver = $kind === 'draft' ? 'draft' : 'cur';
+    $play = $key !== '' ? '<a class="btn" target="_blank" rel="noopener" href="./?preview=' . h($key) . '&amp;puzzle=' . $id . '&amp;version=' . $ver . '">&#9654; Play-test</a> ' : '';
+    if ($kind === 'draft') {
+        $actions = $rate . ' <button name="do" value="p_approve">Approve</button></form> '
+            . '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
+            . '<input type="text" name="reason" maxlength="160" placeholder="Reason shown to the creator"><button name="do" value="p_reject">Reject</button></form>';
+    } else {
+        $actions = $rate . ' <button name="do" value="p_rate">Save</button></form> '
+            . $form('p_up', '&#9650;') . $form('p_down', '&#9660;') . $form('p_top', 'Top') . $form('p_bottom', 'Bottom')
+            . '<form method="post" action="admin.php" class="inline"><input type="hidden" name="csrf" value="' . $csrf . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . $id . '">'
+            . '<input type="text" name="reason" maxlength="160" placeholder="Reason (optional)"><button name="do" value="p_pull">Take out of game</button></form>';
+    }
+    echo '<div class="card" style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px"><div>' . $thumb . '</div><div style="flex:1;min-width:260px">'
+        . '<b style="font-size:17px">' . ($kind === 'cur' ? '#' . ($pos + 1) . ' ' : '') . h($v['title'] ?? '') . '</b> <span class="mute">by ' . h($rec['creator'] ?? '') . ' &middot; puzzle ' . $id . ' &middot; version ' . (int) ($v['rev'] ?? 1) . '</span><br>'
+        . '<span class="mute">' . count($v['fixed'] ?? []) . ' fixed parts, ' . count($v['solution'] ?? []) . ' parts in the tray &middot; sent ' . h(fmt_time((int) ($v['at'] ?? 0))) . '</span>';
+    if ($kind === 'cur') {
+        $up = $down = 0;
+        foreach ((array) ($rec['votes'] ?? []) as $x) { if ($x === 1) $up++; elseif ($x === -1) $down++; }
+        echo '<br>Rating: ' . h(puzzle_label($rec['difficulty'] ?? null)) . ' &middot; solved by ' . count((array) ($rec['done'] ?? [])) . ' &middot; &#128077; ' . $up . ' &#128078; ' . $down;
+        if (is_array($rec['draft'] ?? null)) echo '<br><b>An edit is waiting for approval below.</b> The old version stays live until then.';
+    }
+    echo '<div style="margin-top:8px">' . $play . '</div><div style="margin-top:8px">' . $actions . '</div>'
+        . '<div style="margin-top:6px">' . $form('p_delete', 'Delete for good') . '</div></div></div>';
+}
+
+function puzzles_view() {
+    $db = puzzles_read();
+    $waiting = $live = $rejected = [];
+    foreach ($db['puzzles'] as $rec) {
+        if (!is_array($rec)) continue;
+        if (is_array($rec['draft'] ?? null)) $waiting[] = $rec;
+        if (!is_array($rec['cur'] ?? null) && !is_array($rec['draft'] ?? null)) $rejected[] = $rec;
+    }
+    usort($waiting, function ($a, $b) {
+        return ($a['draft']['at'] ?? 0) <=> ($b['draft']['at'] ?? 0);
+    });
+    foreach ($db['order'] as $id) {
+        if (isset($db['puzzles'][$id]) && is_array($db['puzzles'][$id]['cur'] ?? null)) $live[] = $db['puzzles'][$id];
+    }
+    echo '<div class="cards" style="margin-top:12px"><div class="card"><b>' . count($waiting) . '</b><span>waiting for approval</span></div>'
+        . '<div class="card"><b>' . count($live) . '</b><span>live in the game</span></div>'
+        . '<div class="card"><b>' . count($rejected) . '</b><span>rejected or taken out</span></div></div>';
+    echo '<p class="mute">Players publish up to 5 puzzles each. New puzzles and every edit wait here first. &ldquo;Play-test&rdquo; opens the puzzle in the game with the creator&rsquo;s solution available; nothing you do there is saved. Keep those links private.</p>';
+    echo '<h2>Waiting for approval</h2>';
+    if (!$waiting) echo '<p class="mute">Nothing is waiting.</p>';
+    foreach ($waiting as $rec) puzzle_card($rec, $rec['draft'], 'draft', 0, 0);
+    echo '<h2>Live (the order players see)</h2>';
+    if (!$live) echo '<p class="mute">No community puzzle is live yet.</p>';
+    foreach ($live as $i => $rec) puzzle_card($rec, $rec['cur'], 'cur', $i, count($live));
+    echo '<h2>Rejected or taken out</h2>';
+    if (!$rejected) echo '<p class="mute">None.</p>';
+    foreach ($rejected as $rec) {
+        echo '<div class="card" style="margin-bottom:8px"><b>Puzzle ' . (int) $rec['id'] . '</b> by ' . h($rec['creator'] ?? '') . ' <span class="mute">&mdash; ' . h($rec['reason'] ?? '') . '</span> '
+            . '<form method="post" action="admin.php" style="display:inline"><input type="hidden" name="csrf" value="' . h($_SESSION['csrf']) . '"><input type="hidden" name="view" value="puzzles"><input type="hidden" name="id" value="' . (int) $rec['id'] . '"><button name="do" value="p_delete">Delete for good</button></form></div>';
+    }
+}
+
 function dashboard() {
-    $view = in_array($_GET['view'] ?? '', ['players', 'levels', 'scores', 'log'], true) ? $_GET['view'] : 'players';
+    $view = in_array($_GET['view'] ?? '', ['players', 'levels', 'scores', 'puzzles', 'log'], true) ? $_GET['view'] : 'players';
     $auto = !empty($_GET['auto']);
     $players = read_json('players.json');
     $now = time();
@@ -905,7 +1095,7 @@ function dashboard() {
     $stamp->setTimezone(new DateTimeZone(DISPLAY_TZ));
     echo '<main><header><h1>Modern TIM admin</h1><div class="stamp"><span id="clock" class="mono"></span><br><span class="mute">Page built ' . h($stamp->format('H:i:s T')) . '</span><br><span class="mute">Dashboard v' . h(ADMIN_BUILD) . '</span></div><nav>';
     echo '<a class="btn" href="' . h($_SERVER['REQUEST_URI'] ?? 'admin.php') . '" title="Load the newest data">&#8635; Refresh</a>';
-    foreach (['players' => 'Players', 'levels' => 'Levels', 'scores' => 'High scores', 'log' => 'Log'] as $k => $label) {
+    foreach (['players' => 'Players', 'levels' => 'Levels', 'scores' => 'High scores', 'puzzles' => 'Puzzles', 'log' => 'Log'] as $k => $label) {
         echo '<a class="' . ($view === $k ? 'on' : '') . '" href="admin.php?view=' . $k . ($auto ? '&amp;auto=1' : '') . '">' . $label . '</a>';
     }
     echo '<a href="admin.php?view=' . h($view) . ($auto ? '' : '&amp;auto=1') . '">' . ($auto ? 'Auto-refresh: on' : 'Auto-refresh: off') . '</a>'
@@ -975,6 +1165,8 @@ function dashboard() {
         }
         if (!$lv) echo '<tr><td colspan="7" class="mute">No level activity yet.</td></tr>';
         echo '</table></div><p class="mute">Many "Start pressed" with few solves means a level is hard or confusing.</p>';
+    } elseif ($view === 'puzzles') {
+        puzzles_view();
     } elseif ($view === 'scores') {
         scores_view();
     } else {
@@ -1070,6 +1262,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
         login_page('Your session was lost before you signed in. Reload this page and try again (the connection check below shows why).');
         exit;
     }
+    if ($ok && is_admin() && strncmp((string) $do, 'p_', 2) === 0) {
+        puzzle_action($_POST);
+        header('Location: admin.php?view=puzzles');
+        exit;
+    }
     header('Location: admin.php');
     exit;
 }
@@ -1081,6 +1278,19 @@ if (!is_admin()) {
     } else {
         login_page('');
     }
+    exit;
+}
+
+if (isset($_GET['pshot'])) {
+    $p = puzzle_shot_file((string) $_GET['pshot']);
+    if ($p === '') {
+        http_response_code(404);
+        exit;
+    }
+    no_cache_headers();
+    header('Content-Type: image/jpeg');
+    header('Content-Length: ' . filesize($p));
+    readfile($p);
     exit;
 }
 

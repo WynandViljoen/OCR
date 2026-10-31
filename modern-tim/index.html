@@ -38,6 +38,7 @@
             </div>
           </div>
           <button id="btn-sandbox" class="btn" type="button" title="Free build, no goal"><span aria-hidden="true">🛠️</span> <span class="lbl">Sandbox</span></button>
+          <button id="btn-community" class="btn" type="button" title="Play puzzles made by other players, or publish your own"><span aria-hidden="true">🌍</span> <span class="lbl">Community</span></button>
         </nav>
         <div class="controls">
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
@@ -113,9 +114,16 @@
                   <h2>Solved!</h2>
                   <p id="solved-learned" class="solved-learned"></p>
                   <ul id="solved-scores" class="solved-scores" aria-label="Your scores" hidden></ul>
+                  <div id="solved-rate" class="solved-rate" hidden>
+                    <span>Did you like this puzzle?</span>
+                    <button id="rate-up" class="btn" type="button" aria-label="Thumbs up">👍</button>
+                    <button id="rate-down" class="btn" type="button" aria-label="Thumbs down">👎</button>
+                    <span id="rate-msg" role="status"></span>
+                  </div>
                   <div class="solved-actions">
                     <button id="btn-replay" class="btn" type="button">Keep tinkering</button>
                     <button id="btn-next" class="btn btn-go" type="button">Next level ▶</button>
+                    <button id="btn-more" class="btn btn-go" type="button" hidden>More community puzzles ▶</button>
                   </div>
                 </div>
               </div>
@@ -192,6 +200,28 @@
         <div class="gate-actions">
           <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
           <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="community" class="gate" role="dialog" aria-modal="true" aria-labelledby="community-title" hidden>
+      <div class="gate-card builds-card">
+        <h2 id="community-title">Community puzzles</h2>
+        <p class="builds-sub">Puzzles made by players. Solve them for fun: no stars here, just a thumbs up or down when you finish.</p>
+        <p id="cm-msg" class="builds-msg" role="status" hidden></p>
+        <ul id="cm-list" class="builds-list"></ul>
+        <h3 class="cm-head">My puzzles <span id="cm-count"></span></h3>
+        <ul id="cm-mine" class="builds-list"></ul>
+        <form id="cm-form" class="cm-form" novalidate hidden>
+          <p class="builds-sub">Publish what is on the Sandbox board. 📌 Fixed parts are the puzzle; every other part becomes the player&rsquo;s tray (it must solve it). The dashboard approves it before anyone sees it.</p>
+          <div class="builds-save">
+            <label class="sr-only" for="cm-name">Puzzle name</label>
+            <input id="cm-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
+            <button id="cm-publish" class="btn btn-go" type="submit">Publish</button>
+          </div>
+          <p id="cm-editing" class="builds-sub" hidden></p>
+        </form>
+        <div class="gate-actions">
+          <button id="cm-close" class="btn btn-go" type="button">Close</button>
         </div>
       </div>
     </div>

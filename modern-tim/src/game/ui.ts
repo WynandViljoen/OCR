@@ -149,7 +149,7 @@ export class UI {
   setLevels(levels: Level[], current: number, _solved: Set<string>) {
     const l = levels[current];
     const sandbox = !l.hasGoal;
-    $('level-now-text').textContent = sandbox ? 'Campaign levels' : `Level ${current + 1} · ${l.name}`;
+    $('level-now-text').textContent = sandbox ? 'Campaign levels' : l.community ? `Community · ${l.name}` : `Level ${current + 1} · ${l.name}`;
     $('btn-campaign').classList.toggle('dim', sandbox);
     $('btn-sandbox').classList.toggle('active', sandbox);
   }

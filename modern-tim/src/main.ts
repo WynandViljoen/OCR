@@ -17,7 +17,8 @@ import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
 import { findFreeSpot, overlapsAny } from './game/space';
 import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState, drawFixedMark } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
-import { track, disableTracking } from './game/tracker';
+import { track, disableTracking, deviceId } from './game/tracker';
+import { MAX_PUZZLES, checkPuzzle, completePuzzle, getPuzzle, listPuzzles, myPuzzles, puzzleToLevel, splitBoard, submitPuzzle, votePuzzle, withdrawPuzzle, type MyPuzzle, type PuzzleSummary, type WirePart } from './game/puzzles';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
@@ -79,9 +80,11 @@ let showPaths = true;
 const previewParams = new URLSearchParams(window.location.search);
 const previewKey = previewParams.get('preview') ?? '';
 const previewSet = previewParams.get('set') ?? '';
-const previewing = previewKey !== '' && previewSet !== '' && applyLevelSet(previewSet);
+const previewPuzzle = Number(previewParams.get('puzzle') ?? 0) || 0;
+const previewSetOk = previewKey !== '' && previewSet !== '' && applyLevelSet(previewSet);
+const previewing = previewSetOk || (previewKey !== '' && previewPuzzle > 0);
 if (previewing) disableTracking();
-else applyLevelSet(rememberedSet());
+if (!previewSetOk) applyLevelSet(rememberedSet());
 let solvedLevels = previewing ? new Set<string>() : loadSolved();
 /** Who is playing (asked on the first visit, then remembered) and everyone's best runs on this device. */
 let player = loadPlayer();
@@ -140,7 +143,7 @@ const ui = new UI({
     (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
   },
   onToggleRun: () => (playing ? stop() : start()),
-  onReset: () => loadLevel(levelIndex, false),
+  onReset: () => loadLevel(levelIndex, false, level.community ? level : undefined),
   onUndo: () => undo(),
   onRotate: (dir) => rotate(dir),
   onFlip: () => flip(),
@@ -197,6 +200,10 @@ function captureBoardShot(): string {
 }
 
 sim.onSolved = (info) => {
+  if (level.community) {
+    onCommunitySolved();
+    return;
+  }
   solvedLevels.add(level.id);
   saveSolved();
   ui.setLevels(LEVELS, levelIndex, solvedLevels);
@@ -325,7 +332,7 @@ function refreshScores() {
 
 /** Fetch the shared board for the level on screen. */
 function loadCommunity() {
-  if (!level.hasGoal) return;
+  if (!level.hasGoal || level.community) return;
   const id = level.id;
   if (previewing) {
     community[id] = emptyBoard();
@@ -719,11 +726,11 @@ function updateToolbar() {
 // ---------------------------------------------------------------------------
 
 /** `restore` brings back a saved sandbox build; Reset passes false to clear it. */
-function loadLevel(index: number, restore: boolean) {
+function loadLevel(index: number, restore: boolean, custom?: Level) {
   const buildsDialog = document.getElementById('builds');
   if (buildsDialog) buildsDialog.hidden = true;
   levelIndex = index;
-  level = LEVELS[index];
+  level = custom ?? LEVELS[index];
   if (booted) track('level', player, level.id);
   resetHints();
   idCounter = 1;
@@ -744,10 +751,11 @@ function loadLevel(index: number, restore: boolean) {
   rebuild();
   persistSandbox();
 
-  ui.setLevels(LEVELS, levelIndex, solvedLevels);
+  ui.setLevels(custom ? [custom] : LEVELS, custom ? 0 : levelIndex, solvedLevels);
   const buildsButton = document.getElementById('btn-builds');
   if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
-  ui.setLevelInfo(level, levelIndex < LEVELS.length - 1);
+  ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
+  setCommunityBits(!!custom);
   ui.setSolvedScores([]);
   refreshScores();
   loadCommunity();
@@ -1842,7 +1850,31 @@ function switchToLiveSet(set: string) {
   loadLevel(Math.max(0, LEVELS.findIndex((l) => l.hasGoal && !solvedLevels.has(l.id))), true);
 }
 
-if (previewing) {
+if (previewing && previewPuzzle > 0) {
+  // The admin plays a community puzzle from the dashboard, with the creator's solution on demand.
+  const bar = document.createElement('div');
+  bar.id = 'preview-bar';
+  bar.textContent = `PREVIEW: community puzzle ${previewPuzzle}. Nothing you do here is saved or sent.`;
+  const showSol = document.createElement('button');
+  showSol.className = 'btn';
+  showSol.type = 'button';
+  showSol.textContent = 'Show the creator\'s solution';
+  showSol.addEventListener('click', () => {
+    if (playing || !level.community) return;
+    parts.push(...solutionToParts(level, nextId));
+    rebuild();
+    refreshUI();
+  });
+  bar.appendChild(showSol);
+  document.body.prepend(bar);
+  void getPuzzle(previewPuzzle, { key: previewKey, version: previewParams.get('version') === 'draft' ? 'draft' : 'cur' }).then((r) => {
+    if (!r.ok) {
+      window.location.replace(window.location.pathname);
+      return;
+    }
+    loadLevel(levelIndex, false, puzzleToLevel(r.value));
+  });
+} else if (previewing) {
   // Show a banner at once; if the server does not recognise the link, go back to the normal game.
   const bar = document.createElement('div');
   bar.id = 'preview-bar';
@@ -2099,6 +2131,255 @@ buildsEl.addEventListener('keydown', (e) => {
   e.stopPropagation();
   if (e.key === 'Escape') closeBuilds();
 });
+
+// ---------------------------------------------------------------------------
+// Community puzzles: publish from the Sandbox, play, rate.
+// ---------------------------------------------------------------------------
+const cmEl = document.getElementById('community') as HTMLElement;
+const cmList = document.getElementById('cm-list') as HTMLElement;
+const cmMine = document.getElementById('cm-mine') as HTMLElement;
+const cmCount = document.getElementById('cm-count') as HTMLElement;
+const cmMsg = document.getElementById('cm-msg') as HTMLElement;
+const cmForm = document.getElementById('cm-form') as HTMLFormElement;
+const cmName = document.getElementById('cm-name') as HTMLInputElement;
+const cmPublish = document.getElementById('cm-publish') as HTMLButtonElement;
+const cmEditing = document.getElementById('cm-editing') as HTMLElement;
+let editingPuzzle: { id: number; title: string } | null = null;
+let withdrawAsk = 0;
+
+function cmSay(text: string, bad = false) {
+  cmMsg.textContent = text;
+  cmMsg.classList.toggle('bad', bad);
+  cmMsg.hidden = !text;
+}
+
+/** Community levels have no "Next level"; they get a way back to the list and a rating row instead. */
+function setCommunityBits(custom: boolean) {
+  const more = document.getElementById('btn-more');
+  const rate = document.getElementById('solved-rate');
+  if (more) more.hidden = !custom;
+  if (rate) rate.hidden = true;
+}
+
+function cmRow(main: string, meta: string): { li: HTMLElement; acts: HTMLElement } {
+  const li = document.createElement('li');
+  li.className = 'cm-row';
+  const left = document.createElement('div');
+  const b = document.createElement('b');
+  b.textContent = main;
+  const m = document.createElement('div');
+  m.className = 'cm-meta';
+  m.textContent = meta;
+  left.append(b, m);
+  const acts = document.createElement('div');
+  acts.className = 'cm-acts';
+  li.append(left, acts);
+  return { li, acts };
+}
+
+function cmButton(label: string, fn: () => void, go = false): HTMLButtonElement {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = go ? 'btn btn-go' : 'btn';
+  b.textContent = label;
+  b.addEventListener('click', fn);
+  return b;
+}
+
+const STATUS_TEXT: Record<string, string> = { pending: 'Waiting for approval', live: 'Live', 'live-edit': 'Live (your edit is waiting)', rejected: 'Not accepted' };
+
+async function renderCommunity() {
+  const dev = deviceId();
+  cmList.innerHTML = '';
+  cmMine.innerHTML = '';
+  const loading = document.createElement('li');
+  loading.className = 'builds-empty';
+  loading.textContent = 'Loading…';
+  cmList.appendChild(loading);
+  const [all, mine] = await Promise.all([listPuzzles(dev), myPuzzles(dev)]);
+  cmList.innerHTML = '';
+  if (!all.ok) {
+    cmSay(all.error, true);
+  } else if (!all.value.length) {
+    const li = document.createElement('li');
+    li.className = 'builds-empty';
+    li.textContent = 'No community puzzles yet. Be the first: build one in the Sandbox!';
+    cmList.appendChild(li);
+  } else {
+    for (const p of all.value as PuzzleSummary[]) {
+      const meta = `by ${p.creator}${p.label ? ` · ${p.label}` : ''} · 👍 ${p.up} 👎 ${p.down}${p.completed ? ' · ✅ solved' : ''}`;
+      const { li, acts } = cmRow(p.title, meta);
+      acts.appendChild(cmButton('Play', () => void playCommunityPuzzle(p.id), true));
+      cmList.appendChild(li);
+    }
+  }
+  const list: MyPuzzle[] = mine.ok ? mine.value : [];
+  cmCount.textContent = `(${list.filter((x) => x.status !== 'rejected').length} of ${MAX_PUZZLES} used)`;
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'builds-empty';
+    li.textContent = 'You have not published a puzzle yet.';
+    cmMine.appendChild(li);
+  }
+  for (const m of list) {
+    const { li, acts } = cmRow(m.title || `Puzzle ${m.id}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
+    acts.appendChild(cmButton('Edit', () => editMyPuzzle(m)));
+    const w = cmButton(withdrawAsk === m.id ? 'Sure? Remove it' : 'Remove', () => {
+      if (withdrawAsk !== m.id) {
+        withdrawAsk = m.id;
+        void renderCommunity();
+        return;
+      }
+      withdrawAsk = 0;
+      void withdrawPuzzle(dev, m.id).then((r) => {
+        cmSay(r.ok ? 'Removed.' : r.error, !r.ok);
+        void renderCommunity();
+      });
+    });
+    acts.appendChild(w);
+    cmMine.appendChild(li);
+  }
+}
+
+function openCommunity() {
+  withdrawAsk = 0;
+  cmSay('');
+  cmForm.hidden = level.id !== 'sandbox';
+  cmEditing.hidden = !editingPuzzle;
+  if (editingPuzzle) cmEditing.textContent = `Editing “${editingPuzzle.title}”. Publishing sends the new version for approval; the old one stays live until then.`;
+  cmEl.hidden = false;
+  void renderCommunity();
+}
+
+function closeCommunity() {
+  cmEl.hidden = true;
+}
+
+async function playCommunityPuzzle(id: number) {
+  cmSay('Opening…');
+  const r = await getPuzzle(id);
+  if (!r.ok) {
+    cmSay(r.error, true);
+    return;
+  }
+  closeCommunity();
+  loadLevel(levelIndex, false, puzzleToLevel(r.value));
+}
+
+/** Bring one of your puzzles back into the Sandbox: the fixed parts keep their pin, the rest is your solution. */
+function editMyPuzzle(m: MyPuzzle) {
+  const raw = [...m.fixed.map((p: WirePart) => ({ ...p, fixed: true })), ...m.solution];
+  const mineParts = importParts(raw);
+  loadLevel(sandboxIndex(), true);
+  pushUndo();
+  parts = [...parts.filter((p) => p.locked), ...mineParts];
+  changed();
+  editingPuzzle = { id: m.id, title: m.title };
+  cmName.value = m.title;
+  closeCommunity();
+  ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
+}
+
+async function publishPuzzle() {
+  if (!player) {
+    cmSay('Choose a player name first (top right).', true);
+    return;
+  }
+  const dev = deviceId();
+  if (!dev) {
+    cmSay('This browser has no id yet. Reload the game and try again in a moment.', true);
+    return;
+  }
+  const { fixed, solution } = splitBoard(parts);
+  const check = checkPuzzle(fixed, solution);
+  if (!check.ok) {
+    cmSay(check.problem, true);
+    return;
+  }
+  const title = cmName.value.trim().slice(0, 28) || editingPuzzle?.title || '';
+  if (!title) {
+    cmSay('Give your puzzle a name.', true);
+    return;
+  }
+  cmPublish.disabled = true;
+  cmSay('Sending…');
+  const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), id: editingPuzzle?.id });
+  cmPublish.disabled = false;
+  if (!r.ok) {
+    cmSay(r.error, true);
+    return;
+  }
+  editingPuzzle = null;
+  cmEditing.hidden = true;
+  cmName.value = '';
+  cmSay('Sent! Your puzzle shows up for players once it has been approved.');
+  void renderCommunity();
+}
+
+function onCommunitySolved() {
+  ui.setStatus('Solved!', 'solved');
+  ui.setSolvedScores([]);
+  const c = level.community!;
+  const rate = document.getElementById('solved-rate') as HTMLElement;
+  const msg = document.getElementById('rate-msg') as HTMLElement;
+  const up = document.getElementById('rate-up') as HTMLButtonElement;
+  const down = document.getElementById('rate-down') as HTMLButtonElement;
+  up.classList.remove('on');
+  down.classList.remove('on');
+  msg.textContent = '';
+  const dev = deviceId();
+  rate.hidden = previewing || !dev;
+  if (!previewing && dev) {
+    void completePuzzle(dev, c.id, c.rev).then((r) => {
+      if (r.ok && level.community?.id === c.id) {
+        const v = Number(r.value.vote ?? 0);
+        up.classList.toggle('on', v === 1);
+        down.classList.toggle('on', v === -1);
+      } else if (!r.ok) {
+        msg.textContent = r.error;
+      }
+    });
+  }
+  playSound('success');
+  try {
+    burst(document.getElementById('confetti') as HTMLCanvasElement);
+  } catch {
+    /* cosmetic */
+  }
+  window.setTimeout(() => {
+    if (playing && sim.solved) ui.showSolved(true);
+  }, 700);
+}
+
+function castVote(v: 1 | -1) {
+  const c = level.community;
+  const dev = deviceId();
+  if (!c || !dev || previewing) return;
+  const msg = document.getElementById('rate-msg') as HTMLElement;
+  void votePuzzle(dev, c.id, v).then((r) => {
+    if (!r.ok) {
+      msg.textContent = r.error;
+      return;
+    }
+    msg.textContent = 'Thanks!';
+    document.getElementById('rate-up')?.classList.toggle('on', v === 1);
+    document.getElementById('rate-down')?.classList.toggle('on', v === -1);
+  });
+}
+
+document.getElementById('btn-community')?.addEventListener('click', openCommunity);
+document.getElementById('cm-close')?.addEventListener('click', closeCommunity);
+document.getElementById('btn-more')?.addEventListener('click', openCommunity);
+document.getElementById('rate-up')?.addEventListener('click', () => castVote(1));
+document.getElementById('rate-down')?.addEventListener('click', () => castVote(-1));
+cmForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  void publishPuzzle();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !cmEl.hidden) closeCommunity();
+});
+
 buildsBtn.addEventListener('click', openBuilds);
 document.getElementById('builds-close')?.addEventListener('click', closeBuilds);
 document.getElementById('builds-form')?.addEventListener('submit', (e) => {

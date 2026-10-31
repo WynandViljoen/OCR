@@ -62,6 +62,8 @@ export interface Level {
   /** One general nudge, never the solution. */
   hint?: string;
   science: Science;
+  /** Set for a community puzzle (made by a player, approved on the dashboard). */
+  community?: { id: number; rev: number; creator: string; label: string };
 }
 
 /** A basket on the floor with a funnel above it: landing window about cx ± 95 at y = 445. */
