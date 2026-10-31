@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5o';
+const VERSION = '0.6';
 
 return { VERSION };
 })();
@@ -10127,7 +10127,7 @@ function rememberDesign() {
 }
 function showSandboxBar(show) {
     sbBar.hidden = !show;
-    if (show) refreshSandboxState();
+    refreshSandboxState();
 }
 function setSandboxDesign(name, id) {
     sandboxName = name.slice(0, 24);

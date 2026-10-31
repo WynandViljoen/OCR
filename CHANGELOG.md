@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.6 (major release)
+
+- **Publish puzzle only shows in Sandbox.** The green "Publish puzzle" button stayed visible after leaving Sandbox for a campaign level. It is now hidden everywhere except Sandbox (and still hidden once the design has been sent).
+- Rolls up 0.5a to 0.5o: community puzzle polish, selection/lock fixes, admin preview Solve button, rename, keep-solution and manual refresh.
+
 ## Modern TIM 0.5o
 
 - **Manual refresh on the Site Admin Puzzles page.** A "↻ Refresh puzzles" button at the top reloads the list on demand (with a cache-busting stamp) and shows how long ago the page was loaded, so you no longer depend on auto-refresh to see new submissions.

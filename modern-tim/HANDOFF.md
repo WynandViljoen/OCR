@@ -7,6 +7,7 @@ A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed a
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
 - v0.5n: puzzle records: `gone` (soft delete when a creator withdraws an approved puzzle; filtered out in share.php list/get/mine/submit/complete/vote, shown in admin "Removed by their creator"), `title_admin` (admin rename via p_rename; overrides the title on approve of a creator edit).
+- v0.6 (major): Publish button visibility now refreshed on every showSandboxBar() call (was left visible after leaving Sandbox). Next minors: 0.6a, 0.6b...
 - v0.5o: admin Puzzles page has a manual "Refresh puzzles" button (`#pz-refresh`, `&r=` cache-buster, "Loaded N s ago" text).
 - v0.5m: build rows show time; share.php 409 duplicate reply carries `dup` (existing puzzle id); saveAndPublish links the build to it.
 - v0.5l: admin.php page_head($refresh) now injects a nonce script (30 s, visibilitychange/focus catch-up, skips while an input is focused or a text box has text) instead of meta refresh.

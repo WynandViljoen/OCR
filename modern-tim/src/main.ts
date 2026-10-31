@@ -1879,7 +1879,7 @@ function rememberDesign() {
 
 function showSandboxBar(show: boolean) {
   sbBar.hidden = !show;
-  if (show) refreshSandboxState();
+  refreshSandboxState();
 }
 
 function setSandboxDesign(name: string, id: string) {
