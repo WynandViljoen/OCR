@@ -757,6 +757,9 @@ kbd {
 .solved-rate .on { outline: 3px solid currentColor; }
 #preview-bar button { margin-left: 10px; }
 
+.build-pz { font-size: 0.85rem; font-weight: 700; margin: 2px 0 4px; }
+.build-pz.bad { color: var(--danger); }
+
 </style>
 <div id="app">
       <header class="topbar">
@@ -4040,7 +4043,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5b';
+const VERSION = '0.5c';
 
 return { VERSION };
 })();
@@ -5735,7 +5738,7 @@ return { ENDPOINT, PENDING_KEY, fetchRevs, checkPreview, scrubPending, fetchStar
 })();
 
 // ---- game/builds.ts ----
-const { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl } = (() => {
+const { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl } = (() => {
 const MAX_BUILDS = 10;
 const MAX_BUILD_NAME = 24;
 const MAX_PARTS = 300;
@@ -5781,7 +5784,10 @@ function loadBuilds(player, store = browserStore()) {
                 id: b.id.slice(0, 40),
                 name,
                 savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0,
-                parts: b.parts
+                parts: b.parts,
+                ...typeof b.puzzle === 'number' && Number.isInteger(b.puzzle) && b.puzzle > 0 ? {
+                    puzzle: b.puzzle
+                } : {}
             });
         }
         return out;
@@ -5815,6 +5821,12 @@ function addBuild(builds, name, parts, now) {
             parts
         }
     ];
+}
+function linkBuildPuzzle(builds, id, puzzle) {
+    return builds.map((x)=>x.id === id ? {
+            ...x,
+            puzzle
+        } : x);
 }
 function replaceBuild(builds, id, parts, now) {
     return builds.map((b)=>b.id === id ? {
@@ -5919,11 +5931,11 @@ function shareUrl(code, loc) {
     return `${loc.origin}${loc.pathname}?s=${code}`;
 }
 
-return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
+return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
 })();
 
 // ---- game/puzzles.ts ----
-const { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle } = (() => {
+const { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle, puzzleTag } = (() => {
 
 
 
@@ -6215,8 +6227,9 @@ function checkPuzzle(fixed, solution) {
         seconds: Math.round(withSolution.seconds * 10) / 10
     };
 }
+const puzzleTag = (id)=>`#${id.toString(16).toUpperCase().padStart(4, '0')}`;
 
-return { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle };
+return { PUZZLE_ENDPOINT, MAX_PUZZLES, MAX_PUZZLE_TITLE, listPuzzles, myPuzzles, getPuzzle, submitPuzzle, withdrawPuzzle, completePuzzle, votePuzzle, splitBoard, inventoryOf, communityId, puzzleToLevel, checkPuzzle, puzzleTag };
 })();
 
 // ---- game/tracker.ts ----
@@ -10205,6 +10218,13 @@ function renderBuilds() {
             top.append(name, meta);
         }
         li.appendChild(top);
+        if (b.puzzle) {
+            const tag = document.createElement('div');
+            tag.className = 'build-pz';
+            tag.dataset.pz = String(b.puzzle);
+            tag.textContent = `🌍 Sent as puzzle ${puzzleTag(b.puzzle)}: checking…`;
+            li.appendChild(tag);
+        }
         if (renamingId !== b.id) {
             const row = document.createElement('div');
             row.className = 'build-actions';
@@ -10252,6 +10272,17 @@ function renderBuilds() {
             li.appendChild(box);
         }
         buildsList.appendChild(li);
+    }
+    if (buildList.some((x)=>x.puzzle)) void showPuzzleStates();
+}
+async function showPuzzleStates() {
+    const r = await myPuzzles(deviceId());
+    for (const el of Array.from(buildsList.querySelectorAll('.build-pz'))){
+        const id = Number(el.dataset.pz);
+        const p = r.ok ? r.value.find((x)=>x.id === id) : undefined;
+        const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
+        el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
+        el.classList.toggle('bad', !!p && p.status === 'rejected');
     }
 }
 async function shareParts(title, partsToShare, forId) {
@@ -10421,7 +10452,7 @@ async function renderCommunity() {
         cmMine.appendChild(li);
     }
     for (const m of list){
-        const { li, acts } = cmRow(m.title || `Puzzle ${m.id}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
+        const { li, acts } = cmRow(`${m.title || 'Puzzle'} ${puzzleTag(m.id)}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
         acts.appendChild(cmButton('Edit', ()=>editMyPuzzle(m)));
         const w = cmButton(withdrawAsk === m.id ? 'Sure? Remove it' : 'Remove', ()=>{
             if (withdrawAsk !== m.id) {
@@ -10525,7 +10556,8 @@ async function doPublish(titleIn) {
     cmName.value = '';
     return {
         ok: true,
-        text: 'Sent! Your puzzle shows up for players once it has been approved.'
+        text: 'Sent! Your puzzle shows up for players once it has been approved.',
+        id: Number(r.value.id) || undefined
     };
 }
 async function publishPuzzle() {
@@ -10564,8 +10596,11 @@ async function saveAndPublish() {
     const name = askName.value.trim();
     const list = loadBuilds(player);
     const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
-    if (saved) saveBuilds(player, saved);
     const r = await doPublish(name);
+    if (saved) {
+        const added = saved[saved.length - 1];
+        saveBuilds(player, r.ok && r.id ? linkBuildPuzzle(saved, added.id, r.id) : saved);
+    }
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);
     askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;

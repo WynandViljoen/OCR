@@ -19,6 +19,8 @@ export interface Build {
   name: string;
   savedAt: number;
   parts: unknown[];
+  /** The community puzzle this build was sent in as (see puzzles.ts), if any. */
+  puzzle?: number;
 }
 
 export interface StoreLike {
@@ -70,7 +72,7 @@ export function loadBuilds(player: string, store: StoreLike | null = browserStor
       const name = cleanBuildName(typeof b.name === 'string' ? b.name : '');
       if (typeof b.id !== 'string' || !b.id || seen.has(b.id) || !name || !Array.isArray(b.parts) || b.parts.length > MAX_PARTS) continue;
       seen.add(b.id);
-      out.push({ id: b.id.slice(0, 40), name, savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0, parts: b.parts });
+      out.push({ id: b.id.slice(0, 40), name, savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0, parts: b.parts, ...(typeof b.puzzle === 'number' && Number.isInteger(b.puzzle) && b.puzzle > 0 ? { puzzle: b.puzzle } : {}) });
     }
     return out;
   } catch {
@@ -100,6 +102,11 @@ export function addBuild(builds: Build[], name: string, parts: unknown[], now: n
   if (builds.length >= MAX_BUILDS) return null;
   const clean = cleanBuildName(name) || defaultBuildName(builds);
   return [...builds, { id: newBuildId(now), name: clean, savedAt: now, parts }];
+}
+
+/** Remember which community puzzle a build was sent in as. */
+export function linkBuildPuzzle(builds: Build[], id: string, puzzle: number): Build[] {
+  return builds.map((x) => (x.id === id ? { ...x, puzzle } : x));
 }
 
 /** Keep the save's name, put the current parts into it. */

@@ -735,3 +735,6 @@ kbd {
 .solved-rate { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 8px 0; flex-wrap: wrap; }
 .solved-rate .on { outline: 3px solid currentColor; }
 #preview-bar button { margin-left: 10px; }
+
+.build-pz { font-size: 0.85rem; font-weight: 700; margin: 2px 0 4px; }
+.build-pz.bad { color: var(--danger); }

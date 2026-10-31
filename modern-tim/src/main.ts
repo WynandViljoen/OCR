@@ -18,11 +18,11 @@ import { findFreeSpot, overlapsAny } from './game/space';
 import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState, drawFixedMark } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track, disableTracking, deviceId } from './game/tracker';
-import { MAX_PUZZLES, checkPuzzle, completePuzzle, getPuzzle, listPuzzles, myPuzzles, puzzleToLevel, splitBoard, submitPuzzle, votePuzzle, withdrawPuzzle, type MyPuzzle, type PuzzleSummary, type WirePart } from './game/puzzles';
+import { MAX_PUZZLES, puzzleTag, checkPuzzle, completePuzzle, getPuzzle, listPuzzles, myPuzzles, puzzleToLevel, splitBoard, submitPuzzle, votePuzzle, withdrawPuzzle, type MyPuzzle, type PuzzleSummary, type WirePart } from './game/puzzles';
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
-import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
+import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, linkBuildPuzzle, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
 import { applyLevelSet, currentSet, rememberSet, rememberedSet } from './game/seasons';
 import { checkPreview, fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
@@ -2025,6 +2025,13 @@ function renderBuilds() {
       top.append(name, meta);
     }
     li.appendChild(top);
+    if (b.puzzle) {
+      const tag = document.createElement('div');
+      tag.className = 'build-pz';
+      tag.dataset.pz = String(b.puzzle);
+      tag.textContent = `🌍 Sent as puzzle ${puzzleTag(b.puzzle)}: checking…`;
+      li.appendChild(tag);
+    }
     if (renamingId !== b.id) {
       const row = document.createElement('div');
       row.className = 'build-actions';
@@ -2073,7 +2080,21 @@ function renderBuilds() {
     }
     buildsList.appendChild(li);
   }
+  if (buildList.some((x) => x.puzzle)) void showPuzzleStates();
 }
+
+/** Say, on each build that was sent as a community puzzle, where that puzzle stands now. */
+async function showPuzzleStates() {
+  const r = await myPuzzles(deviceId());
+  for (const el of Array.from(buildsList.querySelectorAll<HTMLElement>('.build-pz'))) {
+    const id = Number(el.dataset.pz);
+    const p = r.ok ? r.value.find((x) => x.id === id) : undefined;
+    const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
+    el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
+    el.classList.toggle('bad', !!p && p.status === 'rejected');
+  }
+}
+
 
 async function shareParts(title: string, partsToShare: PlacedPart[], forId: string | null) {
   if (!partsToShare.length) {
@@ -2237,7 +2258,7 @@ async function renderCommunity() {
     cmMine.appendChild(li);
   }
   for (const m of list) {
-    const { li, acts } = cmRow(m.title || `Puzzle ${m.id}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
+    const { li, acts } = cmRow(`${m.title || 'Puzzle'} ${puzzleTag(m.id)}`, `${STATUS_TEXT[m.status] ?? m.status}${m.status === 'rejected' && m.reason ? `: ${m.reason}` : ''}`);
     acts.appendChild(cmButton('Edit', () => editMyPuzzle(m)));
     const w = cmButton(withdrawAsk === m.id ? 'Sure? Remove it' : 'Remove', () => {
       if (withdrawAsk !== m.id) {
@@ -2296,7 +2317,7 @@ function editMyPuzzle(m: MyPuzzle) {
 }
 
 /** Check, then send the Sandbox board as a puzzle. Returns the sentence to show, and whether it worked. */
-async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string }> {
+async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string; id?: number }> {
   if (!player) return { ok: false, text: 'Choose a player name first (top right).' };
   const dev = deviceId();
   if (!dev) return { ok: false, text: 'This browser has no id yet. Reload the game and try again in a moment.' };
@@ -2310,7 +2331,7 @@ async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string }
   editingPuzzle = null;
   cmEditing.hidden = true;
   cmName.value = '';
-  return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.' };
+  return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.', id: Number(r.value.id) || undefined };
 }
 
 async function publishPuzzle() {
@@ -2355,8 +2376,12 @@ async function saveAndPublish() {
   // Save the board in My builds first (skipped quietly when the 10 slots are full).
   const list = loadBuilds(player);
   const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
-  if (saved) saveBuilds(player, saved);
   const r = await doPublish(name);
+  if (saved) {
+    // Remember on the saved build which puzzle it became, so My builds can show where it stands.
+    const added = saved[saved.length - 1];
+    saveBuilds(player, r.ok && r.id ? linkBuildPuzzle(saved, added.id, r.id) : saved);
+  }
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
   askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;

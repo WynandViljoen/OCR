@@ -242,3 +242,6 @@ export function checkPuzzle(fixed: WirePart[], solution: WirePart[]): PuzzleChec
   if (!withSolution.solved) return { ok: false, problem: 'Your own parts do not get the ball into the basket within 30 seconds. Press Start and make it work first.' };
   return { ok: true, problem: '', seconds: Math.round(withSolution.seconds * 10) / 10 };
 }
+
+/** The short hex tag shown to players and on the dashboard, like #00A3. */
+export const puzzleTag = (id: number) => `#${id.toString(16).toUpperCase().padStart(4, '0')}`;

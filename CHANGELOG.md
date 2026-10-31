@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5c
+
+- **My builds shows what happened to a puzzle you sent.** A build that was sent with *Save and publish* now carries a line like "🌍 Puzzle #00A3: waiting for the admin to approve it" (or approved and live, newer version waiting, or not accepted with the reason). The same hex tag is shown in the Community window's My puzzles and on the dashboard's Puzzles page, so a build, a puzzle and a dashboard entry can be matched.
+
 ## Modern TIM 0.5b
 
 - **Site icons.** A gear-and-ball icon for browser tabs, bookmarks, the phone home screen and installing the game as an app. New files: `icons/` (SVG, PNGs at 32, 48, 180, 192 and 512 px, and a maskable one), `favicon.ico`, `manifest.webmanifest`. The tab icon and the iPhone/iPad home-screen icon are also built into `index.html`, so they work even before the new files are copied. For the Android/installed-app icon and a plain `/favicon.ico`, add `favicon.ico manifest.webmanifest icons` to the cron copy (see README).
