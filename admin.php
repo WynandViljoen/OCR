@@ -32,7 +32,7 @@ const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.5n';
+const ADMIN_BUILD = '0.5o';
 const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
 const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 const ONLINE_SECONDS = 300;
@@ -1077,6 +1077,11 @@ function puzzles_view() {
     foreach ($db['order'] as $id) {
         if (isset($db['puzzles'][$id]) && empty($db['puzzles'][$id]['gone']) && is_array($db['puzzles'][$id]['cur'] ?? null)) $live[] = $db['puzzles'][$id];
     }
+    // A refresh button right here (the one in the top bar is easy to miss), with a cache-busting address.
+    $autoQs = !empty($_GET['auto']) ? '&amp;auto=1' : '';
+    echo '<p style="margin:12px 0 0"><a class="btn" id="pz-refresh" href="admin.php?view=puzzles' . $autoQs . '&amp;r=' . time() . '" style="font-weight:700">&#8635; Refresh puzzles</a> '
+        . '<span class="mute">Loaded <span id="pz-age">just now</span> (' . h((new DateTime('now', new DateTimeZone(DISPLAY_TZ)))->format('H:i:s')) . ')</span></p>';
+    echo '<script nonce="' . h($GLOBALS['tim_nonce']) . '">(function(){var t=Date.now(),e=document.getElementById("pz-age"),b=document.getElementById("pz-refresh");setInterval(function(){var s=Math.round((Date.now()-t)/1000);e.textContent=s<5?"just now":s<90?s+" s ago":Math.round(s/60)+" min ago";},2000);b.addEventListener("click",function(ev){ev.preventDefault();b.textContent="Refreshing...";location.href=b.getAttribute("href").replace(/&r=\d+/,"&r="+Date.now());});})();</script>';
     echo '<div class="cards" style="margin-top:12px"><div class="card"><b>' . count($waiting) . '</b><span>waiting for approval</span></div>'
         . '<div class="card"><b>' . count($live) . '</b><span>live in the game</span></div>'
         . '<div class="card"><b>' . count($rejected) . '</b><span>rejected or taken out</span></div></div>';

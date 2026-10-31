@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5o
+
+- **Manual refresh on the Site Admin Puzzles page.** A "↻ Refresh puzzles" button at the top reloads the list on demand (with a cache-busting stamp) and shows how long ago the page was loaded, so you no longer depend on auto-refresh to see new submissions.
+
 ## Modern TIM 0.5n
 
 - **Approved puzzles stay in Site Admin.** If a creator removes a puzzle that was approved, it leaves the game and their list, but Site Admin keeps it under "Removed by their creator" with its screenshot, solution run time and the Play link. A puzzle that was never approved is still deleted completely when removed.
