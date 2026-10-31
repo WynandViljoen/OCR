@@ -1,7 +1,7 @@
 # Modern TIM
 
 A browser physics puzzle game in the spirit of *The Incredible Machine*, built to teach
-kids (about 8 to 13) how simple machines work. Version 0.5a: twenty-one science levels plus a sandbox with 10 saved builds per player and share links, player names and per-level high scores.
+kids (about 8 to 13) how simple machines work. Version 0.5b: twenty-one science levels plus a sandbox with 10 saved builds per player and share links, player names and per-level high scores.
 
 This repo replaced the earlier Snap OCR page (its history is still in git).
 
@@ -19,7 +19,7 @@ This repo replaced the earlier Snap OCR page (its history is still in git).
 ## Community scores (scores.php)
 `scores.php` is the only server code. It must sit in the same web folder as `index.html` (for example `public_html/ocr/`).
 Add it to the deploy copy step, for example the cron command ends with
-`... && cp index.html scores.php admin.php share.php /home/<user>/public_html/ocr/` (or upload it once in cPanel File Manager).
+`... && cp -r index.html scores.php admin.php share.php favicon.ico manifest.webmanifest icons /home/<user>/public_html/ocr/` (or upload them once in cPanel File Manager). The icons (gear and ball) are in `icons/`; `index.html` also carries the tab icon and the home-screen icon inside itself, so those show even if the other icon files are not copied.
 It creates `scores-data.json` beside itself; copying `scores.php` again never touches that data. Without it the game still works with
 scores kept in each browser only.
 

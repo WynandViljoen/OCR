@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5b
+
+- **Site icons.** A gear-and-ball icon for browser tabs, bookmarks, the phone home screen and installing the game as an app. New files: `icons/` (SVG, PNGs at 32, 48, 180, 192 and 512 px, and a maskable one), `favicon.ico`, `manifest.webmanifest`. The tab icon and the iPhone/iPad home-screen icon are also built into `index.html`, so they work even before the new files are copied. For the Android/installed-app icon and a plain `/favicon.ico`, add `favicon.ico manifest.webmanifest icons` to the cron copy (see README).
+
 ## Modern TIM 0.5a
 
 - Publishing now says **why** it failed: the message includes what the server answered (its status code and the start of its reply), and a crash inside share.php comes back as a readable "Server problem: ..." sentence instead of a blank page. This is to find out why a publish on the live site answered with "That did not work".

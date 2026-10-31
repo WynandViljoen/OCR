@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.5b: site icons (repo root favicon.ico + manifest.webmanifest, icons/*; SVG + apple-touch PNG inlined as data URIs in modern-tim/index.html head). Cron must copy favicon.ico, manifest.webmanifest, icons/ for the non-inlined ones.
 - v0.5a: pzCall returns status+text; share.php puzzle_post_api registers a shutdown handler that returns fatals as JSON. Used to debug a live-site publish failure ("That did not work").
 - v0.5 (major): puzzle record has `seconds` (solution run time, sent by the client from checkPuzzle) shown on the dashboard. Next minors: 0.5a, 0.5b...
 - v0.4za: Publish button (#btn-publish), sandboxPuzzleReady() turns the goal on in the Sandbox when a fixed ball+basket exist (auto-stop), #pubask save-and-publish dialog, exactly 1 ball and 1 basket (palette limit, checkPuzzle, share.php). Version after 0.4z is 0.4za (letters continue).
