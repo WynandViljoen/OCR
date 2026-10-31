@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.5g
+
+- **No double publishing.** Once a Sandbox design has been sent as a puzzle, the 🚀 Publish puzzle button (and the "It works!" prompt) disappears for it. It comes back if you change the board, and then sends the new version as an edit of the same puzzle instead of a second one. Removing the puzzle from Community → My puzzles makes the design publishable again.
+- The server also refuses an identical puzzle from the same browser ("You already sent this puzzle"), whatever its name.
+
 ## Modern TIM 0.5f
 
 - **✔ Solve button in the admin preview.** In both previews (next month's puzzle set and a community puzzle) the banner has a **Solve** button that puts every part where it solves the puzzle you are looking at. Pressing it again re-places the parts instead of doubling them. It replaces the old "Show the creator's solution" button.

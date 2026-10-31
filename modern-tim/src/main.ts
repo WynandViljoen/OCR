@@ -769,8 +769,6 @@ function loadLevel(index: number, restore: boolean, custom?: Level) {
   const buildsButton = document.getElementById('btn-builds');
   if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
   showSandboxBar(level.id === 'sandbox');
-  const pubButton = document.getElementById('btn-publish');
-  if (pubButton) pubButton.hidden = level.id !== 'sandbox';
   ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
   setCommunityBits(!!custom);
   ui.setSolvedScores([]);
@@ -1894,7 +1892,15 @@ function setSandboxDesign(name: string, id: string) {
 
 const designSig = (l: unknown[]) => JSON.stringify((l as { type?: string; x?: number; y?: number; angle?: number; w?: number; h?: number; flip?: boolean; fixed?: boolean }[]).map((p) => [p.type, p.x, p.y, p.angle, p.w, p.h, !!p.flip, !!p.fixed]));
 
+/** True when this design was already sent as a puzzle and the board has not changed since: nothing more to publish. */
+function designSubmitted(): boolean {
+  const b = loadBuilds(player).find((x) => x.id === sandboxBuildId);
+  return !!b && !!b.puzzle && designSig(b.parts) === designSig(exportParts());
+}
+
 function refreshSandboxState() {
+  const pub = document.getElementById('btn-publish');
+  if (pub) pub.hidden = sbBar.hidden || designSubmitted();
   if (sbBar.hidden) return;
   const b = loadBuilds(player).find((x) => x.id === sandboxBuildId);
   const same = !!b && designSig(b.parts) === designSig(exportParts()) && b.name === sandboxName.trim();
@@ -2190,12 +2196,21 @@ function renderBuilds() {
   if (buildList.some((x) => x.puzzle)) void showPuzzleStates();
 }
 
+function buildIdOf(el: HTMLElement): string {
+  return (el.closest('.build-row') as HTMLElement | null)?.dataset.id ?? '';
+}
+
 /** Say, on each build that was sent as a community puzzle, where that puzzle stands now. */
 async function showPuzzleStates() {
   const r = await myPuzzles(deviceId());
   for (const el of Array.from(buildsList.querySelectorAll<HTMLElement>('.build-pz'))) {
     const id = Number(el.dataset.pz);
     const p = r.ok ? r.value.find((x) => x.id === id) : undefined;
+    if (r.ok && !p) {
+      // The puzzle was removed on the server: this build can be published again.
+      persistBuilds(buildList.map((x) => (x.id === buildIdOf(el) ? { ...x, puzzle: undefined } : x)));
+      refreshSandboxState();
+    }
     const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
     el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
     el.classList.toggle('bad', !!p && p.status === 'rejected');
@@ -2372,6 +2387,11 @@ async function renderCommunity() {
       }
       withdrawAsk = 0;
       void withdrawPuzzle(dev, m.id).then((r) => {
+        if (r.ok) {
+          // Its build can be published again.
+          saveBuilds(player, loadBuilds(player).map((x) => (x.puzzle === m.id ? { ...x, puzzle: undefined } : x)));
+          refreshSandboxState();
+        }
         cmSay(r.ok ? 'Removed.' : r.error, !r.ok);
         void renderCommunity();
       });
@@ -2418,7 +2438,7 @@ function editMyPuzzle(m: MyPuzzle) {
 }
 
 /** Check, then send the Sandbox board as a puzzle. Returns the sentence to show, and whether it worked. */
-async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string; id?: number }> {
+async function doPublish(titleIn: string, puzzleId?: number): Promise<{ ok: boolean; text: string; id?: number }> {
   if (!player) return { ok: false, text: 'Choose a player name first (top right).' };
   const dev = deviceId();
   if (!dev) return { ok: false, text: 'This browser has no id yet. Reload the game and try again in a moment.' };
@@ -2427,7 +2447,7 @@ async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string; 
   if (!check.ok) return { ok: false, text: check.problem };
   const title = titleIn.trim().slice(0, 28) || editingPuzzle?.title || '';
   if (!title) return { ok: false, text: 'Give your puzzle a name.' };
-  const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), seconds: check.seconds, id: editingPuzzle?.id });
+  const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), seconds: check.seconds, id: editingPuzzle?.id ?? puzzleId });
   if (!r.ok) return { ok: false, text: r.error };
   editingPuzzle = null;
   return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.', id: Number(r.value.id) || undefined };
@@ -2451,7 +2471,7 @@ function onSandboxSolved() {
   ui.setStatus('Solved!', 'solved');
   playSound('success');
   window.setTimeout(() => {
-    if (!playing || !sim.solved || level.id !== 'sandbox' || previewing) return;
+    if (!playing || !sim.solved || level.id !== 'sandbox' || previewing || designSubmitted()) return;
     openAsk();
   }, 500);
 }
@@ -2477,8 +2497,9 @@ async function saveAndPublish() {
   }
   const all = loadBuilds(player);
   const build = all.find((x) => x.id === sandboxBuildId)!;
-  const r = await doPublish(name);
+  const r = await doPublish(name, build.puzzle);
   if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
+  if (r.ok) refreshSandboxState();
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
   askMsg.textContent = r.ok ? 'Saved in My builds. Sent to the admin for review. If it is approved it will appear under Community puzzles.' : r.text;

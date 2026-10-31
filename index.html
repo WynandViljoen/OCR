@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5f';
+const VERSION = '0.5g';
 
 return { VERSION };
 })();
@@ -8922,8 +8922,6 @@ function loadLevel(index, restore, custom) {
     const buildsButton = document.getElementById('btn-builds');
     if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
     showSandboxBar(level.id === 'sandbox');
-    const pubButton = document.getElementById('btn-publish');
-    if (pubButton) pubButton.hidden = level.id !== 'sandbox';
     ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
     setCommunityBits(!!custom);
     ui.setSolvedScores([]);
@@ -10129,7 +10127,13 @@ const designSig = (l)=>JSON.stringify(l.map((p)=>[
             !!p.flip,
             !!p.fixed
         ]));
+function designSubmitted() {
+    const b = loadBuilds(player).find((x)=>x.id === sandboxBuildId);
+    return !!b && !!b.puzzle && designSig(b.parts) === designSig(exportParts());
+}
 function refreshSandboxState() {
+    const pub = document.getElementById('btn-publish');
+    if (pub) pub.hidden = sbBar.hidden || designSubmitted();
     if (sbBar.hidden) return;
     const b = loadBuilds(player).find((x)=>x.id === sandboxBuildId);
     const same = !!b && designSig(b.parts) === designSig(exportParts()) && b.name === sandboxName.trim();
@@ -10408,11 +10412,21 @@ function renderBuilds() {
     }
     if (buildList.some((x)=>x.puzzle)) void showPuzzleStates();
 }
+function buildIdOf(el) {
+    return el.closest('.build-row')?.dataset.id ?? '';
+}
 async function showPuzzleStates() {
     const r = await myPuzzles(deviceId());
     for (const el of Array.from(buildsList.querySelectorAll('.build-pz'))){
         const id = Number(el.dataset.pz);
         const p = r.ok ? r.value.find((x)=>x.id === id) : undefined;
+        if (r.ok && !p) {
+            persistBuilds(buildList.map((x)=>x.id === buildIdOf(el) ? {
+                    ...x,
+                    puzzle: undefined
+                } : x));
+            refreshSandboxState();
+        }
         const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
         el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
         el.classList.toggle('bad', !!p && p.status === 'rejected');
@@ -10592,6 +10606,13 @@ async function renderCommunity() {
             }
             withdrawAsk = 0;
             void withdrawPuzzle(dev, m.id).then((r)=>{
+                if (r.ok) {
+                    saveBuilds(player, loadBuilds(player).map((x)=>x.puzzle === m.id ? {
+                            ...x,
+                            puzzle: undefined
+                        } : x));
+                    refreshSandboxState();
+                }
                 cmSay(r.ok ? 'Removed.' : r.error, !r.ok);
                 void renderCommunity();
             });
@@ -10643,7 +10664,7 @@ function editMyPuzzle(m) {
     closeCommunity();
     ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
-async function doPublish(titleIn) {
+async function doPublish(titleIn, puzzleId) {
     if (!player) return {
         ok: false,
         text: 'Choose a player name first (top right).'
@@ -10672,7 +10693,7 @@ async function doPublish(titleIn) {
         solution,
         shot: captureBoardShot(),
         seconds: check.seconds,
-        id: editingPuzzle?.id
+        id: editingPuzzle?.id ?? puzzleId
     });
     if (!r.ok) return {
         ok: false,
@@ -10700,7 +10721,7 @@ function onSandboxSolved() {
     ui.setStatus('Solved!', 'solved');
     playSound('success');
     window.setTimeout(()=>{
-        if (!playing || !sim.solved || level.id !== 'sandbox' || previewing) return;
+        if (!playing || !sim.solved || level.id !== 'sandbox' || previewing || designSubmitted()) return;
         openAsk();
     }, 500);
 }
@@ -10723,8 +10744,9 @@ async function saveAndPublish() {
     }
     const all = loadBuilds(player);
     const build = all.find((x)=>x.id === sandboxBuildId);
-    const r = await doPublish(name);
+    const r = await doPublish(name, build.puzzle);
     if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
+    if (r.ok) refreshSandboxState();
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);
     askMsg.textContent = r.ok ? 'Saved in My builds. Sent to the admin for review. If it is approved it will appear under Community puzzles.' : r.text;

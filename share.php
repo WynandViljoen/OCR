@@ -332,6 +332,19 @@ function clean_puzzle_parts($fixedIn, $solutionIn) {
     return [$fixed, $solution];
 }
 
+/** A fingerprint of a puzzle's parts (not their ids), to refuse the very same puzzle being sent twice. */
+function puzzle_sig(array $fixed, array $solution): string {
+    $one = function ($list) {
+        $rows = [];
+        foreach ($list as $p) {
+            $rows[] = implode(',', [$p['type'], round((float) $p['x'], 1), round((float) $p['y'], 1), round((float) $p['angle'], 3), $p['w'] ?? '', $p['h'] ?? '', !empty($p['flip']) ? 1 : 0]);
+        }
+        sort($rows);
+        return $rows;
+    };
+    return md5(json_encode([$one($fixed), $one($solution)]));
+}
+
 function save_puzzle_shot(string $dataUrl, int $id): string {
     if (strncmp($dataUrl, 'data:image/jpeg;base64,', 23) !== 0) return '';
     $bin = base64_decode(substr($dataUrl, 23), true);
@@ -444,6 +457,15 @@ function puzzle_post_api(array $in) {
             if ($id > 0) {
                 $rec = $db['puzzles'][$id] ?? null;
                 if (!is_array($rec) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours.', 'code' => 403];
+            }
+            $sig = puzzle_sig($clean[0], $clean[1]);
+            foreach ($db['puzzles'] as $other) {
+                if (!is_array($other) || ($other['device'] ?? '') !== $device) continue;
+                foreach (['cur', 'draft'] as $k) {
+                    if (is_array($other[$k] ?? null) && puzzle_sig($other[$k]['fixed'], $other[$k]['solution']) === $sig) {
+                        return ['error' => 'You already sent this puzzle. Change something before sending it again.', 'code' => 409];
+                    }
+                }
             }
             if ($mineCount >= MAX_PUZZLES_PER_DEVICE) return ['error' => 'You already have ' . MAX_PUZZLES_PER_DEVICE . ' puzzles waiting or live. Withdraw one to make room.', 'code' => 409];
             if ($rec === null) {
