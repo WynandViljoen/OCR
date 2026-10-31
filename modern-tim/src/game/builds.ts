@@ -59,6 +59,12 @@ export function defaultBuildName(builds: Build[]): string {
   return 'Build';
 }
 
+/** True when another build already has this name (capitals do not matter). `exceptId` is the build being renamed or saved over. */
+export function nameTaken(builds: Build[], name: string, exceptId = ''): boolean {
+  const n = cleanBuildName(name).toLowerCase();
+  return !!n && builds.some((x) => x.id !== exceptId && x.name.toLowerCase() === n);
+}
+
 export function loadBuilds(player: string, store: StoreLike | null = browserStore()): Build[] {
   try {
     const raw = JSON.parse(store?.getItem(buildsKey(player)) ?? '[]') as unknown;
@@ -101,6 +107,7 @@ export function newBuildId(now: number): string {
 export function addBuild(builds: Build[], name: string, parts: unknown[], now: number): Build[] | null {
   if (builds.length >= MAX_BUILDS) return null;
   const clean = cleanBuildName(name) || defaultBuildName(builds);
+  if (nameTaken(builds, clean)) return null;
   return [...builds, { id: newBuildId(now), name: clean, savedAt: now, parts }];
 }
 
@@ -117,7 +124,7 @@ export function replaceBuild(builds: Build[], id: string, parts: unknown[], now:
 /** Rename. An empty name keeps the old one. */
 export function renameBuild(builds: Build[], id: string, name: string): Build[] {
   const clean = cleanBuildName(name);
-  if (!clean) return builds;
+  if (!clean || nameTaken(builds, clean, id)) return builds;
   return builds.map((b) => (b.id === id ? { ...b, name: clean } : b));
 }
 

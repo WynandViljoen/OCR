@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5j
+
+- **No duplicate build names.** My builds, the Sandbox name box and renaming all refuse a name another build already has (capitals do not matter) and say so. Builds that already share a name are left alone; rename one when you like.
+
 ## Modern TIM 0.5i
 
 - Removing a puzzle that the server refuses now says why: either the puzzle no longer exists, or it was sent from another browser (with the last 4 characters of both browser ids), instead of the vague "not yours".

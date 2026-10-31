@@ -22,7 +22,7 @@ import { MAX_PUZZLES, puzzleTag, checkPuzzle, completePuzzle, getPuzzle, listPuz
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
-import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, linkBuildPuzzle, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, type Build, type SharedBuild } from './game/builds';
+import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, linkBuildPuzzle, nameTaken, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, cleanBuildName, type Build, type SharedBuild } from './game/builds';
 import { applyLevelSet, currentSet, rememberSet, rememberedSet } from './game/seasons';
 import { checkPreview, fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
@@ -1916,6 +1916,7 @@ function saveSandboxDesign(): { ok: boolean; text: string } {
   sbName.value = sandboxName;
   const mine = exportParts();
   const existing = list.find((x) => x.id === sandboxBuildId);
+  if (nameTaken(list, sandboxName, existing?.id ?? '')) return { ok: false, text: `You already have a build called “${sandboxName}”. Pick a different name.` };
   let next: Build[];
   if (existing) {
     next = renameBuild(replaceBuild(list, existing.id, mine, Date.now()), existing.id, sandboxName);
@@ -2107,6 +2108,10 @@ function renderBuilds() {
       input.className = 'build-rename';
       input.setAttribute('aria-label', 'New name');
       const done = (save: boolean) => {
+        if (save && nameTaken(buildList, input.value, b.id)) {
+          buildsSay(`You already have a build called “${cleanBuildName(input.value)}”. Pick a different name.`, true);
+          return;
+        }
         if (save) persistBuilds(renameBuild(buildList, b.id, input.value));
         renamingId = null;
         renderBuilds();
@@ -2591,6 +2596,10 @@ document.getElementById('builds-form')?.addEventListener('submit', (e) => {
   buildsSay('');
   if (!exportParts().length) {
     buildsSay('The board is empty. Add some parts first.', true);
+    return;
+  }
+  if (nameTaken(buildList, buildsName.value)) {
+    buildsSay(`You already have a build called “${cleanBuildName(buildsName.value)}”. Pick a different name.`, true);
     return;
   }
   const next = addBuild(buildList, buildsName.value, exportParts(), Date.now());
