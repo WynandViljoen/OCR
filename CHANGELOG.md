@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5h
+
+- After a successful publish the window simply says **Done! Awaiting admin approval.** It stays open (only a Close button is left) instead of closing by itself.
+
 ## Modern TIM 0.5g
 
 - **No double publishing.** Once a Sandbox design has been sent as a puzzle, the 🚀 Publish puzzle button (and the "It works!" prompt) disappears for it. It comes back if you change the board, and then sends the new version as an edit of the same puzzle instead of a second one. Removing the puzzle from Community → My puzzles makes the design publishable again.

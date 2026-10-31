@@ -2458,6 +2458,8 @@ const askEl = document.getElementById('pubask') as HTMLElement;
 const askWho = document.getElementById('pubask-who') as HTMLElement;
 
 function openAsk() {
+  askYes.hidden = false;
+  (document.getElementById('pubask-no') as HTMLElement).textContent = 'Not now';
   askWho.textContent = `“${sandboxName || 'My puzzle'}”`;
   askMsg.hidden = true;
   askYes.disabled = false;
@@ -2502,8 +2504,12 @@ async function saveAndPublish() {
   if (r.ok) refreshSandboxState();
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
-  askMsg.textContent = r.ok ? 'Saved in My builds. Sent to the admin for review. If it is approved it will appear under Community puzzles.' : r.text;
-  if (r.ok) window.setTimeout(closeAsk, 3500);
+  askMsg.textContent = r.ok ? 'Done! Awaiting admin approval.' : r.text;
+  if (r.ok) {
+    // Stays open until the player closes it; there is nothing more to publish.
+    askYes.hidden = true;
+    (document.getElementById('pubask-no') as HTMLElement).textContent = 'Close';
+  }
 }
 
 document.getElementById('btn-publish')?.addEventListener('click', () => {

@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5g';
+const VERSION = '0.5h';
 
 return { VERSION };
 })();
@@ -10709,6 +10709,8 @@ async function doPublish(titleIn, puzzleId) {
 const askEl = document.getElementById('pubask');
 const askWho = document.getElementById('pubask-who');
 function openAsk() {
+    askYes.hidden = false;
+    document.getElementById('pubask-no').textContent = 'Not now';
     askWho.textContent = `“${sandboxName || 'My puzzle'}”`;
     askMsg.hidden = true;
     askYes.disabled = false;
@@ -10749,8 +10751,11 @@ async function saveAndPublish() {
     if (r.ok) refreshSandboxState();
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);
-    askMsg.textContent = r.ok ? 'Saved in My builds. Sent to the admin for review. If it is approved it will appear under Community puzzles.' : r.text;
-    if (r.ok) window.setTimeout(closeAsk, 3500);
+    askMsg.textContent = r.ok ? 'Done! Awaiting admin approval.' : r.text;
+    if (r.ok) {
+        askYes.hidden = true;
+        document.getElementById('pubask-no').textContent = 'Close';
+    }
 }
 document.getElementById('btn-publish')?.addEventListener('click', ()=>{
     const { fixed, solution } = splitBoard(parts);
