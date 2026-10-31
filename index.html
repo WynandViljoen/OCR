@@ -983,7 +983,7 @@ kbd {
         <ul id="cm-list" class="builds-list"></ul>
         <h3 class="cm-head">My puzzles <span id="cm-count"></span></h3>
         <ul id="cm-mine" class="builds-list"></ul>
-        <p class="builds-sub cm-note">🛠️ Sandbox designs can be published as community puzzles. Build one in the Sandbox, save it, then press 🚀 Publish puzzle. The dashboard approves it before anyone sees it.</p>
+        <p class="builds-sub cm-note">🛠️ Sandbox designs can be published as community puzzles. Build one in the Sandbox, save it, then press 🚀 Publish puzzle. Site Admin approves it before anyone sees it.</p>
         <div class="gate-actions">
           <button id="cm-close" class="btn btn-go" type="button">Close</button>
         </div>
@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5e';
+const VERSION = '0.5f';
 
 return { VERSION };
 })();
@@ -6454,7 +6454,7 @@ return { burst };
 })();
 
 // ---- game/draw.ts ----
-const { traceBodies, drawFixedMark, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
+const { traceBodies, drawFixedMark, drawFixedLock, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail } = (() => {
 
 
 const INK = COLORS.ink;
@@ -6512,6 +6512,21 @@ function drawFixedMark(ctx, bodies, zoom = 1) {
     ctx.strokeStyle = '#d9730d';
     traceBodies(ctx, bodies);
     ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+}
+function drawFixedLock(ctx, bodies, zoom = 1) {
+    if (!bodies.length) return;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    for (const b of bodies){
+        minX = Math.min(minX, b.bounds.min.x);
+        minY = Math.min(minY, b.bounds.min.y);
+        maxX = Math.max(maxX, b.bounds.max.x);
+    }
+    const z = Math.max(0.4, zoom);
+    ctx.save();
     ctx.setLineDash([]);
     const cx = (minX + maxX) / 2;
     const cy = Math.max(14, minY - 12 / z);
@@ -7132,7 +7147,7 @@ function drawThumbnail(canvas, type) {
     for (const b of bodies)drawDecoration(ctx, b, state);
 }
 
-return { traceBodies, drawFixedMark, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
+return { traceBodies, drawFixedMark, drawFixedLock, drawBodies, drawUnderlay, drawDecoration, drawRope, drawBelt, drawSpinArrow, drawPaper, drawThumbnail };
 })();
 
 // ---- game/world.ts ----
@@ -9074,7 +9089,9 @@ function stringClick(x, y, touch = false) {
     };
     parts.push(part);
     tool = null;
-    selectedId = part.id;
+    setSelection([
+        part.id
+    ]);
     ui.showPartInfo('string');
     changed();
 }
@@ -9277,7 +9294,9 @@ function placeAt(type, x, y) {
     }
     pushUndo();
     parts.push(part);
-    selectedId = part.id;
+    setSelection([
+        part.id
+    ]);
     playSound('place');
     ui.showPartInfo(type);
     changed();
@@ -9428,7 +9447,8 @@ canvas.addEventListener('pointerdown', (e)=>{
             dx: 0,
             dy: 0,
             moved: false,
-            before: clone(parts)
+            before: clone(parts),
+            hit: ownId
         };
     } else if (ownId !== undefined) {
         const part = parts.find((q)=>q.id === ownId);
@@ -9575,6 +9595,10 @@ function endDrag() {
         if (groupDrag.moved) {
             pushUndo(groupDrag.before);
             persistSandbox();
+        } else {
+            setSelection([
+                groupDrag.hit
+            ]);
         }
         groupDrag = null;
         refreshUI();
@@ -9851,7 +9875,9 @@ function render() {
     drawBodies(ctx, sensors, state);
     drawBodies(ctx, solids, state);
     for (const b of solids)drawDecoration(ctx, b, state);
-    for (const f of parts)if (f.fixed && !f.locked) drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
+    const fixedParts = parts.filter((f)=>f.fixed && !f.locked);
+    for (const f of fixedParts)drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
+    for (const f of fixedParts)drawFixedLock(ctx, sim.bodiesOf(f.id), view.z);
     if (hintGhost && !playing) {
         ctx.save();
         ctx.globalAlpha = 0.4;
@@ -10166,21 +10192,32 @@ function switchToLiveSet(set) {
     rememberSet(set);
     loadLevel(Math.max(0, LEVELS.findIndex((l)=>l.hasGoal && !solvedLevels.has(l.id))), true);
 }
+function makeSolveButton() {
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-go';
+    btn.type = 'button';
+    btn.textContent = '✔ Solve';
+    btn.title = 'Place all the parts where they solve this puzzle';
+    btn.addEventListener('click', ()=>{
+        if (!level.solution?.length) {
+            ui.toast('This puzzle has no recorded solution.');
+            return;
+        }
+        if (playing) stop();
+        parts = parts.filter((p)=>p.locked);
+        parts.push(...solutionToParts(level, nextId));
+        clearSelection();
+        rebuild();
+        refreshUI();
+        ui.toast('Solution placed. Press Start to watch it work.');
+    });
+    return btn;
+}
 if (previewing && previewPuzzle > 0) {
     const bar = document.createElement('div');
     bar.id = 'preview-bar';
     bar.textContent = `PREVIEW: community puzzle ${previewPuzzle}. Nothing you do here is saved or sent.`;
-    const showSol = document.createElement('button');
-    showSol.className = 'btn';
-    showSol.type = 'button';
-    showSol.textContent = 'Show the creator\'s solution';
-    showSol.addEventListener('click', ()=>{
-        if (playing || !level.community) return;
-        parts.push(...solutionToParts(level, nextId));
-        rebuild();
-        refreshUI();
-    });
-    bar.appendChild(showSol);
+    bar.appendChild(makeSolveButton());
     document.body.prepend(bar);
     void getPuzzle(previewPuzzle, {
         key: previewKey,
@@ -10196,6 +10233,7 @@ if (previewing && previewPuzzle > 0) {
     const bar = document.createElement('div');
     bar.id = 'preview-bar';
     bar.textContent = `PREVIEW: next month's puzzles. Nothing you do here is saved or sent.`;
+    bar.appendChild(makeSolveButton());
     document.body.prepend(bar);
     void checkPreview(previewKey, previewSet).then((ok)=>{
         if (!ok) window.location.replace(window.location.pathname);

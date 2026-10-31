@@ -15,7 +15,7 @@ import { Simulation, WORLD_H, WORLD_W, FLOOR_TOP, STEP_MS, type Trail } from './
 import { HUB_RADIUS, snapGear } from './game/mechanics';
 import { PROP_SPECS, nominalMass, partProp, propValue } from './game/props';
 import { findFreeSpot, overlapsAny } from './game/space';
-import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState, drawFixedMark } from './game/draw';
+import { drawBelt, drawBodies, drawRope, drawDecoration, drawPaper, drawUnderlay, traceBodies, type DrawState, drawFixedMark, drawFixedLock } from './game/draw';
 import { UI, type PropsModel, type Remaining, type SolvedRow } from './game/ui';
 import { track, disableTracking, deviceId } from './game/tracker';
 import { MAX_PUZZLES, puzzleTag, checkPuzzle, completePuzzle, getPuzzle, listPuzzles, myPuzzles, puzzleToLevel, splitBoard, submitPuzzle, votePuzzle, withdrawPuzzle, type MyPuzzle, type PuzzleSummary, type WirePart } from './game/puzzles';
@@ -67,7 +67,7 @@ let selectedId: number | null = null;
 let multi = new Set<number>();
 let selectMode: 'select' | 'pan' = 'select';
 let marquee: { x0: number; y0: number; x1: number; y1: number } | null = null;
-let groupDrag: { start: { x: number; y: number }; origins: Map<number, { x: number; y: number }>; dx: number; dy: number; moved: boolean; before: PlacedPart[] } | null = null;
+let groupDrag: { start: { x: number; y: number }; origins: Map<number, { x: number; y: number }>; dx: number; dy: number; moved: boolean; before: PlacedPart[]; hit: number } | null = null;
 let hover: { x: number; y: number } | null = null;
 let hoverId: number | undefined;
 let drag: { id: number; dx: number; dy: number; moved: boolean; before: PlacedPart[] } | null = null;
@@ -922,7 +922,7 @@ function stringClick(x: number, y: number, touch = false) {
   const part: PlacedPart = { id: nextId(), type: 'string', x: 0, y: 0, angle: 0, link: { a, b: id } };
   parts.push(part);
   tool = null;
-  selectedId = part.id;
+  setSelection([part.id]);
   ui.showPartInfo('string');
   changed();
 }
@@ -1130,7 +1130,7 @@ function placeAt(type: PartType, x: number, y: number) {
   }
   pushUndo();
   parts.push(part);
-  selectedId = part.id;
+  setSelection([part.id]);
   playSound('place');
   ui.showPartInfo(type);
   changed();
@@ -1259,7 +1259,7 @@ canvas.addEventListener('pointerdown', (e) => {
       const q = parts.find((r) => r.id === id);
       if (q) origins.set(id, { x: q.x, y: q.y });
     }
-    groupDrag = { start: { x: p.x, y: p.y }, origins, dx: 0, dy: 0, moved: false, before: clone(parts) };
+    groupDrag = { start: { x: p.x, y: p.y }, origins, dx: 0, dy: 0, moved: false, before: clone(parts), hit: ownId };
   } else if (ownId !== undefined) {
     const part = parts.find((q) => q.id === ownId)!;
     tool = null;
@@ -1395,6 +1395,9 @@ function endDrag() {
     if (groupDrag.moved) {
       pushUndo(groupDrag.before);
       persistSandbox();
+    } else {
+      // A plain click on a member of a group selects just that part.
+      setSelection([groupDrag.hit]);
     }
     groupDrag = null;
     refreshUI();
@@ -1641,7 +1644,9 @@ function render() {
   drawBodies(ctx, sensors, state);
   drawBodies(ctx, solids, state);
   for (const b of solids) drawDecoration(ctx, b, state);
-  for (const f of parts) if (f.fixed && !f.locked) drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
+  const fixedParts = parts.filter((f) => f.fixed && !f.locked);
+  for (const f of fixedParts) drawFixedMark(ctx, sim.bodiesOf(f.id), view.z);
+  for (const f of fixedParts) drawFixedLock(ctx, sim.bodiesOf(f.id), view.z);
   if (hintGhost && !playing) {
     ctx.save();
     ctx.globalAlpha = 0.4;
@@ -1952,22 +1957,36 @@ function switchToLiveSet(set: string) {
   loadLevel(Math.max(0, LEVELS.findIndex((l) => l.hasGoal && !solvedLevels.has(l.id))), true);
 }
 
+/** Preview only: the Solve button puts every part where it solves the puzzle on screen (campaign set or community puzzle). */
+function makeSolveButton(): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-go';
+  btn.type = 'button';
+  btn.textContent = '✔ Solve';
+  btn.title = 'Place all the parts where they solve this puzzle';
+  btn.addEventListener('click', () => {
+    if (!level.solution?.length) {
+      ui.toast('This puzzle has no recorded solution.');
+      return;
+    }
+    if (playing) stop();
+    // Take the parts that are already placed away first, so pressing Solve twice does not double everything.
+    parts = parts.filter((p) => p.locked);
+    parts.push(...solutionToParts(level, nextId));
+    clearSelection();
+    rebuild();
+    refreshUI();
+    ui.toast('Solution placed. Press Start to watch it work.');
+  });
+  return btn;
+}
+
 if (previewing && previewPuzzle > 0) {
   // The admin plays a community puzzle from the dashboard, with the creator's solution on demand.
   const bar = document.createElement('div');
   bar.id = 'preview-bar';
   bar.textContent = `PREVIEW: community puzzle ${previewPuzzle}. Nothing you do here is saved or sent.`;
-  const showSol = document.createElement('button');
-  showSol.className = 'btn';
-  showSol.type = 'button';
-  showSol.textContent = 'Show the creator\'s solution';
-  showSol.addEventListener('click', () => {
-    if (playing || !level.community) return;
-    parts.push(...solutionToParts(level, nextId));
-    rebuild();
-    refreshUI();
-  });
-  bar.appendChild(showSol);
+  bar.appendChild(makeSolveButton());
   document.body.prepend(bar);
   void getPuzzle(previewPuzzle, { key: previewKey, version: previewParams.get('version') === 'draft' ? 'draft' : 'cur' }).then((r) => {
     if (!r.ok) {
@@ -1981,6 +2000,7 @@ if (previewing && previewPuzzle > 0) {
   const bar = document.createElement('div');
   bar.id = 'preview-bar';
   bar.textContent = `PREVIEW: next month's puzzles. Nothing you do here is saved or sent.`;
+  bar.appendChild(makeSolveButton());
   document.body.prepend(bar);
   void checkPreview(previewKey, previewSet).then((ok) => {
     if (!ok) window.location.replace(window.location.pathname);

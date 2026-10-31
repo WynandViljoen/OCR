@@ -1,5 +1,11 @@
 # Changelog
 
+## Modern TIM 0.5f
+
+- **✔ Solve button in the admin preview.** In both previews (next month's puzzle set and a community puzzle) the banner has a **Solve** button that puts every part where it solves the puzzle you are looking at. Pressing it again re-places the parts instead of doubling them. It replaces the old "Show the creator's solution" button.
+- **Sandbox locks fixed.** Clicking a part that belonged to a selected group used to keep the whole group selected, so pressing Fix (L) or dragging changed every part in the group, including the ball and the basket (their locks vanished). A plain click on a group member now selects just that part, and adding a part or a string always starts a fresh single selection. Padlocks are now drawn after every part's hatching, so a neighbour can no longer cover them.
+- Player-facing wording says "Site Admin" instead of "dashboard".
+
 ## Modern TIM 0.5e
 
 - **The Sandbox design has a name and a Save button** above the board: type a name, press 💾 Save (or Enter). It shows "✓ Saved", "Unsaved changes" or "Not saved yet". Saving uses one slot in My builds and keeps using it; loading a build from My builds makes it the current design.

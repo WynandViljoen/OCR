@@ -74,7 +74,26 @@ export function drawFixedMark(ctx: CanvasRenderingContext2D, bodies: Matter.Body
   traceBodies(ctx, bodies);
   ctx.stroke();
   ctx.setLineDash([]);
-  // The padlock sits just above the part, on a small white disc.
+  ctx.restore();
+}
+
+/**
+ * The padlock of a fixed part: just above the part, on a small white disc. Drawn after every part's hatch and outline,
+ * so a neighbour's marks can never cover it.
+ */
+export function drawFixedLock(ctx: CanvasRenderingContext2D, bodies: Matter.Body[], zoom = 1) {
+  if (!bodies.length) return;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  for (const b of bodies) {
+    minX = Math.min(minX, b.bounds.min.x);
+    minY = Math.min(minY, b.bounds.min.y);
+    maxX = Math.max(maxX, b.bounds.max.x);
+  }
+  const z = Math.max(0.4, zoom);
+  ctx.save();
+  ctx.setLineDash([]);
   const cx = (minX + maxX) / 2;
   const cy = Math.max(14, minY - 12 / z);
   ctx.beginPath();
