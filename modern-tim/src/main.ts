@@ -379,6 +379,7 @@ function saveSolved() {
 
 function persistSandbox() {
   if (level.id !== 'sandbox') return;
+  window.setTimeout(refreshSandboxState, 0);
   try {
     localStorage.setItem(SANDBOX_KEY, JSON.stringify(parts.filter((p) => !p.locked)));
   } catch {
@@ -767,6 +768,7 @@ function loadLevel(index: number, restore: boolean, custom?: Level) {
   ui.setLevels(custom ? [custom] : LEVELS, custom ? 0 : levelIndex, solvedLevels);
   const buildsButton = document.getElementById('btn-builds');
   if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
+  showSandboxBar(level.id === 'sandbox');
   const pubButton = document.getElementById('btn-publish');
   if (pubButton) pubButton.hidden = level.id !== 'sandbox';
   ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
@@ -1847,6 +1849,91 @@ soundBtn.addEventListener('click', () => {
   playSound('click');
 });
 
+// The Sandbox design's name (also the name it is published under) and its Save button, above the board.
+const SANDBOX_NAME_KEY = 'modern-tim:sandbox-name';
+const sbBar = document.getElementById('sandbox-bar') as HTMLElement;
+const sbName = document.getElementById('sandbox-name') as HTMLInputElement;
+const sbSave = document.getElementById('sandbox-save') as HTMLButtonElement;
+const sbState = document.getElementById('sandbox-state') as HTMLElement;
+let sandboxName = '';
+let sandboxBuildId = '';
+try {
+  const s = JSON.parse(localStorage.getItem(SANDBOX_NAME_KEY) ?? 'null') as { name?: string; id?: string } | null;
+  sandboxName = typeof s?.name === 'string' ? s.name.slice(0, 24) : '';
+  sandboxBuildId = typeof s?.id === 'string' ? s.id : '';
+} catch {
+  /* nothing remembered */
+}
+sbName.value = sandboxName;
+
+function rememberDesign() {
+  try {
+    localStorage.setItem(SANDBOX_NAME_KEY, JSON.stringify({ name: sandboxName, id: sandboxBuildId }));
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function showSandboxBar(show: boolean) {
+  sbBar.hidden = !show;
+  if (show) refreshSandboxState();
+}
+
+function setSandboxDesign(name: string, id: string) {
+  sandboxName = name.slice(0, 24);
+  sandboxBuildId = id;
+  sbName.value = sandboxName;
+  rememberDesign();
+  refreshSandboxState();
+}
+
+const designSig = (l: unknown[]) => JSON.stringify((l as { type?: string; x?: number; y?: number; angle?: number; w?: number; h?: number; flip?: boolean; fixed?: boolean }[]).map((p) => [p.type, p.x, p.y, p.angle, p.w, p.h, !!p.flip, !!p.fixed]));
+
+function refreshSandboxState() {
+  if (sbBar.hidden) return;
+  const b = loadBuilds(player).find((x) => x.id === sandboxBuildId);
+  const same = !!b && designSig(b.parts) === designSig(exportParts()) && b.name === sandboxName.trim();
+  sbState.textContent = same ? '✓ Saved' : b ? 'Unsaved changes' : 'Not saved yet';
+  sbState.classList.toggle('bad', !same);
+}
+
+/** Save the board under the design's name in My builds (a new slot the first time, then the same slot). */
+function saveSandboxDesign(): { ok: boolean; text: string } {
+  const name = sbName.value.trim().slice(0, 24);
+  const list = loadBuilds(player);
+  sandboxName = name || defaultBuildName(list);
+  sbName.value = sandboxName;
+  const mine = exportParts();
+  const existing = list.find((x) => x.id === sandboxBuildId);
+  let next: Build[];
+  if (existing) {
+    next = renameBuild(replaceBuild(list, existing.id, mine, Date.now()), existing.id, sandboxName);
+  } else {
+    const added = addBuild(list, sandboxName, mine, Date.now());
+    if (!added) return { ok: false, text: 'A puzzle must be saved first, but all 10 My builds slots are used. Delete or replace one, then try again.' };
+    next = added;
+    sandboxBuildId = added[added.length - 1].id;
+  }
+  if (!saveBuilds(player, next)) return { ok: false, text: 'Your browser would not save this build. Is private browsing on?' };
+  rememberDesign();
+  refreshSandboxState();
+  return { ok: true, text: '' };
+}
+
+sbName.addEventListener('input', () => {
+  sandboxName = sbName.value.trim().slice(0, 24);
+  rememberDesign();
+  refreshSandboxState();
+});
+sbName.addEventListener('keydown', (e) => {
+  e.stopPropagation();
+  if (e.key === 'Enter') sbSave.click();
+});
+sbSave.addEventListener('click', () => {
+  const r = saveSandboxDesign();
+  ui.toast(r.ok ? `Saved “${sandboxName}” in My builds.` : r.text);
+});
+
 let booted = false;
 loadLevel(Math.max(0, LEVELS.findIndex((l) => l.hasGoal && !solvedLevels.has(l.id))), true);
 booted = true;
@@ -2123,6 +2210,7 @@ function buildAction(act: string, id: string) {
     pushUndo();
     parts = [...parts.filter((p) => p.locked), ...mine];
     changed();
+    setSandboxDesign(b.name, b.id);
     closeBuilds();
     ui.toast(`Loaded “${b.name}”. Undo brings your last board back.`);
   } else if (act === 'replace') {
@@ -2304,6 +2392,7 @@ function editMyPuzzle(m: MyPuzzle) {
   parts = [...parts.filter((p) => p.locked), ...mineParts];
   changed();
   editingPuzzle = { id: m.id, title: m.title };
+  setSandboxDesign(m.title, '');
   closeCommunity();
   ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
@@ -2326,7 +2415,15 @@ async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string; 
 
 // When a Sandbox puzzle is solved (a fixed ball reached a fixed basket) the run stops and we offer to save and publish it.
 const askEl = document.getElementById('pubask') as HTMLElement;
-const askName = document.getElementById('pubask-name') as HTMLInputElement;
+const askWho = document.getElementById('pubask-who') as HTMLElement;
+
+function openAsk() {
+  askWho.textContent = `“${sandboxName || 'My puzzle'}”`;
+  askMsg.hidden = true;
+  askYes.disabled = false;
+  askEl.hidden = false;
+  askYes.focus();
+}
 const askMsg = document.getElementById('pubask-msg') as HTMLElement;
 const askYes = document.getElementById('pubask-yes') as HTMLButtonElement;
 
@@ -2335,11 +2432,7 @@ function onSandboxSolved() {
   playSound('success');
   window.setTimeout(() => {
     if (!playing || !sim.solved || level.id !== 'sandbox' || previewing) return;
-    askName.value = editingPuzzle?.title ?? askName.value;
-    askMsg.hidden = true;
-    askYes.disabled = false;
-    askEl.hidden = false;
-    askName.focus();
+    openAsk();
   }, 500);
 }
 
@@ -2353,36 +2446,23 @@ async function saveAndPublish() {
   askMsg.hidden = false;
   askMsg.classList.remove('bad');
   askMsg.textContent = 'Saving and sending…';
-  const name = askName.value.trim();
+  const name = (sandboxName || '').trim() || 'My puzzle';
   // A puzzle must be saved in My builds before it can be published.
-  const list = loadBuilds(player);
-  const mine = exportParts();
-  const sig = (l: unknown[]) => JSON.stringify((l as { type?: string; x?: number; y?: number; angle?: number; w?: number; h?: number; flip?: boolean; fixed?: boolean }[]).map((p) => [p.type, p.x, p.y, p.angle, p.w, p.h, !!p.flip, !!p.fixed]));
-  let build = list.find((x) => sig(x.parts) === sig(mine));
-  let all = list;
-  if (!build) {
-    const added = addBuild(list, name || 'My puzzle', mine, Date.now());
-    if (!added) {
-      askYes.disabled = false;
-      askMsg.classList.add('bad');
-      askMsg.textContent = 'A puzzle must be saved first, but all 10 My builds slots are used. Delete or replace one, then publish again.';
-      return;
-    }
-    if (!saveBuilds(player, added)) {
-      askYes.disabled = false;
-      askMsg.classList.add('bad');
-      askMsg.textContent = 'Your browser would not save this build, so it cannot be published. Is private browsing on?';
-      return;
-    }
-    all = added;
-    build = added[added.length - 1];
+  const saved = saveSandboxDesign();
+  if (!saved.ok) {
+    askYes.disabled = false;
+    askMsg.classList.add('bad');
+    askMsg.textContent = saved.text;
+    return;
   }
+  const all = loadBuilds(player);
+  const build = all.find((x) => x.id === sandboxBuildId)!;
   const r = await doPublish(name);
   if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
-  askMsg.textContent = r.ok ? `Saved in My builds. ${r.text}` : r.text;
-  if (r.ok) window.setTimeout(closeAsk, 2200);
+  askMsg.textContent = r.ok ? 'Saved in My builds. Sent to the admin for review. If it is approved it will appear under Community puzzles.' : r.text;
+  if (r.ok) window.setTimeout(closeAsk, 3500);
 }
 
 document.getElementById('btn-publish')?.addEventListener('click', () => {
@@ -2392,11 +2472,7 @@ document.getElementById('btn-publish')?.addEventListener('click', () => {
     ui.toast(check.problem);
     return;
   }
-  askName.value = editingPuzzle?.title ?? askName.value;
-  askMsg.hidden = true;
-  askYes.disabled = false;
-  askEl.hidden = false;
-  askName.focus();
+  openAsk();
 });
 askYes.addEventListener('click', () => void saveAndPublish());
 document.getElementById('pubask-no')?.addEventListener('click', closeAsk);

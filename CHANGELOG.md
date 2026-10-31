@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.5e
+
+- **The Sandbox design has a name and a Save button** above the board: type a name, press 💾 Save (or Enter). It shows "✓ Saved", "Unsaved changes" or "Not saved yet". Saving uses one slot in My builds and keeps using it; loading a build from My builds makes it the current design.
+- **The design name is the puzzle name.** The "It works!" window no longer asks for a name: it just offers **Save and publish**, saves the design, and says it was sent to the admin for review and will appear under Community puzzles if approved.
+
 ## Modern TIM 0.5d
 
 - The Community window no longer has its own publish form: it just says that Sandbox designs can be published as community puzzles. Publishing happens from the Sandbox (🚀 Publish puzzle, or the prompt when the ball reaches the basket).

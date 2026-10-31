@@ -69,6 +69,12 @@
         </aside>
 
         <section class="stage">
+          <div id="sandbox-bar" class="sandbox-bar" hidden>
+            <label class="sr-only" for="sandbox-name">Design name</label>
+            <input id="sandbox-name" type="text" maxlength="24" autocomplete="off" spellcheck="false" placeholder="Name your design" />
+            <button id="sandbox-save" class="btn btn-go" type="button" title="Save this design in My builds">💾 Save</button>
+            <span id="sandbox-state" class="sandbox-state"></span>
+          </div>
           <div class="goal-bar">
             <span class="goal-tag">Goal</span>
             <span id="goal-text" class="goal-text"></span>
@@ -214,9 +220,7 @@
     <div id="pubask" class="gate" role="dialog" aria-modal="true" aria-labelledby="pubask-title" hidden>
       <div class="gate-card">
         <h2 id="pubask-title">It works! 🎉</h2>
-        <p>The ball reached the basket. Save this puzzle and publish it for the community? The dashboard checks it before anyone else sees it.</p>
-        <label class="sr-only" for="pubask-name">Puzzle name</label>
-        <input id="pubask-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
+        <p>The ball reached the basket. Save <b id="pubask-who"></b> and publish it? It will be submitted to the admin for review, and placed under Community puzzles if it is approved.</p>
         <p id="pubask-msg" class="builds-msg" role="status" hidden></p>
         <div class="gate-actions">
           <button id="pubask-no" class="btn" type="button">Not now</button>

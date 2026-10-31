@@ -738,3 +738,8 @@ kbd {
 
 .build-pz { font-size: 0.85rem; font-weight: 700; margin: 2px 0 4px; }
 .build-pz.bad { color: var(--danger); }
+
+.sandbox-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.sandbox-bar input { flex: 1; min-width: 140px; max-width: 320px; font-weight: 700; }
+.sandbox-state { font-size: 0.85rem; font-weight: 700; opacity: 0.85; }
+.sandbox-state.bad { color: var(--danger); }
