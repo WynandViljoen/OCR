@@ -315,12 +315,20 @@ function clean_puzzle_parts($fixedIn, $solutionIn) {
             }
         }
     }
-    $hasBall = false;
-    $hasBasket = false;
-    foreach ($fixed as $c) if ($c['type'] === 'ball') $hasBall = true;
-    foreach (array_merge($fixed, $solution) as $c) if ($c['type'] === 'basket') $hasBasket = true;
-    if (!$hasBall) return 'The puzzle needs a fixed ball: that is what the player has to get home.';
-    if (!$hasBasket) return 'The puzzle needs a basket as the goal.';
+    $balls = 0;
+    $baskets = 0;
+    $fixedBall = false;
+    $fixedBasket = false;
+    foreach ($fixed as $c) {
+        if ($c['type'] === 'ball') { $balls++; $fixedBall = true; }
+        if ($c['type'] === 'basket') { $baskets++; $fixedBasket = true; }
+    }
+    foreach ($solution as $c) {
+        if ($c['type'] === 'ball') $balls++;
+        if ($c['type'] === 'basket') $baskets++;
+    }
+    if ($balls !== 1 || !$fixedBall) return 'A puzzle needs exactly one ball, and it must be fixed.';
+    if ($baskets !== 1 || !$fixedBasket) return 'A puzzle needs exactly one basket, and it must be fixed.';
     return [$fixed, $solution];
 }
 

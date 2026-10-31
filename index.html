@@ -783,6 +783,7 @@ kbd {
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-publish" class="btn btn-go" type="button" title="Publish this Sandbox board as a community puzzle" hidden>🚀 Publish puzzle</button>
           <button id="btn-builds" class="btn" type="button" title="Save, load and share your Sandbox builds" hidden>📁 My builds</button>
           <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
@@ -939,6 +940,19 @@ kbd {
         <div class="gate-actions">
           <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
           <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="pubask" class="gate" role="dialog" aria-modal="true" aria-labelledby="pubask-title" hidden>
+      <div class="gate-card">
+        <h2 id="pubask-title">It works! 🎉</h2>
+        <p>The ball reached the basket. Save this puzzle and publish it for the community? The dashboard checks it before anyone else sees it.</p>
+        <label class="sr-only" for="pubask-name">Puzzle name</label>
+        <input id="pubask-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
+        <p id="pubask-msg" class="builds-msg" role="status" hidden></p>
+        <div class="gate-actions">
+          <button id="pubask-no" class="btn" type="button">Not now</button>
+          <button id="pubask-yes" class="btn btn-go" type="button">Save and publish</button>
         </div>
       </div>
     </div>
@@ -4019,7 +4033,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.4z';
+const VERSION = '0.4za';
 
 return { VERSION };
 })();
@@ -6135,16 +6149,17 @@ function pzSimulate(parts) {
     };
 }
 function checkPuzzle(fixed, solution) {
-    if (!fixed.some((p)=>p.type === 'ball')) return {
-        ok: false,
-        problem: 'Place the ball and mark it as fixed (the 📌 Fix button), so players know what to get home.'
-    };
-    if (![
+    const all = [
         ...fixed,
         ...solution
-    ].some((p)=>p.type === 'basket')) return {
+    ];
+    if (all.filter((p)=>p.type === 'ball').length !== 1 || !fixed.some((p)=>p.type === 'ball')) return {
         ok: false,
-        problem: 'The puzzle needs a basket as its goal.'
+        problem: 'A puzzle needs exactly one ball, and it must be fixed (select it and press 🔒 Fix).'
+    };
+    if (all.filter((p)=>p.type === 'basket').length !== 1 || !fixed.some((p)=>p.type === 'basket')) return {
+        ok: false,
+        problem: 'A puzzle needs exactly one basket, and it must be fixed (select it and press 🔒 Fix).'
     };
     if (solution.length === 0) return {
         ok: false,
@@ -8317,6 +8332,10 @@ function captureBoardShot() {
     return '';
 }
 sim.onSolved = (info)=>{
+    if (level.id === 'sandbox') {
+        onSandboxSolved();
+        return;
+    }
     if (level.community) {
         onCommunitySolved();
         return;
@@ -8567,6 +8586,12 @@ function remaining() {
     const out = {};
     if (level.inventory === null) {
         for (const type of Object.keys(PART_DEFS))out[type] = null;
+        if (level.id === 'sandbox') {
+            for (const type of [
+                'ball',
+                'basket'
+            ])out[type] = Math.max(0, 1 - parts.filter((p)=>!p.locked && p.type === type).length);
+        }
         return out;
     }
     for (const [type, count] of Object.entries(level.inventory)){
@@ -8731,10 +8756,13 @@ function syncRopes() {
         r.w = Math.max(10, Math.hypot(via.x - a.x, via.y - a.y) - 20);
     }
 }
+function sandboxPuzzleReady() {
+    return level.id === 'sandbox' && parts.some((p)=>p.type === 'ball' && p.fixed) && parts.some((p)=>p.type === 'basket' && p.fixed);
+}
 function rebuild() {
     syncStrings();
     syncRopes();
-    sim.goalEnabled = level.hasGoal;
+    sim.goalEnabled = level.hasGoal || sandboxPuzzleReady();
     sim.goalTargets = level.goalTargets ?? [
         'ball'
     ];
@@ -8846,6 +8874,8 @@ function loadLevel(index, restore, custom) {
     ] : LEVELS, custom ? 0 : levelIndex, solvedLevels);
     const buildsButton = document.getElementById('btn-builds');
     if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
+    const pubButton = document.getElementById('btn-publish');
+    if (pubButton) pubButton.hidden = level.id !== 'sandbox';
     ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
     setCommunityBits(!!custom);
     ui.setSolvedScores([]);
@@ -10438,29 +10468,27 @@ function editMyPuzzle(m) {
     closeCommunity();
     ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
 }
-async function publishPuzzle() {
-    if (!player) {
-        cmSay('Choose a player name first (top right).', true);
-        return;
-    }
+async function doPublish(titleIn) {
+    if (!player) return {
+        ok: false,
+        text: 'Choose a player name first (top right).'
+    };
     const dev = deviceId();
-    if (!dev) {
-        cmSay('This browser has no id yet. Reload the game and try again in a moment.', true);
-        return;
-    }
+    if (!dev) return {
+        ok: false,
+        text: 'This browser has no id yet. Reload the game and try again in a moment.'
+    };
     const { fixed, solution } = splitBoard(parts);
     const check = checkPuzzle(fixed, solution);
-    if (!check.ok) {
-        cmSay(check.problem, true);
-        return;
-    }
-    const title = cmName.value.trim().slice(0, 28) || editingPuzzle?.title || '';
-    if (!title) {
-        cmSay('Give your puzzle a name.', true);
-        return;
-    }
-    cmPublish.disabled = true;
-    cmSay('Sending…');
+    if (!check.ok) return {
+        ok: false,
+        text: check.problem
+    };
+    const title = titleIn.trim().slice(0, 28) || editingPuzzle?.title || '';
+    if (!title) return {
+        ok: false,
+        text: 'Give your puzzle a name.'
+    };
     const r = await submitPuzzle({
         device: dev,
         creator: player,
@@ -10470,17 +10498,76 @@ async function publishPuzzle() {
         shot: captureBoardShot(),
         id: editingPuzzle?.id
     });
-    cmPublish.disabled = false;
-    if (!r.ok) {
-        cmSay(r.error, true);
-        return;
-    }
+    if (!r.ok) return {
+        ok: false,
+        text: r.error
+    };
     editingPuzzle = null;
     cmEditing.hidden = true;
     cmName.value = '';
-    cmSay('Sent! Your puzzle shows up for players once it has been approved.');
-    void renderCommunity();
+    return {
+        ok: true,
+        text: 'Sent! Your puzzle shows up for players once it has been approved.'
+    };
 }
+async function publishPuzzle() {
+    cmPublish.disabled = true;
+    cmSay('Sending…');
+    const r = await doPublish(cmName.value);
+    cmPublish.disabled = false;
+    cmSay(r.text, !r.ok);
+    if (r.ok) void renderCommunity();
+}
+const askEl = document.getElementById('pubask');
+const askName = document.getElementById('pubask-name');
+const askMsg = document.getElementById('pubask-msg');
+const askYes = document.getElementById('pubask-yes');
+function onSandboxSolved() {
+    ui.setStatus('Solved!', 'solved');
+    playSound('success');
+    window.setTimeout(()=>{
+        if (!playing || !sim.solved || level.id !== 'sandbox' || previewing) return;
+        askName.value = editingPuzzle?.title ?? askName.value;
+        askMsg.hidden = true;
+        askYes.disabled = false;
+        askEl.hidden = false;
+        askName.focus();
+    }, 500);
+}
+function closeAsk() {
+    askEl.hidden = true;
+    if (playing) stop();
+}
+async function saveAndPublish() {
+    askYes.disabled = true;
+    askMsg.hidden = false;
+    askMsg.classList.remove('bad');
+    askMsg.textContent = 'Saving and sending…';
+    const name = askName.value.trim();
+    const list = loadBuilds(player);
+    const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
+    if (saved) saveBuilds(player, saved);
+    const r = await doPublish(name);
+    askYes.disabled = false;
+    askMsg.classList.toggle('bad', !r.ok);
+    askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;
+    if (r.ok) window.setTimeout(closeAsk, 2200);
+}
+document.getElementById('btn-publish')?.addEventListener('click', ()=>{
+    const { fixed, solution } = splitBoard(parts);
+    const check = checkPuzzle(fixed, solution);
+    if (!check.ok) {
+        ui.toast(check.problem);
+        return;
+    }
+    askName.value = editingPuzzle?.title ?? askName.value;
+    askMsg.hidden = true;
+    askYes.disabled = false;
+    askEl.hidden = false;
+    askName.focus();
+});
+askYes.addEventListener('click', ()=>void saveAndPublish());
+document.getElementById('pubask-no')?.addEventListener('click', closeAsk);
 function onCommunitySolved() {
     ui.setStatus('Solved!', 'solved');
     ui.setSolvedScores([]);

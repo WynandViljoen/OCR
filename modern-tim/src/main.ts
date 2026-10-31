@@ -200,6 +200,10 @@ function captureBoardShot(): string {
 }
 
 sim.onSolved = (info) => {
+  if (level.id === 'sandbox') {
+    onSandboxSolved();
+    return;
+  }
   if (level.community) {
     onCommunitySolved();
     return;
@@ -455,6 +459,10 @@ function remaining(): Remaining {
   const out: Remaining = {};
   if (level.inventory === null) {
     for (const type of Object.keys(PART_DEFS) as PartType[]) out[type] = null;
+    // A puzzle has exactly one ball and one basket.
+    if (level.id === 'sandbox') {
+      for (const type of ['ball', 'basket'] as PartType[]) out[type] = Math.max(0, 1 - parts.filter((p) => !p.locked && p.type === type).length);
+    }
     return out;
   }
   for (const [type, count] of Object.entries(level.inventory) as [PartType, number][]) {
@@ -626,10 +634,15 @@ function syncRopes() {
   }
 }
 
+/** In the Sandbox, once a fixed ball and a fixed basket are on the board the run stops by itself when the ball is home. */
+function sandboxPuzzleReady(): boolean {
+  return level.id === 'sandbox' && parts.some((p) => p.type === 'ball' && p.fixed) && parts.some((p) => p.type === 'basket' && p.fixed);
+}
+
 function rebuild() {
   syncStrings();
   syncRopes();
-  sim.goalEnabled = level.hasGoal;
+  sim.goalEnabled = level.hasGoal || sandboxPuzzleReady();
   sim.goalTargets = level.goalTargets ?? ['ball'];
   sim.load(parts, playing);
 }
@@ -754,6 +767,8 @@ function loadLevel(index: number, restore: boolean, custom?: Level) {
   ui.setLevels(custom ? [custom] : LEVELS, custom ? 0 : levelIndex, solvedLevels);
   const buildsButton = document.getElementById('btn-builds');
   if (buildsButton) buildsButton.hidden = level.id !== 'sandbox';
+  const pubButton = document.getElementById('btn-publish');
+  if (pubButton) pubButton.hidden = level.id !== 'sandbox';
   ui.setLevelInfo(level, !custom && levelIndex < LEVELS.length - 1);
   setCommunityBits(!!custom);
   ui.setSolvedScores([]);
@@ -2280,41 +2295,89 @@ function editMyPuzzle(m: MyPuzzle) {
   ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
 }
 
-async function publishPuzzle() {
-  if (!player) {
-    cmSay('Choose a player name first (top right).', true);
-    return;
-  }
+/** Check, then send the Sandbox board as a puzzle. Returns the sentence to show, and whether it worked. */
+async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string }> {
+  if (!player) return { ok: false, text: 'Choose a player name first (top right).' };
   const dev = deviceId();
-  if (!dev) {
-    cmSay('This browser has no id yet. Reload the game and try again in a moment.', true);
-    return;
-  }
+  if (!dev) return { ok: false, text: 'This browser has no id yet. Reload the game and try again in a moment.' };
   const { fixed, solution } = splitBoard(parts);
   const check = checkPuzzle(fixed, solution);
-  if (!check.ok) {
-    cmSay(check.problem, true);
-    return;
-  }
-  const title = cmName.value.trim().slice(0, 28) || editingPuzzle?.title || '';
-  if (!title) {
-    cmSay('Give your puzzle a name.', true);
-    return;
-  }
-  cmPublish.disabled = true;
-  cmSay('Sending…');
+  if (!check.ok) return { ok: false, text: check.problem };
+  const title = titleIn.trim().slice(0, 28) || editingPuzzle?.title || '';
+  if (!title) return { ok: false, text: 'Give your puzzle a name.' };
   const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), id: editingPuzzle?.id });
-  cmPublish.disabled = false;
-  if (!r.ok) {
-    cmSay(r.error, true);
-    return;
-  }
+  if (!r.ok) return { ok: false, text: r.error };
   editingPuzzle = null;
   cmEditing.hidden = true;
   cmName.value = '';
-  cmSay('Sent! Your puzzle shows up for players once it has been approved.');
-  void renderCommunity();
+  return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.' };
 }
+
+async function publishPuzzle() {
+  cmPublish.disabled = true;
+  cmSay('Sending…');
+  const r = await doPublish(cmName.value);
+  cmPublish.disabled = false;
+  cmSay(r.text, !r.ok);
+  if (r.ok) void renderCommunity();
+}
+
+// When a Sandbox puzzle is solved (a fixed ball reached a fixed basket) the run stops and we offer to save and publish it.
+const askEl = document.getElementById('pubask') as HTMLElement;
+const askName = document.getElementById('pubask-name') as HTMLInputElement;
+const askMsg = document.getElementById('pubask-msg') as HTMLElement;
+const askYes = document.getElementById('pubask-yes') as HTMLButtonElement;
+
+function onSandboxSolved() {
+  ui.setStatus('Solved!', 'solved');
+  playSound('success');
+  window.setTimeout(() => {
+    if (!playing || !sim.solved || level.id !== 'sandbox' || previewing) return;
+    askName.value = editingPuzzle?.title ?? askName.value;
+    askMsg.hidden = true;
+    askYes.disabled = false;
+    askEl.hidden = false;
+    askName.focus();
+  }, 500);
+}
+
+function closeAsk() {
+  askEl.hidden = true;
+  if (playing) stop();
+}
+
+async function saveAndPublish() {
+  askYes.disabled = true;
+  askMsg.hidden = false;
+  askMsg.classList.remove('bad');
+  askMsg.textContent = 'Saving and sending…';
+  const name = askName.value.trim();
+  // Save the board in My builds first (skipped quietly when the 10 slots are full).
+  const list = loadBuilds(player);
+  const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
+  if (saved) saveBuilds(player, saved);
+  const r = await doPublish(name);
+  askYes.disabled = false;
+  askMsg.classList.toggle('bad', !r.ok);
+  askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;
+  if (r.ok) window.setTimeout(closeAsk, 2200);
+}
+
+document.getElementById('btn-publish')?.addEventListener('click', () => {
+  const { fixed, solution } = splitBoard(parts);
+  const check = checkPuzzle(fixed, solution);
+  if (!check.ok) {
+    ui.toast(check.problem);
+    return;
+  }
+  askName.value = editingPuzzle?.title ?? askName.value;
+  askMsg.hidden = true;
+  askYes.disabled = false;
+  askEl.hidden = false;
+  askName.focus();
+});
+askYes.addEventListener('click', () => void saveAndPublish());
+document.getElementById('pubask-no')?.addEventListener('click', closeAsk);
 
 function onCommunitySolved() {
   ui.setStatus('Solved!', 'solved');

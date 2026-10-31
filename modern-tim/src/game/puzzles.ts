@@ -221,8 +221,9 @@ export interface PuzzleCheck {
 
 /** Does the puzzle solve with its solution and not solve without? Runs on its own simulation. */
 export function checkPuzzle(fixed: WirePart[], solution: WirePart[]): PuzzleCheck {
-  if (!fixed.some((p) => p.type === 'ball')) return { ok: false, problem: 'Place the ball and mark it as fixed (the 📌 Fix button), so players know what to get home.' };
-  if (![...fixed, ...solution].some((p) => p.type === 'basket')) return { ok: false, problem: 'The puzzle needs a basket as its goal.' };
+  const all = [...fixed, ...solution];
+  if (all.filter((p) => p.type === 'ball').length !== 1 || !fixed.some((p) => p.type === 'ball')) return { ok: false, problem: 'A puzzle needs exactly one ball, and it must be fixed (select it and press 🔒 Fix).' };
+  if (all.filter((p) => p.type === 'basket').length !== 1 || !fixed.some((p) => p.type === 'basket')) return { ok: false, problem: 'A puzzle needs exactly one basket, and it must be fixed (select it and press 🔒 Fix).' };
   if (solution.length === 0) return { ok: false, problem: 'Players need parts to build with. Leave some parts un-fixed: they become the tray.' };
   if (fixed.some((p) => p.type === 'string' || p.type === 'rope')) return { ok: false, problem: 'Strings and ropes cannot be fixed. Players add them themselves.' };
   const level = puzzleToLevel({ id: 0, title: 'x', creator: 'x', rev: 1, fixed, solution });

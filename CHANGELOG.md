@@ -1,5 +1,12 @@
 # Changelog
 
+## Modern TIM 0.4za
+
+Publishing made easy.
+
+- **🚀 Publish puzzle** button in the Sandbox. A puzzle has exactly one ball and one basket, and both must be fixed (🔒); the Sandbox now lets you place only one of each, and the server checks it too.
+- Once a fixed ball and a fixed basket are on the board, the run **stops by itself when the ball lands in the basket**, and a window asks **Save and publish?** It saves the board in My builds, checks the puzzle and sends it for approval.
+
 ## Modern TIM 0.4z
 
 Community puzzles: players publish puzzles from the Sandbox, the dashboard approves them, everyone can play.

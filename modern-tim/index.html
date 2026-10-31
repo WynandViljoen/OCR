@@ -44,6 +44,7 @@
           <button id="player-chip" class="btn player-chip" type="button" title="Change player">
             <span id="player-name">Player</span>
           </button>
+          <button id="btn-publish" class="btn btn-go" type="button" title="Publish this Sandbox board as a community puzzle" hidden>🚀 Publish puzzle</button>
           <button id="btn-builds" class="btn" type="button" title="Save, load and share your Sandbox builds" hidden>📁 My builds</button>
           <button id="btn-sound" class="btn" type="button" title="Sound on / off" aria-label="Sound on or off" aria-pressed="false">🔊</button>
           <button id="btn-undo" class="btn" type="button" title="Undo (Ctrl+Z)" disabled>↶ Undo</button>
@@ -200,6 +201,19 @@
         <div class="gate-actions">
           <button id="builds-share-current" class="btn" type="button" title="Make a link to what is on the board right now">🔗 Share the board</button>
           <button id="builds-close" class="btn btn-go" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="pubask" class="gate" role="dialog" aria-modal="true" aria-labelledby="pubask-title" hidden>
+      <div class="gate-card">
+        <h2 id="pubask-title">It works! 🎉</h2>
+        <p>The ball reached the basket. Save this puzzle and publish it for the community? The dashboard checks it before anyone else sees it.</p>
+        <label class="sr-only" for="pubask-name">Puzzle name</label>
+        <input id="pubask-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
+        <p id="pubask-msg" class="builds-msg" role="status" hidden></p>
+        <div class="gate-actions">
+          <button id="pubask-no" class="btn" type="button">Not now</button>
+          <button id="pubask-yes" class="btn btn-go" type="button">Save and publish</button>
         </div>
       </div>
     </div>
