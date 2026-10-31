@@ -493,7 +493,8 @@ function puzzle_post_api(array $in) {
     if ($action === 'withdraw') {
         $res = puzzle_db(function (&$db) use ($device, $id) {
             $rec = $db['puzzles'][$id] ?? null;
-            if (!is_array($rec) || ($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle is not yours.', 'code' => 403];
+            if (!is_array($rec)) return ['error' => 'That puzzle no longer exists on the server. Close this window and open it again.', 'code' => 404];
+            if (($rec['device'] ?? '') !== $device) return ['error' => 'That puzzle was sent from another browser (its id ends ' . substr((string) ($rec['device'] ?? ''), -4) . ', this browser ends ' . substr($device, -4) . ').', 'code' => 403];
             drop_puzzle_shot($rec['draft']['shot'] ?? '');
             drop_puzzle_shot($rec['cur']['shot'] ?? '');
             unset($db['puzzles'][$id]);

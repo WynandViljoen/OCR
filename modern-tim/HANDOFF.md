@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.5i: share.php withdraw returns distinct errors (404 missing / 403 other device with id suffixes). Added to chase a live "That puzzle is not yours" on a rejected puzzle that is listed in My puzzles; could not reproduce locally (admin reject -> user Remove works).
 - v0.5h: pubask success message is "Done! Awaiting admin approval.", no auto close, Save and publish hidden, Not now -> Close.
 - v0.5g: designSubmitted() hides #btn-publish and the solve prompt; saveAndPublish passes build.puzzle as the id (edit, not new); share.php puzzle_sig() refuses duplicates per device (409).
 - v0.5f: makeSolveButton() (preview banners; level.solution -> solutionToParts after dropping own parts); selection fix (placeAt/stringClick use setSelection; groupDrag.hit selects the clicked part on a plain click); drawFixedLock split from drawFixedMark (locks drawn last). Test scripts used by hand: Playwright fuzz of sandbox ops.

@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5i
+
+- Removing a puzzle that the server refuses now says why: either the puzzle no longer exists, or it was sent from another browser (with the last 4 characters of both browser ids), instead of the vague "not yours".
+
 ## Modern TIM 0.5h
 
 - After a successful publish the window simply says **Done! Awaiting admin approval.** It stays open (only a Close button is left) instead of closing by itself.
