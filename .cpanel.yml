@@ -1,7 +1,9 @@
 ---
 deployment:
   tasks:
-    # EDIT THIS: replace YOURCPANELUSER and the folder name with your own.
+    # cPanel "Deploy HEAD Commit" runs these from the repo folder. Add a line here for any new file the site needs.
     - export DEPLOYPATH=/home/qdh4yd431jlw/public_html/ocr/
     - /bin/mkdir -p $DEPLOYPATH
-    - /bin/cp index.html $DEPLOYPATH
+    - /bin/cp index.html scores.php admin.php share.php favicon.ico manifest.webmanifest $DEPLOYPATH
+    - /bin/mkdir -p ${DEPLOYPATH}icons
+    - /bin/cp icons/* ${DEPLOYPATH}icons/
