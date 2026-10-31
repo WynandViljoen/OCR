@@ -4033,7 +4033,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5';
+const VERSION = '0.5a';
 
 return { VERSION };
 })();
@@ -5936,14 +5936,18 @@ async function pzCall(fetchFn, url, init) {
             cache: 'no-store'
         });
         let data = null;
+        let text = '';
         try {
-            data = await res.json();
+            text = await res.text();
+            data = JSON.parse(text);
         } catch  {
             data = null;
         }
         return {
             ok: res.ok,
-            data
+            data,
+            status: res.status,
+            text: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
         };
     } catch  {
         return null;
@@ -6017,11 +6021,15 @@ async function pzPost(body, fetchFn) {
     };
     if (!r.ok) return {
         ok: false,
-        error: pzErr(r.data, 'That did not work. Try again.')
+        error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`)
+    };
+    if (!r.data) return {
+        ok: false,
+        error: `The server sent something odd${r.text ? `: ${r.text}` : ''}. Please tell the admin.`
     };
     return {
         ok: true,
-        value: r.data ?? {}
+        value: r.data
     };
 }
 const submitPuzzle = (i, fetchFn = (u, x)=>fetch(u, x))=>pzPost({

@@ -71,18 +71,20 @@ export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 export type Reply<T> = { ok: true; value: T } | { ok: false; error: string };
 const PZ_OFFLINE = 'Cannot reach the server right now. Try again in a moment.';
 
-async function pzCall(fetchFn: FetchLike, url: string, init?: RequestInit): Promise<{ ok: boolean; data: Record<string, unknown> | null } | null> {
+async function pzCall(fetchFn: FetchLike, url: string, init?: RequestInit): Promise<{ ok: boolean; data: Record<string, unknown> | null; status: number; text: string } | null> {
   const ctl = typeof AbortController === 'function' ? new AbortController() : null;
   const timer = ctl ? setTimeout(() => ctl.abort(), PZ_TIMEOUT) : 0;
   try {
     const res = await fetchFn(url, { ...init, signal: ctl?.signal, cache: 'no-store' });
     let data: Record<string, unknown> | null = null;
+    let text = '';
     try {
-      data = (await res.json()) as Record<string, unknown>;
+      text = await res.text();
+      data = JSON.parse(text) as Record<string, unknown>;
     } catch {
       data = null;
     }
-    return { ok: res.ok, data };
+    return { ok: res.ok, data, status: res.status, text: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) };
   } catch {
     return null;
   } finally {
@@ -120,8 +122,9 @@ export async function getPuzzle(id: number, preview?: { key: string; version: st
 async function pzPost(body: Record<string, unknown>, fetchFn: FetchLike): Promise<Reply<Record<string, unknown>>> {
   const r = await pzCall(fetchFn, PUZZLE_ENDPOINT, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } });
   if (!r) return { ok: false, error: PZ_OFFLINE };
-  if (!r.ok) return { ok: false, error: pzErr(r.data, 'That did not work. Try again.') };
-  return { ok: true, value: r.data ?? {} };
+  if (!r.ok) return { ok: false, error: pzErr(r.data, `That did not work (server answered ${r.status}${r.text ? `: ${r.text}` : ''}).`) };
+  if (!r.data) return { ok: false, error: `The server sent something odd${r.text ? `: ${r.text}` : ''}. Please tell the admin.` };
+  return { ok: true, value: r.data };
 }
 
 export interface SubmitInput {

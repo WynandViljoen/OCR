@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5a
+
+- Publishing now says **why** it failed: the message includes what the server answered (its status code and the start of its reply), and a crash inside share.php comes back as a readable "Server problem: ..." sentence instead of a blank page. This is to find out why a publish on the live site answered with "That did not work".
+
 ## Modern TIM 0.5
 
 Major release: community puzzles are complete (publishing, approval dashboard, play-testing).

@@ -407,6 +407,18 @@ function puzzle_get_api() {
 }
 
 function puzzle_post_api(array $in) {
+    // A crash must come back as a readable sentence, not an empty page.
+    @ini_set('display_errors', '0');
+    register_shutdown_function(function () {
+        $e = error_get_last();
+        if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR], true)) {
+            if (!headers_sent()) {
+                http_response_code(500);
+                header('Content-Type: application/json; charset=utf-8');
+            }
+            echo json_encode(['error' => 'Server problem: ' . substr((string) $e['message'], 0, 140) . ' (' . basename((string) $e['file']) . ':' . (int) $e['line'] . ')']);
+        }
+    });
     $action = (string) $in['action'];
     $device = $in['device'] ?? '';
     if (!valid_device($device)) fail(400, 'This browser has no id yet. Reload the game and try again.');
