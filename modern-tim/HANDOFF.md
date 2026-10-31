@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.5d: Community dialog form removed (cm-form/cm-name/cm-publish gone); saveAndPublish saves to My builds first (reuses an identical build by signature) and refuses to publish if it cannot save.
 - v0.5c: Build.puzzle (puzzle id, kept by loadBuilds, set by linkBuildPuzzle after Save and publish); puzzleTag(id) = #%04X hex, same format in admin.php; showPuzzleStates() fills .build-pz lines in My builds.
 - v0.5b: site icons (repo root favicon.ico + manifest.webmanifest, icons/*; SVG + apple-touch PNG inlined as data URIs in modern-tim/index.html head). Cron must copy favicon.ico, manifest.webmanifest, icons/ for the non-inlined ones.
 - v0.5a: pzCall returns status+text; share.php puzzle_post_api registers a shutdown handler that returns fatals as JSON. Used to debug a live-site publish failure ("That did not work").

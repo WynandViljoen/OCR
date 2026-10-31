@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.5d
+
+- The Community window no longer has its own publish form: it just says that Sandbox designs can be published as community puzzles. Publishing happens from the Sandbox (🚀 Publish puzzle, or the prompt when the ball reaches the basket).
+- **A puzzle must be saved before it is published.** Publishing first saves the board in My builds (reusing the build if it is already saved unchanged). If all 10 slots are used, or the browser will not save, nothing is sent and the window says what to do.
+
 ## Modern TIM 0.5c
 
 - **My builds shows what happened to a puzzle you sent.** A build that was sent with *Save and publish* now carries a line like "🌍 Puzzle #00A3: waiting for the admin to approve it" (or approved and live, newer version waiting, or not accepted with the reason). The same hex tag is shown in the Community window's My puzzles and on the dashboard's Puzzles page, so a build, a puzzle and a dashboard entry can be matched.

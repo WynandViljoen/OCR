@@ -2176,10 +2176,6 @@ const cmList = document.getElementById('cm-list') as HTMLElement;
 const cmMine = document.getElementById('cm-mine') as HTMLElement;
 const cmCount = document.getElementById('cm-count') as HTMLElement;
 const cmMsg = document.getElementById('cm-msg') as HTMLElement;
-const cmForm = document.getElementById('cm-form') as HTMLFormElement;
-const cmName = document.getElementById('cm-name') as HTMLInputElement;
-const cmPublish = document.getElementById('cm-publish') as HTMLButtonElement;
-const cmEditing = document.getElementById('cm-editing') as HTMLElement;
 let editingPuzzle: { id: number; title: string } | null = null;
 let withdrawAsk = 0;
 
@@ -2280,9 +2276,6 @@ async function renderCommunity() {
 function openCommunity() {
   withdrawAsk = 0;
   cmSay('');
-  cmForm.hidden = level.id !== 'sandbox';
-  cmEditing.hidden = !editingPuzzle;
-  if (editingPuzzle) cmEditing.textContent = `Editing “${editingPuzzle.title}”. Publishing sends the new version for approval; the old one stays live until then.`;
   cmEl.hidden = false;
   void renderCommunity();
 }
@@ -2311,9 +2304,8 @@ function editMyPuzzle(m: MyPuzzle) {
   parts = [...parts.filter((p) => p.locked), ...mineParts];
   changed();
   editingPuzzle = { id: m.id, title: m.title };
-  cmName.value = m.title;
   closeCommunity();
-  ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
+  ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
 
 /** Check, then send the Sandbox board as a puzzle. Returns the sentence to show, and whether it worked. */
@@ -2329,18 +2321,7 @@ async function doPublish(titleIn: string): Promise<{ ok: boolean; text: string; 
   const r = await submitPuzzle({ device: dev, creator: player, title, fixed, solution, shot: captureBoardShot(), seconds: check.seconds, id: editingPuzzle?.id });
   if (!r.ok) return { ok: false, text: r.error };
   editingPuzzle = null;
-  cmEditing.hidden = true;
-  cmName.value = '';
   return { ok: true, text: 'Sent! Your puzzle shows up for players once it has been approved.', id: Number(r.value.id) || undefined };
-}
-
-async function publishPuzzle() {
-  cmPublish.disabled = true;
-  cmSay('Sending…');
-  const r = await doPublish(cmName.value);
-  cmPublish.disabled = false;
-  cmSay(r.text, !r.ok);
-  if (r.ok) void renderCommunity();
 }
 
 // When a Sandbox puzzle is solved (a fixed ball reached a fixed basket) the run stops and we offer to save and publish it.
@@ -2373,18 +2354,34 @@ async function saveAndPublish() {
   askMsg.classList.remove('bad');
   askMsg.textContent = 'Saving and sending…';
   const name = askName.value.trim();
-  // Save the board in My builds first (skipped quietly when the 10 slots are full).
+  // A puzzle must be saved in My builds before it can be published.
   const list = loadBuilds(player);
-  const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
-  const r = await doPublish(name);
-  if (saved) {
-    // Remember on the saved build which puzzle it became, so My builds can show where it stands.
-    const added = saved[saved.length - 1];
-    saveBuilds(player, r.ok && r.id ? linkBuildPuzzle(saved, added.id, r.id) : saved);
+  const mine = exportParts();
+  const sig = (l: unknown[]) => JSON.stringify((l as { type?: string; x?: number; y?: number; angle?: number; w?: number; h?: number; flip?: boolean; fixed?: boolean }[]).map((p) => [p.type, p.x, p.y, p.angle, p.w, p.h, !!p.flip, !!p.fixed]));
+  let build = list.find((x) => sig(x.parts) === sig(mine));
+  let all = list;
+  if (!build) {
+    const added = addBuild(list, name || 'My puzzle', mine, Date.now());
+    if (!added) {
+      askYes.disabled = false;
+      askMsg.classList.add('bad');
+      askMsg.textContent = 'A puzzle must be saved first, but all 10 My builds slots are used. Delete or replace one, then publish again.';
+      return;
+    }
+    if (!saveBuilds(player, added)) {
+      askYes.disabled = false;
+      askMsg.classList.add('bad');
+      askMsg.textContent = 'Your browser would not save this build, so it cannot be published. Is private browsing on?';
+      return;
+    }
+    all = added;
+    build = added[added.length - 1];
   }
+  const r = await doPublish(name);
+  if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
-  askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;
+  askMsg.textContent = r.ok ? `Saved in My builds. ${r.text}` : r.text;
   if (r.ok) window.setTimeout(closeAsk, 2200);
 }
 
@@ -2460,10 +2457,6 @@ document.getElementById('cm-close')?.addEventListener('click', closeCommunity);
 document.getElementById('btn-more')?.addEventListener('click', openCommunity);
 document.getElementById('rate-up')?.addEventListener('click', () => castVote(1));
 document.getElementById('rate-down')?.addEventListener('click', () => castVote(-1));
-cmForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  void publishPuzzle();
-});
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !cmEl.hidden) closeCommunity();
 });

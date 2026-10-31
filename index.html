@@ -974,15 +974,7 @@ kbd {
         <ul id="cm-list" class="builds-list"></ul>
         <h3 class="cm-head">My puzzles <span id="cm-count"></span></h3>
         <ul id="cm-mine" class="builds-list"></ul>
-        <form id="cm-form" class="cm-form" novalidate hidden>
-          <p class="builds-sub">Publish what is on the Sandbox board. 📌 Fixed parts are the puzzle; every other part becomes the player&rsquo;s tray (it must solve it). The dashboard approves it before anyone sees it.</p>
-          <div class="builds-save">
-            <label class="sr-only" for="cm-name">Puzzle name</label>
-            <input id="cm-name" type="text" maxlength="28" autocomplete="off" spellcheck="false" placeholder="Name your puzzle" />
-            <button id="cm-publish" class="btn btn-go" type="submit">Publish</button>
-          </div>
-          <p id="cm-editing" class="builds-sub" hidden></p>
-        </form>
+        <p class="builds-sub cm-note">🛠️ Sandbox designs can be published as community puzzles. Build one in the Sandbox, save it, then press 🚀 Publish puzzle. The dashboard approves it before anyone sees it.</p>
         <div class="gate-actions">
           <button id="cm-close" class="btn btn-go" type="button">Close</button>
         </div>
@@ -4043,7 +4035,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5c';
+const VERSION = '0.5d';
 
 return { VERSION };
 })();
@@ -10366,10 +10358,6 @@ const cmList = document.getElementById('cm-list');
 const cmMine = document.getElementById('cm-mine');
 const cmCount = document.getElementById('cm-count');
 const cmMsg = document.getElementById('cm-msg');
-const cmForm = document.getElementById('cm-form');
-const cmName = document.getElementById('cm-name');
-const cmPublish = document.getElementById('cm-publish');
-const cmEditing = document.getElementById('cm-editing');
 let editingPuzzle = null;
 let withdrawAsk = 0;
 function cmSay(text, bad = false) {
@@ -10473,9 +10461,6 @@ async function renderCommunity() {
 function openCommunity() {
     withdrawAsk = 0;
     cmSay('');
-    cmForm.hidden = level.id !== 'sandbox';
-    cmEditing.hidden = !editingPuzzle;
-    if (editingPuzzle) cmEditing.textContent = `Editing “${editingPuzzle.title}”. Publishing sends the new version for approval; the old one stays live until then.`;
     cmEl.hidden = false;
     void renderCommunity();
 }
@@ -10512,9 +10497,8 @@ function editMyPuzzle(m) {
         id: m.id,
         title: m.title
     };
-    cmName.value = m.title;
     closeCommunity();
-    ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press Community → Publish.`);
+    ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
 async function doPublish(titleIn) {
     if (!player) return {
@@ -10552,21 +10536,11 @@ async function doPublish(titleIn) {
         text: r.error
     };
     editingPuzzle = null;
-    cmEditing.hidden = true;
-    cmName.value = '';
     return {
         ok: true,
         text: 'Sent! Your puzzle shows up for players once it has been approved.',
         id: Number(r.value.id) || undefined
     };
-}
-async function publishPuzzle() {
-    cmPublish.disabled = true;
-    cmSay('Sending…');
-    const r = await doPublish(cmName.value);
-    cmPublish.disabled = false;
-    cmSay(r.text, !r.ok);
-    if (r.ok) void renderCommunity();
 }
 const askEl = document.getElementById('pubask');
 const askName = document.getElementById('pubask-name');
@@ -10595,15 +10569,41 @@ async function saveAndPublish() {
     askMsg.textContent = 'Saving and sending…';
     const name = askName.value.trim();
     const list = loadBuilds(player);
-    const saved = addBuild(list, name || 'My puzzle', exportParts(), Date.now());
-    const r = await doPublish(name);
-    if (saved) {
-        const added = saved[saved.length - 1];
-        saveBuilds(player, r.ok && r.id ? linkBuildPuzzle(saved, added.id, r.id) : saved);
+    const mine = exportParts();
+    const sig = (l)=>JSON.stringify(l.map((p)=>[
+                p.type,
+                p.x,
+                p.y,
+                p.angle,
+                p.w,
+                p.h,
+                !!p.flip,
+                !!p.fixed
+            ]));
+    let build = list.find((x)=>sig(x.parts) === sig(mine));
+    let all = list;
+    if (!build) {
+        const added = addBuild(list, name || 'My puzzle', mine, Date.now());
+        if (!added) {
+            askYes.disabled = false;
+            askMsg.classList.add('bad');
+            askMsg.textContent = 'A puzzle must be saved first, but all 10 My builds slots are used. Delete or replace one, then publish again.';
+            return;
+        }
+        if (!saveBuilds(player, added)) {
+            askYes.disabled = false;
+            askMsg.classList.add('bad');
+            askMsg.textContent = 'Your browser would not save this build, so it cannot be published. Is private browsing on?';
+            return;
+        }
+        all = added;
+        build = added[added.length - 1];
     }
+    const r = await doPublish(name);
+    if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);
-    askMsg.textContent = r.ok ? `${saved ? 'Saved in My builds. ' : ''}${r.text}` : r.text;
+    askMsg.textContent = r.ok ? `Saved in My builds. ${r.text}` : r.text;
     if (r.ok) window.setTimeout(closeAsk, 2200);
 }
 document.getElementById('btn-publish')?.addEventListener('click', ()=>{
@@ -10673,10 +10673,6 @@ document.getElementById('cm-close')?.addEventListener('click', closeCommunity);
 document.getElementById('btn-more')?.addEventListener('click', openCommunity);
 document.getElementById('rate-up')?.addEventListener('click', ()=>castVote(1));
 document.getElementById('rate-down')?.addEventListener('click', ()=>castVote(-1));
-cmForm.addEventListener('submit', (e)=>{
-    e.preventDefault();
-    void publishPuzzle();
-});
 document.addEventListener('keydown', (e)=>{
     if (e.key === 'Escape' && !cmEl.hidden) closeCommunity();
 });
