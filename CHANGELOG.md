@@ -1,5 +1,10 @@
 # Changelog
 
+## Modern TIM 0.5k
+
+- **"Newer changes not sent yet" warning.** A build that was sent as a puzzle remembers exactly what was sent. If you later change and save the build, its line in My builds adds "⚠ newer changes not sent yet. Load it and press 🚀 Publish puzzle to send them." Changing the board brings the Publish button back; putting the board back as it was hides it and clears the warning.
+- Fixed: editing one of your puzzles from Community → My puzzles now keeps using the build it came from, so saving no longer collides with that build's own name (a side effect of the 0.5j name rule).
+
 ## Modern TIM 0.5j
 
 - **No duplicate build names.** My builds, the Sandbox name box and renaming all refuse a name another build already has (capitals do not matter) and say so. Builds that already share a name are left alone; rename one when you like.

@@ -4044,7 +4044,7 @@ return { basketWithFunnel, LEVELS, levelToParts, describePreset, withPreset, sol
 
 // ---- game/version.ts ----
 const { VERSION } = (() => {
-const VERSION = '0.5j';
+const VERSION = '0.5k';
 
 return { VERSION };
 })();
@@ -5739,7 +5739,7 @@ return { ENDPOINT, PENDING_KEY, fetchRevs, checkPreview, scrubPending, fetchStar
 })();
 
 // ---- game/builds.ts ----
-const { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, nameTaken, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl } = (() => {
+const { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, nameTaken, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, sigHash, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl } = (() => {
 const MAX_BUILDS = 10;
 const MAX_BUILD_NAME = 24;
 const MAX_PARTS = 300;
@@ -5792,6 +5792,9 @@ function loadBuilds(player, store = browserStore()) {
                 parts: b.parts,
                 ...typeof b.puzzle === 'number' && Number.isInteger(b.puzzle) && b.puzzle > 0 ? {
                     puzzle: b.puzzle
+                } : {},
+                ...typeof b.sent === 'string' && b.sent.length <= 16 ? {
+                    sent: b.sent
                 } : {}
             });
         }
@@ -5828,11 +5831,19 @@ function addBuild(builds, name, parts, now) {
         }
     ];
 }
-function linkBuildPuzzle(builds, id, puzzle) {
+function linkBuildPuzzle(builds, id, puzzle, sent) {
     return builds.map((x)=>x.id === id ? {
             ...x,
-            puzzle
+            puzzle,
+            ...sent ? {
+                sent
+            } : {}
         } : x);
+}
+function sigHash(text) {
+    let h = 5381;
+    for(let i = 0; i < text.length; i++)h = (h * 33 ^ text.charCodeAt(i)) >>> 0;
+    return h.toString(36);
 }
 function replaceBuild(builds, id, parts, now) {
     return builds.map((b)=>b.id === id ? {
@@ -5937,7 +5948,7 @@ function shareUrl(code, loc) {
     return `${loc.origin}${loc.pathname}?s=${code}`;
 }
 
-return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, nameTaken, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
+return { MAX_BUILDS, MAX_BUILD_NAME, MAX_PARTS, SHARE_ENDPOINT, SHARE_CODE, buildsKey, cleanBuildName, defaultBuildName, nameTaken, loadBuilds, saveBuilds, newBuildId, addBuild, linkBuildPuzzle, sigHash, replaceBuild, renameBuild, deleteBuild, shareBuild, fetchShared, shareCodeFromSearch, shareUrl };
 })();
 
 // ---- game/puzzles.ts ----
@@ -10134,7 +10145,7 @@ const designSig = (l)=>JSON.stringify(l.map((p)=>[
         ]));
 function designSubmitted() {
     const b = loadBuilds(player).find((x)=>x.id === sandboxBuildId);
-    return !!b && !!b.puzzle && designSig(b.parts) === designSig(exportParts());
+    return !!b && !!b.puzzle && sigHash(designSig(exportParts())) === (b.sent ?? sigHash(designSig(b.parts)));
 }
 function refreshSandboxState() {
     const pub = document.getElementById('btn-publish');
@@ -10441,7 +10452,9 @@ async function showPuzzleStates() {
             refreshSandboxState();
         }
         const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
-        el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
+        const mineBuild = buildList.find((x)=>x.id === buildIdOf(el));
+        const stale = !!mineBuild && sigHash(designSig(mineBuild.parts)) !== (mineBuild.sent ?? sigHash(designSig(mineBuild.parts)));
+        el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}${stale && !!p ? ' · ⚠ newer changes not sent yet. Load it and press 🚀 Publish puzzle to send them.' : ''}`;
         el.classList.toggle('bad', !!p && p.status === 'rejected');
     }
 }
@@ -10673,7 +10686,8 @@ function editMyPuzzle(m) {
         id: m.id,
         title: m.title
     };
-    setSandboxDesign(m.title, '');
+    const own = loadBuilds(player).find((x)=>x.puzzle === m.id);
+    setSandboxDesign(own?.name ?? m.title, own?.id ?? '');
     closeCommunity();
     ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
@@ -10759,8 +10773,9 @@ async function saveAndPublish() {
     }
     const all = loadBuilds(player);
     const build = all.find((x)=>x.id === sandboxBuildId);
+    const sentSig = sigHash(designSig(exportParts()));
     const r = await doPublish(name, build.puzzle);
-    if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
+    if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id, sentSig));
     if (r.ok) refreshSandboxState();
     askYes.disabled = false;
     askMsg.classList.toggle('bad', !r.ok);

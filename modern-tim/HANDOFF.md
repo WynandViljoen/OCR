@@ -6,6 +6,7 @@ Where the project stands, so a new chat can pick up exactly here.
 A browser physics puzzle game in the spirit of *The Incredible Machine*, aimed at STEM kids (about 8 to 13).
 Vite + TypeScript + Matter.js 0.20, plain HTML/CSS, custom canvas rendering. Each level teaches one idea.
 
+- v0.5k: Build.sent (sigHash of designSig at publish) drives designSubmitted() and the stale warning in showPuzzleStates(); editMyPuzzle reuses the linked build.
 - v0.5j: builds.ts nameTaken(); addBuild returns null / renameBuild is a no-op for a taken name; main.ts checks first to show a message (Save current, rename, saveSandboxDesign). Bundle note: imports are stripped, so never alias imports (`as`) in main.ts.
 - v0.5i: share.php withdraw returns distinct errors (404 missing / 403 other device with id suffixes). Added to chase a live "That puzzle is not yours" on a rejected puzzle that is listed in My puzzles; could not reproduce locally (admin reject -> user Remove works).
 - v0.5h: pubask success message is "Done! Awaiting admin approval.", no auto close, Save and publish hidden, Not now -> Close.

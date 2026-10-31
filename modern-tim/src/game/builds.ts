@@ -21,6 +21,8 @@ export interface Build {
   parts: unknown[];
   /** The community puzzle this build was sent in as (see puzzles.ts), if any. */
   puzzle?: number;
+  /** Fingerprint of the parts that were sent for that puzzle (so a later change can be flagged). */
+  sent?: string;
 }
 
 export interface StoreLike {
@@ -78,7 +80,7 @@ export function loadBuilds(player: string, store: StoreLike | null = browserStor
       const name = cleanBuildName(typeof b.name === 'string' ? b.name : '');
       if (typeof b.id !== 'string' || !b.id || seen.has(b.id) || !name || !Array.isArray(b.parts) || b.parts.length > MAX_PARTS) continue;
       seen.add(b.id);
-      out.push({ id: b.id.slice(0, 40), name, savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0, parts: b.parts, ...(typeof b.puzzle === 'number' && Number.isInteger(b.puzzle) && b.puzzle > 0 ? { puzzle: b.puzzle } : {}) });
+      out.push({ id: b.id.slice(0, 40), name, savedAt: typeof b.savedAt === 'number' && Number.isFinite(b.savedAt) ? b.savedAt : 0, parts: b.parts, ...(typeof b.puzzle === 'number' && Number.isInteger(b.puzzle) && b.puzzle > 0 ? { puzzle: b.puzzle } : {}), ...(typeof b.sent === 'string' && b.sent.length <= 16 ? { sent: b.sent } : {}) });
     }
     return out;
   } catch {
@@ -112,8 +114,15 @@ export function addBuild(builds: Build[], name: string, parts: unknown[], now: n
 }
 
 /** Remember which community puzzle a build was sent in as. */
-export function linkBuildPuzzle(builds: Build[], id: string, puzzle: number): Build[] {
-  return builds.map((x) => (x.id === id ? { ...x, puzzle } : x));
+export function linkBuildPuzzle(builds: Build[], id: string, puzzle: number, sent?: string): Build[] {
+  return builds.map((x) => (x.id === id ? { ...x, puzzle, ...(sent ? { sent } : {}) } : x));
+}
+
+/** A short fingerprint of a text (not secret, just to compare boards). */
+export function sigHash(text: string): string {
+  let h = 5381;
+  for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0;
+  return h.toString(36);
 }
 
 /** Keep the save's name, put the current parts into it. */

@@ -22,7 +22,7 @@ import { MAX_PUZZLES, puzzleTag, checkPuzzle, completePuzzle, getPuzzle, listPuz
 import { isMuted, playSound, setMuted } from './game/sound';
 import { burst } from './game/confetti';
 import { CATEGORIES, CATEGORY_INFO, holdsBest, scrubChangedLevels } from './game/profile';
-import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, linkBuildPuzzle, nameTaken, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, cleanBuildName, type Build, type SharedBuild } from './game/builds';
+import { MAX_BUILDS, MAX_PARTS, addBuild, deleteBuild, fetchShared, loadBuilds, renameBuild, replaceBuild, linkBuildPuzzle, nameTaken, sigHash, saveBuilds, shareBuild, shareCodeFromSearch, shareUrl, defaultBuildName, cleanBuildName, type Build, type SharedBuild } from './game/builds';
 import { applyLevelSet, currentSet, rememberSet, rememberedSet } from './game/seasons';
 import { checkPreview, fetchCommunity, fetchRevs, fetchStars, flushPending, scrubPending, syncLocalBests, loadPending, mayBreakRecord, savePending, trySubmit, type Submission } from './game/community';
 import {
@@ -1895,7 +1895,7 @@ const designSig = (l: unknown[]) => JSON.stringify((l as { type?: string; x?: nu
 /** True when this design was already sent as a puzzle and the board has not changed since: nothing more to publish. */
 function designSubmitted(): boolean {
   const b = loadBuilds(player).find((x) => x.id === sandboxBuildId);
-  return !!b && !!b.puzzle && designSig(b.parts) === designSig(exportParts());
+  return !!b && !!b.puzzle && sigHash(designSig(exportParts())) === (b.sent ?? sigHash(designSig(b.parts)));
 }
 
 function refreshSandboxState() {
@@ -2217,7 +2217,9 @@ async function showPuzzleStates() {
       refreshSandboxState();
     }
     const what = !r.ok ? 'cannot check right now' : !p ? 'no longer on the server' : p.status === 'pending' ? 'waiting for the admin to approve it' : p.status === 'live' ? 'approved and live' : p.status === 'live-edit' ? 'live, your newer version is waiting for approval' : `not accepted${p.reason ? `: ${p.reason}` : ''}`;
-    el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}`;
+    const mineBuild = buildList.find((x) => x.id === buildIdOf(el));
+    const stale = !!mineBuild && sigHash(designSig(mineBuild.parts)) !== (mineBuild.sent ?? sigHash(designSig(mineBuild.parts)));
+    el.textContent = `🌍 Puzzle ${puzzleTag(id)}: ${what}${stale && !!p ? ' · ⚠ newer changes not sent yet. Load it and press 🚀 Publish puzzle to send them.' : ''}`;
     el.classList.toggle('bad', !!p && p.status === 'rejected');
   }
 }
@@ -2437,7 +2439,9 @@ function editMyPuzzle(m: MyPuzzle) {
   parts = [...parts.filter((p) => p.locked), ...mineParts];
   changed();
   editingPuzzle = { id: m.id, title: m.title };
-  setSandboxDesign(m.title, '');
+  // Keep using the build this puzzle came from (if it still exists), so saving does not clash with its own name.
+  const own = loadBuilds(player).find((x) => x.puzzle === m.id);
+  setSandboxDesign(own?.name ?? m.title, own?.id ?? '');
   closeCommunity();
   ui.toast(`“${m.title}” is on the Sandbox board. Change it, then press 🚀 Publish puzzle.`);
 }
@@ -2504,8 +2508,9 @@ async function saveAndPublish() {
   }
   const all = loadBuilds(player);
   const build = all.find((x) => x.id === sandboxBuildId)!;
+  const sentSig = sigHash(designSig(exportParts()));
   const r = await doPublish(name, build.puzzle);
-  if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id));
+  if (r.ok && r.id) saveBuilds(player, linkBuildPuzzle(all, build.id, r.id, sentSig));
   if (r.ok) refreshSandboxState();
   askYes.disabled = false;
   askMsg.classList.toggle('bad', !r.ok);
