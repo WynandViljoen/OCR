@@ -1,5 +1,9 @@
 # Changelog
 
+## Modern TIM 0.5l
+
+- **Admin auto-refresh fixed.** The old refresh was a page tag that browsers pause in background tabs, so the page could sit for minutes with "Auto-refresh: on". It is now a small script: it reloads every 30 seconds while the tab is showing, catches up the moment you come back to the tab, and never reloads while you are typing in a box (a rejection reason is no longer wiped).
+
 ## Modern TIM 0.5k
 
 - **"Newer changes not sent yet" warning.** A build that was sent as a puzzle remembers exactly what was sent. If you later change and save the build, its line in My builds adds "⚠ newer changes not sent yet. Load it and press 🚀 Publish puzzle to send them." Changing the board brings the Publish button back; putting the board back as it was hides it and clears the warning.

@@ -32,7 +32,7 @@ const SEASON_SETS = ['2026-11' => 'nov'];
 const DISPLAY_TZ = 'America/Vancouver';
 /** Shown on the login page so you can tell which copy of this file the server is running. */
 // Keep this equal to VERSION in modern-tim/src/game/version.ts (npm run check-versions fails when they differ).
-const ADMIN_BUILD = '0.5k';
+const ADMIN_BUILD = '0.5l';
 const PUZZLE_FILE = DATA_DIR . '/puzzles.json';
 const PUZZLE_SHOT_DIR = DATA_DIR . '/puzzle-shots';
 const ONLINE_SECONDS = 300;
@@ -365,9 +365,6 @@ function page_head(string $title, bool $refresh = false) {
     $GLOBALS['tim_nonce'] = bin2hex(random_bytes(12));
     header("Content-Security-Policy: default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'nonce-" . $GLOBALS['tim_nonce'] . "'; form-action 'self'; frame-ancestors 'none'");
     echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">';
-    if ($refresh) {
-        echo '<meta http-equiv="refresh" content="30">';
-    }
     echo '<title>' . h($title) . '</title><style>
 :root{--bg:#f6f7fb;--card:#fff;--ink:#1d2433;--mute:#667085;--line:#e3e6ee;--acc:#2f6fed;--ok:#1a9d5b;--bad:#d63f3f}
 @media(prefers-color-scheme:dark){:root{--bg:#12151c;--card:#1b2030;--ink:#e8ebf3;--mute:#9aa3b5;--line:#2c3348;--acc:#6b9bff;--ok:#43c88a;--bad:#ff7a7a}}
@@ -390,6 +387,11 @@ input[type=password],input[type=text],select{padding:7px 10px;border-radius:8px;
 .login{max-width:340px;margin:12vh auto;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
 .err{color:var(--bad)}form.inline{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
 </style></head><body>';
+    if ($refresh) {
+        // Reload every 30 seconds, but catch up when the tab comes back to the front (browsers pause background
+        // timers), and never while someone is typing in a box (a rejection reason would be lost).
+        echo '<script nonce="' . $GLOBALS['tim_nonce'] . '">(function(){var t=Date.now();function busy(){var a=document.activeElement;if(a&&(a.tagName==="INPUT"||a.tagName==="SELECT"||a.tagName==="TEXTAREA"))return true;var i=document.querySelectorAll("input[type=text]");for(var k=0;k<i.length;k++){if(i[k].value)return true;}return false;}function go(){if(document.hidden||busy()||Date.now()-t<30000)return;location.reload();}setInterval(go,4000);document.addEventListener("visibilitychange",go);window.addEventListener("focus",go);})();</script>';
+    }
 }
 
 function login_page(string $msg) {
